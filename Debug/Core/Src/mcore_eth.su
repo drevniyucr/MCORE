@@ -1,0 +1,10 @@
+../Core/Src/mcore_eth.cpp:145:6:void ETH_RxDescInit()	4	static
+../Core/Src/mcore_eth.cpp:161:6:void ETH_TxDescInit()	4	static
+../Core/Src/mcore_eth.cpp:178:17:void ETH_IRQHandler()	0	static
+../Core/Src/mcore_eth.cpp:199:6:void ETH_RxWorker()	8	static,ignoring_inline_asm
+../Core/Src/mcore_eth.cpp:239:6:void ETH_SendFrame(uint32_t)	0	static,ignoring_inline_asm
+../Core/Src/mcore_eth.cpp:288:6:void PHY_SetMDIOClock()	0	static
+../Core/Src/mcore_eth.cpp:312:6:void PHY_Read(uint32_t, uint32_t, uint32_t*)	16	static
+../Core/Src/mcore_eth.cpp:335:6:void PHY_Write(uint32_t, uint32_t, uint32_t)	16	static
+../Core/Src/mcore_eth.cpp:252:6:void PHY_Init()	24	static
+../Core/Src/mcore_eth.cpp:27:6:void ETH_Init()	24	static

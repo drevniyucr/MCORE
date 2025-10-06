@@ -1,0 +1,12 @@
+../Core/Src/mcore_tcp.cpp:430:1:void __static_initialization_and_destruction_0()	0	static
+../Core/Src/mcore_tcp.cpp:25:6:void NET_TCP_Init()	8	static
+../Core/Src/mcore_tcp.cpp:35:5:int NET_TCP_ClientAdd()	0	static
+../Core/Src/mcore_tcp.cpp:44:6:void NET_TCP_ClientRemove(uint8_t)	8	static
+../Core/Src/mcore_tcp.cpp:61:6:void NET_SendTCP_RST(ipv4_frame*, uint16_t, uint16_t, uint32_t, uint32_t, uint8_t)	48	static
+../Core/Src/mcore_tcp.cpp:93:6:void NET_SendRetransmitTCP(tcp_conn_t*)	32	static
+../Core/Src/mcore_tcp.cpp:116:6:void NET_SendTCP(tcp_conn_t*, uint32_t, uint32_t, uint8_t, uint8_t, const uint8_t*, uint16_t)	56	static
+../Core/Src/mcore_tcp.cpp:165:6:void NET_TCP_Timers()	32	static
+../Core/Src/mcore_tcp.cpp:208:6:void NET_ProcessTCP(ipv4_frame*)	64	static
+../Core/Src/mcore_tcp.cpp:410:6:void NET_TCP_Close(tcp_conn_t*)	24	static
+../Core/Src/mcore_tcp.cpp:418:5:int NET_TCP_SendUser(tcp_conn_t*, const uint8_t*, uint16_t)	32	static
+../Core/Src/mcore_tcp.cpp:430:1:cpp)	8	static
