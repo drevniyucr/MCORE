@@ -65,12 +65,25 @@ int main(void) {
 	ETH_Init();
 	TIM2_Init();
 	TIM3_Init();
+<<<<<<< HEAD
 	uint32_t tickstart = get_tick();
 	while (1) {
 		ETH_RxWorker();
 		if ((get_tick() - tickstart) > 400) {
 			NET_SendUDP(UDPframe);
 			tickstart = get_tick();
+=======
+	NET_TCP_Init();
+	uint32_t tickstart = get_tick();
+	while (1) {
+		ETH_RxWorker();
+		if ((get_tick() - tickstart) > 25000) {
+			tickstart = get_tick();
+			if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
+			NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
+			//NET_SendUDP(UDPframe);
+			}
+>>>>>>> 7688bfa (update)
 		}
 	}
 }
