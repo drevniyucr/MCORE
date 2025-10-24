@@ -1,2 +1,0 @@
-../Core/Src/mcore_gpio.cpp:7:6:void GPIO::GPIO_ConfigPin(GPIO_Config, uint8_t)	24	static
-../Core/Src/mcore_gpio.cpp:54:6:void GPIO::GPIO_ConfigGroupPin(GPIO_Config, uint32_t)	32	static

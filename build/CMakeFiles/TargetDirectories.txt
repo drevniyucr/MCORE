@@ -1,4 +1,0 @@
-C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/MCORE.dir
-C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/MCORE_always_display_size.dir
-C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/edit_cache.dir
-C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/rebuild_cache.dir

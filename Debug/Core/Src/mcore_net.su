@@ -1,8 +1,0 @@
-../Core/Src/mcore_net.cpp:262:1:void __static_initialization_and_destruction_0()	24	static
-../Core/Src/mcore_net.cpp:136:6:void NET_SendICMP_Unreachable(ipv4_frame*)	24	static
-../Core/Src/mcore_net.cpp:127:6:void NET_ProcessUDP(ipv4_frame*)	8	static
-../Core/Src/mcore_net.cpp:168:6:void NET_SendUDP(UDP_SendFrameStruct)	40	static
-../Core/Src/mcore_net.cpp:203:6:void NET_ProcessICMP(ipv4_frame*)	24	static
-../Core/Src/mcore_net.cpp:240:6:void NET_ProcessARP(ipv4_frame*)	24	static
-../Core/Src/mcore_net.cpp:71:6:void NET_ProcessRx(ETH_RxDescListStruct*, ETH_TxDescListStruct*)	48	static
-../Core/Src/mcore_net.cpp:262:1:cpp)	8	static
