@@ -38,6 +38,9 @@ file(GLOB_RECURSE PROJECT_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/Startup/*.s"
 )
 
+# Exclude legacy mcore_gpio implementation (we provide new C++ driver under drivers/gpio)
+list(REMOVE_ITEM PROJECT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/mcore_gpio.cpp")
+
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 
 # Use local CMSIS headers from Drivers/CMSIS
@@ -56,6 +59,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 ${CMAKE_CURRENT_SOURCE_DIR}
 ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc 
 ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src
+${CMAKE_CURRENT_SOURCE_DIR}/drivers/gpio/include
 )
 
 # Link required libraries
