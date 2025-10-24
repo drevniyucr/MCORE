@@ -69,7 +69,7 @@ int main(void) {
 	uint32_t tickstart = get_tick();
 	while (1) {
 		ETH_RxWorker();
-		if ((get_tick() - tickstart) > 25000) {
+		if ((get_tick() - tickstart) > 5000) {
 			tickstart = get_tick();
 			if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
 			NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));

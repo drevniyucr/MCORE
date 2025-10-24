@@ -1,0 +1,415 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "MCORE.elf"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"target_link_options",
+			"target_link_libraries",
+			"target_compile_options",
+			"target_include_directories"
+		],
+		"files" : 
+		[
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 41,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 53,
+				"parent" : 0
+			},
+			{
+				"command" : 2,
+				"file" : 0,
+				"line" : 62,
+				"parent" : 0
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 71,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 44,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 55,
+				"parent" : 0
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : " -mthumb -mcpu=cortex-m7 -mfpu=fpv5-sp-d16 -mfloat-abi=hard -Wall -ffunction-sections -fdata-sections -g"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-DSTM32F767xx"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-fno-exceptions"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-fno-rtti"
+				},
+				{
+					"backtrace" : 3,
+					"fragment" : "--specs=nano.specs"
+				},
+				{
+					"backtrace" : 3,
+					"fragment" : "--specs=nosys.specs"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 5,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Drivers/CMSIS/Include"
+				},
+				{
+					"backtrace" : 5,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Drivers/CMSIS/Device/ST/STM32F7xx/Include"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Src"
+				}
+			],
+			"language" : "CXX",
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8
+			],
+			"sysroot" : 
+			{
+				"path" : "C:/Users/AkimovMA/scoop/apps/gcc-arm-none-eabi/current/arm-none-eabi"
+			}
+		},
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : " -mthumb -mcpu=cortex-m7 -mfpu=fpv5-sp-d16 -mfloat-abi=hard -Wall -ffunction-sections -fdata-sections -g"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-DSTM32F767xx"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-fno-exceptions"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-fno-rtti"
+				},
+				{
+					"backtrace" : 3,
+					"fragment" : "--specs=nano.specs"
+				},
+				{
+					"backtrace" : 3,
+					"fragment" : "--specs=nosys.specs"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 5,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Drivers/CMSIS/Include"
+				},
+				{
+					"backtrace" : 5,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Drivers/CMSIS/Device/ST/STM32F7xx/Include"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Src"
+				}
+			],
+			"language" : "C",
+			"sourceIndexes" : 
+			[
+				9,
+				10,
+				11,
+				12
+			],
+			"sysroot" : 
+			{
+				"path" : "C:/Users/AkimovMA/scoop/apps/gcc-arm-none-eabi/current/arm-none-eabi"
+			}
+		},
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : " -mthumb -mcpu=cortex-m7 -mfpu=fpv5-sp-d16 -mfloat-abi=hard -g"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-DSTM32F767xx"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-fno-exceptions"
+				},
+				{
+					"backtrace" : 4,
+					"fragment" : "-fno-rtti"
+				},
+				{
+					"backtrace" : 3,
+					"fragment" : "--specs=nano.specs"
+				},
+				{
+					"backtrace" : 3,
+					"fragment" : "--specs=nosys.specs"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 5,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Drivers/CMSIS/Include"
+				},
+				{
+					"backtrace" : 5,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Drivers/CMSIS/Device/ST/STM32F7xx/Include"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Src"
+				}
+			],
+			"language" : "ASM",
+			"sourceIndexes" : 
+			[
+				13
+			],
+			"sysroot" : 
+			{
+				"path" : "C:/Users/AkimovMA/scoop/apps/gcc-arm-none-eabi/current/arm-none-eabi"
+			}
+		}
+	],
+	"id" : "MCORE::@6890427a1f51a3e7e1df",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "-mthumb -mcpu=cortex-m7 -mfpu=fpv5-sp-d16 -mfloat-abi=hard -Wall -ffunction-sections -fdata-sections -g",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-TC:/Users/AkimovMA/Documents/GitHub/MCORE/STM32F767ZITX_FLASH.ld",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 3,
+				"fragment" : "--specs=nano.specs",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 3,
+				"fragment" : "--specs=nosys.specs",
+				"role" : "flags"
+			}
+		],
+		"language" : "CXX",
+		"sysroot" : 
+		{
+			"path" : "C:/Users/AkimovMA/scoop/apps/gcc-arm-none-eabi/current/arm-none-eabi"
+		}
+	},
+	"name" : "MCORE",
+	"nameOnDisk" : "MCORE.elf",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8,
+				9,
+				10,
+				11,
+				12
+			]
+		},
+		{
+			"name" : "",
+			"sourceIndexes" : 
+			[
+				13
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/main.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_eth.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_eth_utils.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_gpio.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_mpu.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_net.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_rcc.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_system.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/mcore_tcp.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 1,
+			"path" : "Core/Src/stm32f7xx_it.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 1,
+			"path" : "Core/Src/syscalls.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 1,
+			"path" : "Core/Src/sysmem.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 1,
+			"path" : "Core/Src/system_stm32f7xx.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 2,
+			"path" : "Core/Startup/startup_stm32f767zitx.s",
+			"sourceGroupIndex" : 1
+		}
+	],
+	"type" : "EXECUTABLE"
+}

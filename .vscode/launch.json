@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Cortex Debug ST-Util",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "stlink",
+            "cwd": "${workspaceRoot}",
+            "executable": "${workspaceRoot}/build/${workspaceFolderBasename}.elf",
+            "preLaunchTask": "CMake: build",
+            "preRestartCommands": [
+                "load",
+                "enable breakpoint",
+                "monitor reset"
+            ],
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "raw",
+            "device": "STM32F767", /* #update this field with CMake */
+            "svdFile": "${workspaceRoot}/build/_deps/SVD/STM32F7x7.svd", /* #update this field with CMake */
+        }
+    ]
+}

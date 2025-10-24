@@ -92,8 +92,8 @@ all: main-build
 main-build: mcore.elf secondary-outputs
 
 # Tool invocations
-mcore.elf mcore.map: $(OBJS) $(USER_OBJS) C:\Users\doomt\Desktop\mcore\STM32F767ZITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-g++ -o "mcore.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\doomt\Desktop\mcore\STM32F767ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="mcore.map" -Wl,--cref -Wl,--gc-sections -Wl,--verbose -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -lstdc++ -lsupc++ -Wl,--end-group
+mcore.elf mcore.map: $(OBJS) $(USER_OBJS) C:\Users\AkimovMA\Documents\GitHub\MCORE\STM32F767ZITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-g++ -o "mcore.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\AkimovMA\Documents\GitHub\MCORE\STM32F767ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="mcore.map" -Wl,--cref -Wl,--gc-sections -Wl,--verbose -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -lstdc++ -lsupc++ -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

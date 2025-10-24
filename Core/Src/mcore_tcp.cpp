@@ -101,7 +101,7 @@ void NET_SendRetransmitTCP(tcp_conn_t *conn) {
 	// Ethernet
 	memcpy(eth->dst, conn->client_mac, MAC_ADDR_LEN);
 	// IP
-	ip->tot_len = bswap16(IP_HDR_LEN + TCP_HDR_LEN + conn->soc_tx_buff_pos);
+	ip->tot_len = bswap16(IP_HDR_LEN + conn->soc_tx_buff_pos);
 	ip->dst_ip = bswap32(conn->client_ip);
 	ip->checksum = bswap16(
 			checksum(reinterpret_cast<uint8_t*>(ip), IP_HDR_LEN));
@@ -179,6 +179,8 @@ void NET_TCP_Timers(void) {
 				conn->retransmit_timer = get_tick();
 				conn->retransmit_count++;
 			} else {
+				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
+								TCP_RST, NOT_SAVE_FOR_RETRANSMIT, NULL, 0);
 				NET_TCP_ClientRemove(idx);
 				continue;
 			}
@@ -190,7 +192,8 @@ void NET_TCP_Timers(void) {
 			if ((get_tick() - conn->last_keepalive) >= TCP_KEEPALIVE_INTERVAL) {
 
 				if (conn->keep_alive_count >= TCP_KEEPALIVE_MAX_COUNT) {
-
+					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
+												TCP_RST, NOT_SAVE_FOR_RETRANSMIT, NULL, 0);
 					NET_TCP_ClientRemove(idx);
 					continue;
 				}
@@ -301,73 +304,76 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		if ((client_flags & TCP_SYN) && client_seq + 1 == conn->rcv_next)
 			NET_SendRetransmitTCP(conn);
 
-	break;
+		break;
 
 	case tcp_state_t::TCP_ESTABLISHED:
 
-	conn->last_activity = get_tick();
-	conn->keep_alive_count = 0;
+		conn->last_activity = get_tick();
+		conn->keep_alive_count = 0;
 
-	if ((client_ack <= conn->tcp_my_seq) && (client_seq == conn->rcv_next)) {
+		if ((client_ack <= conn->tcp_my_seq)
+				&& (client_seq == conn->rcv_next)) {
 
-		if (client_flags & TCP_FIN) {
-			//если получили FIN закрывыем соединение graceful close
-			conn->rcv_next += 1;
-			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-			TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, NULL, 0);
-
-			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-			TCP_FIN | TCP_ACK, SAVE_FOR_RETRANSMIT, NULL, 0);
-			// FIN тоже занимает 1 байт
-			conn->tcp_my_seq += 1;
-			//ждем финальный ACK
-
-			conn->state = tcp_state_t::TCP_LAST_ACK;
-
-		} else if (client_flags & TCP_ACK) {
-
-			if (client_ack > conn->snd_unack)
-				conn->snd_unack = client_ack;
-
-			conn->soc_tx_buff_pos = 0;
-			conn->retransmit_timer = 0;
-			conn->retransmit_count = 0;
-			// считаем data len и отправляем ACK + сохраняем в буффер(потом)
-			uint16_t hdr_len = (tcp->offset_reserved >> 4) * 4;
-			uint16_t data_len = (uint16_t)(frame->ip_len - frame->ip_hdr_len - hdr_len);
-
-			if (data_len > 0) {
-
-				uint8_t *payload = (uint8_t*) tcp + hdr_len;
-
-				uint16_t free_space = SOCKET_RX_BUFF_LEN
-						- conn->soc_rx_buff_pos;
-
-				uint16_t copy_len =
-						(data_len <= free_space) ? data_len : free_space;
-
-				memcpy(&conn->socket_rx_buff[conn->soc_rx_buff_pos], payload,
-						copy_len);
-
-				conn->soc_rx_buff_pos += copy_len;
-				conn->rcv_next += copy_len;
-				// Обновляем окно
-				conn->window_size = SOCKET_RX_BUFF_LEN - conn->soc_rx_buff_pos;
-
+			if (client_flags & TCP_FIN) {
+				//если получили FIN закрывыем соединение graceful close
+				conn->rcv_next += 1;
 				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
 				TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, NULL, 0);
+
+				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
+				TCP_FIN | TCP_ACK, SAVE_FOR_RETRANSMIT, NULL, 0);
+				// FIN тоже занимает 1 байт
+				conn->tcp_my_seq += 1;
+				//ждем финальный ACK
+
+				conn->state = tcp_state_t::TCP_LAST_ACK;
+
+			} else if (client_flags & TCP_ACK) {
+
+				if (client_ack > conn->snd_unack)
+					conn->snd_unack = client_ack;
+
+				conn->soc_tx_buff_pos = 0;
+				conn->retransmit_timer = 0;
+				conn->retransmit_count = 0;
+				// считаем data len и отправляем ACK + сохраняем в буффер(потом)
+				uint16_t hdr_len = (tcp->offset_reserved >> 4) * 4;
+				uint16_t data_len = (uint16_t) (frame->ip_len
+						- frame->ip_hdr_len - hdr_len);
+
+				if (data_len > 0) {
+
+					uint8_t *payload = (uint8_t*) tcp + hdr_len;
+
+					uint16_t free_space = SOCKET_RX_BUFF_LEN
+							- conn->soc_rx_buff_pos;
+
+					uint16_t copy_len =
+							(data_len <= free_space) ? data_len : free_space;
+
+					memcpy(&conn->socket_rx_buff[conn->soc_rx_buff_pos],
+							payload, copy_len);
+
+					conn->soc_rx_buff_pos += copy_len;
+					conn->rcv_next += copy_len;
+					// Обновляем окно
+					conn->window_size = SOCKET_RX_BUFF_LEN
+							- conn->soc_rx_buff_pos;
+
+					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
+					TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, NULL, 0);
+				}
 			}
 		}
-	}
 
-	break;
+		break;
 
 	case tcp_state_t::TCP_FIN_WAIT_1:
 
 		if ((client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq)) {
 			conn->last_activity = get_tick();
 			conn->keep_alive_count = 0;
-			conn->soc_tx_buff_pos  = 0;
+			conn->soc_tx_buff_pos = 0;
 			conn->retransmit_timer = 0;
 			conn->retransmit_count = 0;
 
@@ -381,51 +387,53 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 			conn->state = tcp_state_t::TCP_FIN_WAIT_2;
 		}
 
-	break;
+		break;
 
 	case tcp_state_t::TCP_FIN_WAIT_2:
 
-	if ((client_flags & TCP_FIN) && (client_seq == conn->rcv_next)) {
-		conn->rcv_next += 1;
-		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
-		NOT_SAVE_FOR_RETRANSMIT, NULL, 0);
-		NET_TCP_ClientRemove(conn->socket_tag);
-		return;
-	}
-	break;
+		if ((client_flags & TCP_FIN) && (client_seq == conn->rcv_next)) {
+			conn->rcv_next += 1;
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
+			NOT_SAVE_FOR_RETRANSMIT, NULL, 0);
+			NET_TCP_ClientRemove(conn->socket_tag);
+			return;
+		}
+		break;
 
 	case tcp_state_t::TCP_LAST_ACK:
-	if ((client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq)
-			&& (client_seq == conn->rcv_next)) {
-		NET_TCP_ClientRemove(conn->socket_tag);
-		return;
-	}
-	break;
+		if ((client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq)
+				&& (client_seq == conn->rcv_next)) {
+			NET_TCP_ClientRemove(conn->socket_tag);
+			return;
+		}
+		break;
 
 	default:
-	break;
-}
+		break;
+	}
 }
 
 void NET_TCP_Close(tcp_conn_t *conn) {
-if (conn->state == tcp_state_t::TCP_ESTABLISHED) {
-	NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_FIN,
-	SAVE_FOR_RETRANSMIT, NULL, 0);
-	conn->state = tcp_state_t::TCP_FIN_WAIT_1;
-}
+	if (conn->state == tcp_state_t::TCP_ESTABLISHED) {
+		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_FIN,
+		SAVE_FOR_RETRANSMIT, NULL, 0);
+		conn->state = tcp_state_t::TCP_FIN_WAIT_1;
+	}
 }
 
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len) {
 
-if (conn->state != tcp_state_t::TCP_ESTABLISHED)
-	return -1;
+	if (conn->state != tcp_state_t::TCP_ESTABLISHED) return -1;
 // Проверка окна
-if (len > conn->window_size)
-	return -1;
+	if (len > conn->window_size) return -1;
 
-NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK | TCP_PSH,
-SAVE_FOR_RETRANSMIT, data, len);
-conn->tcp_my_seq += len;
-return 0;
+	if (conn->tcp_my_seq == conn->snd_unack) {
+	NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK | TCP_PSH,
+	SAVE_FOR_RETRANSMIT, data, len);
+	conn->tcp_my_seq += len;
+	return 0;
+	}else{
+		return -2;
+	}
 }
 
