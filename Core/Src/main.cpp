@@ -18,23 +18,13 @@
 
 #include "mcore.hpp"
 
-#define NVIC_PRIORITYGROUP_4 ((uint32_t)0x00000003U)
 
-// void GPIO_Init(void);
 
+//void GPIO_Init(void);
+void RCC_Init(void);
 // void TIM2_Init(void);
 // void TIM3_Init(void);
 // void Error_Handler(void);
-
-// ClockConfig RccCfg = {
-// 		.PLLM = 4, // MCO(8Mhz)/8=2
-// 		.PLLN = 216, // 2*216 = 432
-// 		.PLLP = PLL_P::Div2, // 432/2=216MHz SYSCKL MAX
-// 		.AHBDiv = AHBPrescaler::Div1, // 216MHz HCKL MAX
-// 		.APB1Div = APBPrescaler::Div4,  //216/4=54 MHz APB1 MAX
-// 		.APB2Div = APBPrescaler::Div2,  //216/2=108 MHz APB2 MAX
-// 		.FLASHLatency = FLASH_Latency::WS7, .useHSE = true,
-// 		.useHSEBypass = true, .useSysTick = true };
 
 // uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
 // uint8_t dst_ip[] = { 192, 168, 0, 10 };
@@ -50,13 +40,13 @@
 int main(void) {
 
 	MPU_Config();
-
-	 SCB_EnableICache();
+	SCB_EnableICache();
 	// SCB_EnableDCache(); может быть не стоит
-	NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
-	// __enable_irq();
+	NVIC::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
+	NVIC::enable_irq();
 
 	// enablePowerInterface();
+	RCC_Init();
 	// if (RCCInit(RccCfg) != RCCStatus::OK) {
 	// 	Error_Handler();
 	// }
@@ -78,6 +68,20 @@ int main(void) {
 		// }
 	}
 }
+void RCC_Init(void){
+static constexpr ClockConfig RccCfg = {
+		.PLLM = 4, // MCO(8Mhz)/8=2
+		.PLLN = 216, // 2*216 = 432
+		.PLLP = PLL_P::Div2, // 432/2=216MHz SYSCKL MAX
+		.AHBDiv = AHBPrescaler::Div1, // 216MHz HCKL MAX
+		.APB1Div = APBPrescaler::Div4,  //216/4=54 MHz APB1 MAX
+		.APB2Div = APBPrescaler::Div2,  //216/2=108 MHz APB2 MAX
+		.FLASHLatency = FLASH_Latency::WS7, .useHSE = true,
+		.useHSEBypass = true, .useSysTick = true
+	 };
+
+	RCCStatus ff =  RCCInit(RccCfg);
+};
 
 // extern "C" void TIM2_IRQHandler(void) {
 // 	uint32_t now;

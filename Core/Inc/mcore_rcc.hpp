@@ -5,46 +5,53 @@
 #pragma once
 
 #include "mcore_def.hpp"
-
 // Replace old macros with inline accessor functions to enable type safety and easier debugging
-static inline void RCC_GPIOAEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN; (void)RCC->AHB1ENR; }
-static inline void RCC_GPIOBEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN; (void)RCC->AHB1ENR; }
-static inline void RCC_GPIOCEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN; (void)RCC->AHB1ENR; }
-static inline void RCC_GPIODEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN; (void)RCC->AHB1ENR; }
-static inline void RCC_GPIOEEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOEEN; (void)RCC->AHB1ENR; }
-static inline void RCC_GPIOFEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOFEN; (void)RCC->AHB1ENR; }
-static inline void RCC_GPIOGEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOGEN; (void)RCC->AHB1ENR; }
+static inline void RCC_GPIOAEN() { RCC::_AHB1ENR::GPIOAEN::set(); }
+static inline void RCC_GPIOBEN() { RCC::_AHB1ENR::GPIOBEN::set(); }
+static inline void RCC_GPIOCEN() { RCC::_AHB1ENR::GPIOCEN::set(); }
+static inline void RCC_GPIODEN() { RCC::_AHB1ENR::GPIODEN::set(); }
+static inline void RCC_GPIOEEN() { RCC::_AHB1ENR::GPIOEEN::set(); }
+static inline void RCC_GPIOFEN() { RCC::_AHB1ENR::GPIOFEN::set(); }
+static inline void RCC_GPIOGEN() { RCC::_AHB1ENR::GPIOGEN::set(); }
 
-static inline void RCC_TIM2EN()  { RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; (void)RCC->APB1ENR; }
-static inline void RCC_TIM3EN()  { RCC->APB1ENR |= RCC_APB1ENR_TIM3EN; (void)RCC->APB1ENR; }
+static inline void RCC_TIM2EN()  { RCC::_APB1ENR::TIM2EN::set(); }
+static inline void RCC_TIM3EN()  { RCC::_APB1ENR::TIM3EN::set(); }
 
-static inline void RCC_GPIO_ALLEN() { \
-	RCC->AHB1ENR |= (RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOBEN | RCC_AHB1ENR_GPIOCEN \
-					 | RCC_AHB1ENR_GPIODEN | RCC_AHB1ENR_GPIOEEN | RCC_AHB1ENR_GPIOFEN \
-					 | RCC_AHB1ENR_GPIOGEN); (void)RCC->AHB1ENR; }
+static inline void RCC_GPIO_ALLEN() { 
+	RCC::AHB1ENR_Reg::setMask(
+		RCC::_AHB1ENR::GPIOAEN::bitmsk |
+		RCC::_AHB1ENR::GPIOBEN::bitmsk |
+		RCC::_AHB1ENR::GPIOCEN::bitmsk |
+		RCC::_AHB1ENR::GPIODEN::bitmsk |
+		RCC::_AHB1ENR::GPIOEEN::bitmsk |
+		RCC::_AHB1ENR::GPIOFEN::bitmsk |
+		RCC::_AHB1ENR::GPIOGEN::bitmsk 
+	);
+}
 
 enum class PLL_P : uint8_t {
 	Div2 = 0, Div4 = 1, Div6 = 2, Div8 = 3
 };
 
+
 enum class AHBPrescaler : uint16_t {
-	Div1 = RCC_CFGR_HPRE_DIV1,
-	Div2 = RCC_CFGR_HPRE_DIV2,
-	Div4 = RCC_CFGR_HPRE_DIV4,
-	Div8 = RCC_CFGR_HPRE_DIV8,
-	Div16 = RCC_CFGR_HPRE_DIV16,
-	Div64 = RCC_CFGR_HPRE_DIV64,
-	Div128 = RCC_CFGR_HPRE_DIV128,
-	Div256 = RCC_CFGR_HPRE_DIV256,
-	Div512 = RCC_CFGR_HPRE_DIV512
+	Div1   = 0x00,
+	Div2   = 0x80,
+	Div4   = 0x90,
+	Div8   = 0xA0,
+	Div16  = 0xB0,
+	Div64  = 0xC0,
+	Div128 = 0xD0,
+	Div256 = 0xE0,
+	Div512 = 0xF0
 };
 
 enum class APBPrescaler : uint16_t {
-	Div1 = RCC_CFGR_PPRE1_DIV1,
-	Div2 = RCC_CFGR_PPRE1_DIV2,
-	Div4 = RCC_CFGR_PPRE1_DIV4,
-	Div8 = RCC_CFGR_PPRE1_DIV8,
-	Div16 = RCC_CFGR_PPRE1_DIV16
+	Div1  = 0x0000,
+	Div2  = 0x1000,
+	Div4  = 0x1400,
+	Div8  = 0x1800,
+	Div16 = 0x1C00
 };
 /*
  +----------------------+--------------------+--------------------+--------------------+--------------------+
@@ -65,22 +72,27 @@ enum class APBPrescaler : uint16_t {
  */
 
 enum class FLASH_Latency : uint8_t {
-	WS0 = FLASH_ACR_LATENCY_0WS,
-	WS1 = FLASH_ACR_LATENCY_1WS,
-	WS2 = FLASH_ACR_LATENCY_2WS,
-	WS3 = FLASH_ACR_LATENCY_3WS,
-	WS4 = FLASH_ACR_LATENCY_4WS,
-	WS5 = FLASH_ACR_LATENCY_5WS,
-	WS6 = FLASH_ACR_LATENCY_6WS,
-	WS7 = FLASH_ACR_LATENCY_7WS
+	WS0 = 0x00,
+	WS1 = 0x01,
+	WS2 = 0x02,
+	WS3 = 0x03,
+	WS4 = 0x04,
+	WS5 = 0x05,
+	WS6 = 0x06,
+	WS7 = 0x07
 };
 
 enum class VoltageScale : uint32_t {
-	Scale1 = PWR_CR1_VOS, Scale2 = PWR_CR1_VOS_1, Scale3 = PWR_CR1_VOS_0
+	 Scale1 = 0x03,
+	 Scale2 = 0x02, 
+	 Scale3 = 0x01
 };
 
 enum class RCCStatus {
-	OK, HSE_FAILED, PLL_FAILED, PLL_CONFIG_INVALID
+	OK, 
+	HSE_FAILED, 
+	PLL_FAILED, 
+	PLL_CONFIG_INVALID
 };
 
 struct ClockConfig {
@@ -96,7 +108,7 @@ struct ClockConfig {
 	bool useSysTick = true;
 };
 // Основная инициализация тактирования
-RCCStatus RCCInit(const ClockConfig &cfg);
+RCCStatus RCCInit( ClockConfig &cfg);
 // Расчёт итоговой частоты PLL
 uint32_t CalculatePLLCLK(uint32_t inputFreq, uint8_t pllm, uint16_t plln,
 		uint8_t pllp);

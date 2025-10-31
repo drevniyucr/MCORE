@@ -25,6 +25,7 @@
     "initializer_list": "cpp",
     "limits": "cpp",
     "new": "cpp",
-    "typeinfo": "cpp"
+    "typeinfo": "cpp",
+    "xtr1common": "cpp"
   }
 }

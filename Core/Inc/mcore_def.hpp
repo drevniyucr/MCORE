@@ -41,23 +41,4 @@ inline static void SCB_EnableICache (void)
     __DSB();
     __ISB();
 }
-inline static void NVIC_SetPriorityGrouping(uint32_t PriorityGroup)
-{
-  uint32_t reg_value;
-  uint32_t PriorityGroupTmp = (PriorityGroup & (uint32_t)(0x07UL));             /* only values 0..7 are used          */
-  
-  reg_value = SCB::AIRCR_Reg::read();
-  reg_value = (reg_value & ~(SCB::_AIRCR::VECTKEY::bitmsk | SCB::_AIRCR::PRIGROUP::bitmsk));
-  reg_value |= (
-    reinterpret_cast<uint32_t>(0x5FAUL << SCB::_AIRCR::VECTKEY::pos) |
-    (PriorityGroupTmp << SCB::_AIRCR::PRIGROUP::pos));  
-  SCB::AIRCR_Reg::write(reg_value);      
-//   reg_value  =  SCB->AIRCR;                                                   /* read old register configuration    */
-//   reg_value &= ~((uint32_t)(SCB_AIRCR_VECTKEY_Msk | SCB_AIRCR_PRIGROUP_Msk)); /* clear bits to change               */
-//   reg_value  =  (reg_value                                   |
-//                 ((uint32_t)0x5FAUL << SCB_AIRCR_VECTKEY_Pos) |
-//                 (PriorityGroupTmp << SCB_AIRCR_PRIGROUP_Pos)  );              /* Insert write key and priority group */
-//   SCB->AIRCR =  reg_value;
-}
-
 

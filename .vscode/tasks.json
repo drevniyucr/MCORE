@@ -1,17 +1,17 @@
 {
     "tasks": [
         {
+            "label": "CMake Clean",
+            "type": "shell",
+            "command": "cmake",
+            "group": "build",
+            "problemMatcher": [],
             "args": [
                 "--build",
-                "${workspaceFolder}/build",
+                 "${workspaceFolder}/build",
                 "--target",
                 "clean"
             ],
-            "command": "cmake",
-            "group": "build",
-            "label": "CMake Clean",
-            "problemMatcher": [],
-            "type": "shell"
         },
         {
             "args": [
@@ -20,7 +20,7 @@
                 "-S",
                 "${workspaceFolder}",
                 "-B",
-                "${workspaceFolder}/build",
+                "${workspaceFolder}\\build",
                 "-DCMAKE_BUILD_TYPE=Debug"
             ],
             "command": "cmake",
@@ -50,8 +50,8 @@
             "args": [
                 "-O",
                 "binary",
-                "${workspaceFolder}/build/STM32F767.elf",
-                "${workspaceFolder}/build/STM32F767.bin"
+                "${workspaceFolder}\\build\\STM32F767.elf",
+                "${workspaceFolder}\\build\\STM32F767.bin"
             ],
             "command": "${OBJCOPY}",
             "dependsOn": "CMake Build",
@@ -61,7 +61,7 @@
         },
         {
             "args": [
-                "${workspaceFolder}/build/STM32F767.elf"
+                "${workspaceFolder}\\build\\STM32F767.elf"
             ],
             "command": "${SIZE}",
             "dependsOn": "Generate BIN",

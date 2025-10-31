@@ -12,7 +12,7 @@ constexpr uint32_t PLL_TIMEOUT = 0x1000U;
 constexpr uint32_t MS_DIV = 1000U;
 }
 
-RCCStatus RCCInit(const ClockConfig &cfg) {
+RCCStatus RCCInit( ClockConfig &cfg) {
 
 	const uint8_t pll_p = static_cast<uint8_t>(cfg.PLLP);
 	const uint32_t ahb_div = static_cast<uint32_t>(cfg.AHBDiv);
