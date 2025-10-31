@@ -1,0 +1,3 @@
+../Core/Src/mcore_eth_utils.cpp:11:10:uint16_t checksum(const uint8_t*, uint16_t)	7
+../Core/Src/mcore_eth_utils.cpp:28:10:uint16_t udp_checksum(uint8_t*, uint8_t*, uint8_t*, uint8_t*, uint16_t)	7
+../Core/Src/mcore_eth_utils.cpp:60:10:uint16_t tcp_checksum(uint8_t*, uint8_t*, uint8_t*, uint16_t)	7

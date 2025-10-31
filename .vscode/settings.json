@@ -5,5 +5,26 @@
   },
   "C_Cpp.default.intelliSenseMode": "gcc-arm",
   "cortex-debug.gdbPath": "arm-none-eabi-gdb",
-  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "files.associations": {
+    "*.hpp": "cpp",
+    "type_traits": "cpp",
+    "cstdint": "cpp",
+    "cassert": "cpp",
+    "array": "cpp",
+    "bit": "cpp",
+    "cmath": "cpp",
+    "compare": "cpp",
+    "concepts": "cpp",
+    "cstdarg": "cpp",
+    "cstddef": "cpp",
+    "cstdio": "cpp",
+    "cstdlib": "cpp",
+    "cstring": "cpp",
+    "utility": "cpp",
+    "initializer_list": "cpp",
+    "limits": "cpp",
+    "new": "cpp",
+    "typeinfo": "cpp"
+  }
 }

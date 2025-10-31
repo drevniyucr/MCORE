@@ -1,22 +1,20 @@
 {
+    "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cortex Debug ST-Util",
+            "name": "Cortex Debug STM32F767 (OpenOCD)",
             "type": "cortex-debug",
             "request": "launch",
-            "servertype": "stlink",
-            "cwd": "${workspaceRoot}",
-            "executable": "${workspaceRoot}/build/${workspaceFolderBasename}.elf",
-            "preLaunchTask": "CMake: build",
-            "preRestartCommands": [
-                "load",
-                "enable breakpoint",
-                "monitor reset"
-            ],
+            "servertype": "openocd",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/STM32F767",
+            "device": "STM32F767",
+            "configFiles": ["interface/stlink.cfg", "target/stm32f7x.cfg"],
+            
             "runToEntryPoint": "main",
-            "showDevDebugOutput": "raw",
-            "device": "STM32F767", /* #update this field with CMake */
-            "svdFile": "${workspaceRoot}/build/_deps/SVD/STM32F7x7.svd", /* #update this field with CMake */
+            "preLaunchCommands": ["monitor reset halt"],
+            "svdFile": "C:/Users/AkimovMA/Documents/GitHub/MCORE/STM32F767.svd",
+            "showDevDebugOutput": "both"
         }
     ]
 }

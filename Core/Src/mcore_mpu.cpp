@@ -5,77 +5,60 @@
  *      Author: AkimovMA
  */
 #include "mcore_mpu.hpp"
+#include "mcore_utils.hpp"
 
-void MPU_Config(void) {
-	/// mpu disable
-	MPU_Disable();
 
-	///region 0
-	MPU->RNR = MPU_REGION_NUMBER0;
-	/* Disable the Region */
-	MPU->RASR &= ~MPU_RASR_ENABLE_Msk;
-	/* Apply configuration */
-	MPU->RBAR = 0x00; //base address
-	MPU->RASR =
-			((uint32_t) MPU_INSTRUCTION_ACCESS_DISABLE << MPU_RASR_XN_Pos) | // instruction access disable
-			((uint32_t) MPU_REGION_NO_ACCESS << MPU_RASR_AP_Pos) | // region no access
-			((uint32_t) MPU_TEX_LEVEL0 << MPU_RASR_TEX_Pos) | //level 0
-			((uint32_t) MPU_ACCESS_SHAREABLE << MPU_RASR_S_Pos) | //shareable
-			((uint32_t) MPU_ACCESS_NOT_CACHEABLE << MPU_RASR_C_Pos) | // not cacheble
-			((uint32_t) MPU_ACCESS_NOT_BUFFERABLE << MPU_RASR_B_Pos) | // not bufferable
-			((uint32_t) 0x87 << MPU_RASR_SRD_Pos) | // sub region disable 1000 0111
-			((uint32_t) MPU_REGION_SIZE_4GB << MPU_RASR_SIZE_Pos) | //size 4GB
-			((uint32_t) MPU_REGION_ENABLE << MPU_RASR_ENABLE_Pos); // mpu enable
+void MPU_Config(){
 
-	///region 1 rx buff eth
-	MPU->RNR = 0x01;
-	/* Disable the Region */
-	MPU->RASR &= ~MPU_RASR_ENABLE_Msk;
-	/* Apply configuration */
-	MPU->RBAR = 0x20078000; //base address
-	MPU->RASR = ((uint32_t) 0x01 << MPU_RASR_XN_Pos) | // istruction access disable
-			((uint32_t) 0x03 << MPU_RASR_AP_Pos) | // full access
-			((uint32_t) 0x01 << MPU_RASR_TEX_Pos) | //level 1
-			((uint32_t) 0x00 << MPU_RASR_S_Pos) | // not shareble
-			((uint32_t) 0x00 << MPU_RASR_C_Pos) | // not cacheble
-			((uint32_t) 0x00 << MPU_RASR_B_Pos) | // not bufferable
-			((uint32_t) 0x00 << MPU_RASR_SRD_Pos) | // sub region 0x87
-			((uint32_t) 0x0D << MPU_RASR_SIZE_Pos) | //size 16kB
-			((uint32_t) 0x01 << MPU_RASR_ENABLE_Pos); // mpu enable
+	static constexpr _MPU::RegionConfig region0 = {
+		.regionNum = _MPU::regionNumber::REGION_0,
+		.baseAddress = 0x00000000,
+	    .instructionAccessDisable = true,
+	    .accessPermission = _MPU::regionPermission::REGION_NO_ACCESS,
+	    .texLevel = _MPU::regionTEX::REGION_TEX_LEVEL0,
+	    .shareable = true,
+	    .cacheable = false,
+	    .bufferable = false,
+	    .subregionDisable = 0x87,//1000 0111
+	    .size = _MPU::regionSize::REGION_SIZE_4GB,
+	    .enable = true
+	};
 
-	///region 2 rx/tx desc
-	MPU->RNR = 0x02;
-	/* Disable the Region */
-	MPU->RASR &= ~MPU_RASR_ENABLE_Msk;
-	/* Apply configuration */
-	MPU->RBAR = 0x2007c000; //base address
-	MPU->RASR = ((uint32_t) 0x01 << MPU_RASR_XN_Pos) | // istruction access disable
-			((uint32_t) 0x03 << MPU_RASR_AP_Pos) | // full access
-			((uint32_t) 0x00 << MPU_RASR_TEX_Pos) | //level 1
-			((uint32_t) 0x01 << MPU_RASR_S_Pos) | // shareble
-			((uint32_t) 0x00 << MPU_RASR_C_Pos) | // not cacheble
-			((uint32_t) 0x01 << MPU_RASR_B_Pos) | //  bufferable
-			((uint32_t) 0x00 << MPU_RASR_SRD_Pos) | // sub region 0x87
-			((uint32_t) 0x09 << MPU_RASR_SIZE_Pos) | //size 1kB
-			((uint32_t) 0x01 << MPU_RASR_ENABLE_Pos); // mpu enable
 
-	MPU_Enable();
-}
+	static constexpr _MPU::RegionConfig region1_eth_rx = {
+	    .regionNum = _MPU::regionNumber::REGION_1,
+	    .baseAddress = 0x20078000,
+	    .instructionAccessDisable = true,
+	    .accessPermission = _MPU::regionPermission::REGION_FULL_ACCESS,
+	    .texLevel =  _MPU::regionTEX::REGION_TEX_LEVEL1,
+	    .shareable = false,
+	    .cacheable = false,
+	    .bufferable = false,
+	    .subregionDisable = 0,
+	    .size = _MPU::regionSize::REGION_SIZE_16KB,
+	    .enable = true
+	};
 
-void MPU_Disable(void) {
-	__DMB();
-	/* Disable fault exceptions */
-	SCB->SHCSR &= ~SCB_SHCSR_MEMFAULTENA_Msk;
-	/* Disable the MPU and clear the control register*/
-	MPU->CTRL = 0;
+	static constexpr _MPU::RegionConfig region2_eth_desc = {
+	    .regionNum = _MPU::regionNumber::REGION_2,
+	    .baseAddress = 0x2007C000,
+	    .instructionAccessDisable = true,
+	    .accessPermission = _MPU::regionPermission::REGION_FULL_ACCESS,
+	    .texLevel = _MPU::regionTEX::REGION_TEX_LEVEL0,
+	    .shareable = true,
+	    .cacheable = false,
+	    .bufferable = true,
+	    .subregionDisable = 0,
+	    .size = _MPU::regionSize::REGION_SIZE_1KB,
+	    .enable = true
+	};
 
-}
-void MPU_Enable(void) {
-	/* Enable the MPU */
-	MPU->CTRL = MPU_PRIVILEGED_DEFAULT | MPU_CTRL_ENABLE_Msk;
-	/* Enable fault exceptions */
-	SCB->SHCSR |= SCB_SHCSR_MEMFAULTENA_Msk;
-	/* Ensure MPU setting take effects */
-	__DSB();
-	__ISB();
+	_MPU::disable();
+
+	_MPU::configure(region0);
+	_MPU::configure(region1_eth_rx);
+	_MPU::configure(region2_eth_desc);
+
+	_MPU::enable();
+
 }

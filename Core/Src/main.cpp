@@ -18,392 +18,392 @@
 
 #include "mcore.hpp"
 
-#define NVIC_PRIORITYGROUP_4 ((uint32_t)0x00000003U)
+// #define NVIC_PRIORITYGROUP_4 ((uint32_t)0x00000003U)
 
-void GPIO_Init(void);
+// void GPIO_Init(void);
 
-void TIM2_Init(void);
-void TIM3_Init(void);
-void Error_Handler(void);
+// void TIM2_Init(void);
+// void TIM3_Init(void);
+// void Error_Handler(void);
 
-ClockConfig RccCfg = {
-		.PLLM = 4, // MCO(8Mhz)/8=2
-		.PLLN = 216, // 2*216 = 432
-		.PLLP = PLL_P::Div2, // 432/2=216MHz SYSCKL MAX
-		.AHBDiv = AHBPrescaler::Div1, // 216MHz HCKL MAX
-		.APB1Div = APBPrescaler::Div4,  //216/4=54 MHz APB1 MAX
-		.APB2Div = APBPrescaler::Div2,  //216/2=108 MHz APB2 MAX
-		.FLASHLatency = FLASH_Latency::WS7, .useHSE = true,
-		.useHSEBypass = true, .useSysTick = true };
+// ClockConfig RccCfg = {
+// 		.PLLM = 4, // MCO(8Mhz)/8=2
+// 		.PLLN = 216, // 2*216 = 432
+// 		.PLLP = PLL_P::Div2, // 432/2=216MHz SYSCKL MAX
+// 		.AHBDiv = AHBPrescaler::Div1, // 216MHz HCKL MAX
+// 		.APB1Div = APBPrescaler::Div4,  //216/4=54 MHz APB1 MAX
+// 		.APB2Div = APBPrescaler::Div2,  //216/2=108 MHz APB2 MAX
+// 		.FLASHLatency = FLASH_Latency::WS7, .useHSE = true,
+// 		.useHSEBypass = true, .useSysTick = true };
 
-uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
-uint8_t dst_ip[] = { 192, 168, 0, 10 };
-uint8_t dst_mac[] = { 0xD8, 0x43, 0xAE, 0x7D, 0x7B, 0x40 };
+// uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
+// uint8_t dst_ip[] = { 192, 168, 0, 10 };
+// uint8_t dst_mac[] = { 0xD8, 0x43, 0xAE, 0x7D, 0x7B, 0x40 };
 
-uint32_t t_rise[6] = { };
-uint32_t high_time[6] = { };
-uint8_t waiting_fall[6] = { };
+// uint32_t t_rise[6] = { };
+// uint32_t high_time[6] = { };
+// uint8_t waiting_fall[6] = { };
 
-UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, // @suppress("Invalid arguments")
-		reinterpret_cast<uint8_t*>(high_time), sizeof(high_time) };
+// UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, // @suppress("Invalid arguments")
+// 		reinterpret_cast<uint8_t*>(high_time), sizeof(high_time) };
 
 int main(void) {
 
 	MPU_Config();
 
-	SCB_EnableICache();
-	SCB_EnableDCache();
-	__NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
-	__enable_irq();
+	// SCB_EnableICache();
+	// SCB_EnableDCache();
+	// __NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
+	// __enable_irq();
 
-	enablePowerInterface();
-	if (RCCInit(RccCfg) != RCCStatus::OK) {
-		Error_Handler();
-	}
-	enableEthInterface();
-	GPIO_Init();
-	ETH_Init();
-	TIM2_Init();
-	TIM3_Init();
-	NET_TCP_Init();
-	uint32_t tickstart = get_tick();
+	// enablePowerInterface();
+	// if (RCCInit(RccCfg) != RCCStatus::OK) {
+	// 	Error_Handler();
+	// }
+	// enableEthInterface();
+	// GPIO_Init();
+	// ETH_Init();
+	// TIM2_Init();
+	// TIM3_Init();
+	// NET_TCP_Init();
+	// uint32_t tickstart = get_tick();
 	while (1) {
-		ETH_RxWorker();
-		if ((get_tick() - tickstart) > 5000) {
-			tickstart = get_tick();
-			if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
-			NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
+		// ETH_RxWorker();
+		// if ((get_tick() - tickstart) > 5000) {
+		// 	tickstart = get_tick();
+		// 	if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
+		// 	NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
 			//NET_SendUDP(UDPframe);
-			}
-		}
+		// 	}
+		// }
 	}
 }
 
-extern "C" void TIM2_IRQHandler(void) {
-	uint32_t now;
-	if (TIM2->SR & TIM_SR_CC3IF) {
-		now = TIM2->CCR3; // значение счётчика при фронте
-		if (!waiting_fall[0]) {
-			// Поймали фронт вверх
-			t_rise[0] = now;
-			waiting_fall[0] = 1;
-			TIM2->CCER |= TIM_CCER_CC3P;   // переключаем на falling
-		} else {
-			// Поймали фронт вниз
-			high_time[0] = now - t_rise[0];
-			waiting_fall[0] = 0;
-			TIM2->CCER &= ~TIM_CCER_CC3P;  // обратно на rising
-		}
-		TIM2->SR &= ~TIM_SR_CC3IF;
-	}
-	if (TIM2->SR & TIM_SR_CC4IF) {
-		now = TIM2->CCR4; // значение счётчика при фронте
-		if (!waiting_fall[1]) {
-			// Поймали фронт вверх
-			t_rise[1] = now;
-			waiting_fall[1] = 1;
-			TIM2->CCER |= TIM_CCER_CC4P;   // переключаем на falling
-		} else {
-			// Поймали фронт вниз
-			high_time[1] = now - t_rise[1];
-			waiting_fall[1] = 0;
-			TIM2->CCER &= ~TIM_CCER_CC4P;  // обратно на rising
-		}
-		TIM2->SR &= ~TIM_SR_CC4IF;
-	}
-}
+// extern "C" void TIM2_IRQHandler(void) {
+// 	uint32_t now;
+// 	if (TIM2->SR & TIM_SR_CC3IF) {
+// 		now = TIM2->CCR3; // значение счётчика при фронте
+// 		if (!waiting_fall[0]) {
+// 			// Поймали фронт вверх
+// 			t_rise[0] = now;
+// 			waiting_fall[0] = 1;
+// 			TIM2->CCER |= TIM_CCER_CC3P;   // переключаем на falling
+// 		} else {
+// 			// Поймали фронт вниз
+// 			high_time[0] = now - t_rise[0];
+// 			waiting_fall[0] = 0;
+// 			TIM2->CCER &= ~TIM_CCER_CC3P;  // обратно на rising
+// 		}
+// 		TIM2->SR &= ~TIM_SR_CC3IF;
+// 	}
+// 	if (TIM2->SR & TIM_SR_CC4IF) {
+// 		now = TIM2->CCR4; // значение счётчика при фронте
+// 		if (!waiting_fall[1]) {
+// 			// Поймали фронт вверх
+// 			t_rise[1] = now;
+// 			waiting_fall[1] = 1;
+// 			TIM2->CCER |= TIM_CCER_CC4P;   // переключаем на falling
+// 		} else {
+// 			// Поймали фронт вниз
+// 			high_time[1] = now - t_rise[1];
+// 			waiting_fall[1] = 0;
+// 			TIM2->CCER &= ~TIM_CCER_CC4P;  // обратно на rising
+// 		}
+// 		TIM2->SR &= ~TIM_SR_CC4IF;
+// 	}
+// }
 
-extern "C" void TIM3_IRQHandler(void) {
-	uint16_t now;
-	if (TIM3->SR & TIM_SR_CC1IF) {
-		now = (uint16_t) TIM3->CCR1; // значение счётчика при фронте
-		if (!waiting_fall[2]) {
-			// Поймали фронт вверх
-			t_rise[2] = now;
-			waiting_fall[2] = 1;
-			TIM3->CCER |= TIM_CCER_CC1P;   // переключаем на falling
-		} else {
-			// Поймали фронт вниз
-			high_time[2] = (uint16_t) (now - t_rise[2]);
-			waiting_fall[2] = 0;
-			TIM3->CCER &= ~TIM_CCER_CC1P;  // обратно на rising
-		}
-		TIM3->SR &= ~TIM_SR_CC1IF;
-	}
-	if (TIM3->SR & TIM_SR_CC2IF) {
-		now = (uint16_t) TIM3->CCR2; // значение счётчика при фронте
-		if (!waiting_fall[3]) {
-			// Поймали фронт вверх
-			t_rise[3] = now;
-			waiting_fall[3] = 1;
-			TIM3->CCER |= TIM_CCER_CC2P;   // переключаем на falling
-		} else {
-			// Поймали фронт вниз
-			high_time[3] = (uint16_t) (now - t_rise[3]);
-			waiting_fall[3] = 0;
-			TIM3->CCER &= ~TIM_CCER_CC2P;  // обратно на rising
-		}
-		TIM3->SR &= ~TIM_SR_CC2IF;
-	}
-	if (TIM3->SR & TIM_SR_CC3IF) {
-		now = (uint16_t) TIM3->CCR3; // значение счётчика при фронте
-		if (!waiting_fall[4]) {
-			// Поймали фронт вверх
-			t_rise[4] = now;
-			waiting_fall[4] = 1;
-			TIM3->CCER |= TIM_CCER_CC3P;   // переключаем на falling
-		} else {
-			// Поймали фронт вниз
-			high_time[4] = (uint16_t) (now - t_rise[4]);
-			waiting_fall[4] = 0;
-			TIM3->CCER &= ~TIM_CCER_CC3P;  // обратно на rising
-		}
-		TIM3->SR &= ~TIM_SR_CC3IF;
-	}
-	if (TIM3->SR & TIM_SR_CC4IF) {
-		now = (uint16_t) TIM3->CCR4; // значение счётчика при фронте
-		if (!waiting_fall[5]) {
-			// Поймали фронт вверх
-			t_rise[5] = now;
-			waiting_fall[5] = 1;
-			TIM3->CCER |= TIM_CCER_CC4P;   // переключаем на falling
-		} else {
-			// Поймали фронт вниз
-			high_time[5] = (uint16_t) (now - t_rise[5]);
-			waiting_fall[5] = 0;
-			TIM3->CCER &= ~TIM_CCER_CC4P;  // обратно на rising
-		}
-		TIM3->SR &= ~TIM_SR_CC4IF;
-	}
-}
+// extern "C" void TIM3_IRQHandler(void) {
+// 	uint16_t now;
+// 	if (TIM3->SR & TIM_SR_CC1IF) {
+// 		now = (uint16_t) TIM3->CCR1; // значение счётчика при фронте
+// 		if (!waiting_fall[2]) {
+// 			// Поймали фронт вверх
+// 			t_rise[2] = now;
+// 			waiting_fall[2] = 1;
+// 			TIM3->CCER |= TIM_CCER_CC1P;   // переключаем на falling
+// 		} else {
+// 			// Поймали фронт вниз
+// 			high_time[2] = (uint16_t) (now - t_rise[2]);
+// 			waiting_fall[2] = 0;
+// 			TIM3->CCER &= ~TIM_CCER_CC1P;  // обратно на rising
+// 		}
+// 		TIM3->SR &= ~TIM_SR_CC1IF;
+// 	}
+// 	if (TIM3->SR & TIM_SR_CC2IF) {
+// 		now = (uint16_t) TIM3->CCR2; // значение счётчика при фронте
+// 		if (!waiting_fall[3]) {
+// 			// Поймали фронт вверх
+// 			t_rise[3] = now;
+// 			waiting_fall[3] = 1;
+// 			TIM3->CCER |= TIM_CCER_CC2P;   // переключаем на falling
+// 		} else {
+// 			// Поймали фронт вниз
+// 			high_time[3] = (uint16_t) (now - t_rise[3]);
+// 			waiting_fall[3] = 0;
+// 			TIM3->CCER &= ~TIM_CCER_CC2P;  // обратно на rising
+// 		}
+// 		TIM3->SR &= ~TIM_SR_CC2IF;
+// 	}
+// 	if (TIM3->SR & TIM_SR_CC3IF) {
+// 		now = (uint16_t) TIM3->CCR3; // значение счётчика при фронте
+// 		if (!waiting_fall[4]) {
+// 			// Поймали фронт вверх
+// 			t_rise[4] = now;
+// 			waiting_fall[4] = 1;
+// 			TIM3->CCER |= TIM_CCER_CC3P;   // переключаем на falling
+// 		} else {
+// 			// Поймали фронт вниз
+// 			high_time[4] = (uint16_t) (now - t_rise[4]);
+// 			waiting_fall[4] = 0;
+// 			TIM3->CCER &= ~TIM_CCER_CC3P;  // обратно на rising
+// 		}
+// 		TIM3->SR &= ~TIM_SR_CC3IF;
+// 	}
+// 	if (TIM3->SR & TIM_SR_CC4IF) {
+// 		now = (uint16_t) TIM3->CCR4; // значение счётчика при фронте
+// 		if (!waiting_fall[5]) {
+// 			// Поймали фронт вверх
+// 			t_rise[5] = now;
+// 			waiting_fall[5] = 1;
+// 			TIM3->CCER |= TIM_CCER_CC4P;   // переключаем на falling
+// 		} else {
+// 			// Поймали фронт вниз
+// 			high_time[5] = (uint16_t) (now - t_rise[5]);
+// 			waiting_fall[5] = 0;
+// 			TIM3->CCER &= ~TIM_CCER_CC4P;  // обратно на rising
+// 		}
+// 		TIM3->SR &= ~TIM_SR_CC4IF;
+// 	}
+// }
 
-void TIM2_Init(void) {
+// void TIM2_Init(void) {
 
-	RCC_TIM2EN();
-	/* Set the Autoreload value */
-	TIM2->ARR = 0xFFFFFFFF;
-	/* Set the Prescaler value */
-	TIM2->PSC = 108 - 1;
-	TIM2->EGR = TIM_EGR_UG;
-	/* Clear the update flag */
-	TIM2->SR &= ~TIM_SR_UIF;
-	uint32_t tmpccmr2;
-	uint32_t tmpccer;
-	/*-----------------CHANNEL_3-----------------*/
+// 	RCC_TIM2EN();
+// 	/* Set the Autoreload value */
+// 	TIM2->ARR = 0xFFFFFFFF;
+// 	/* Set the Prescaler value */
+// 	TIM2->PSC = 108 - 1;
+// 	TIM2->EGR = TIM_EGR_UG;
+// 	/* Clear the update flag */
+// 	TIM2->SR &= ~TIM_SR_UIF;
+// 	uint32_t tmpccmr2;
+// 	uint32_t tmpccer;
+// 	/*-----------------CHANNEL_3-----------------*/
 
-	TIM2->CCER &= ~TIM_CCER_CC3E;
-	tmpccer = TIM2->CCER;
-	tmpccmr2 = TIM2->CCMR2;
-	/* Select the Polarity and set the CC3E Bit */
-	tmpccer &= ~(TIM_CCER_CC3P | TIM_CCER_CC3NP);
-	tmpccer |= TIM_CCER_CC3P; //unipolar both edge
-	/* Select the Input */
-	tmpccmr2 &= ~TIM_CCMR2_CC3S;
-	tmpccmr2 |= TIM_CCMR2_CC3S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
-	/* Write to TIMx CCMR2 and CCER registers */
-	TIM2->CCMR2 = tmpccmr2;
-	TIM2->CCER = tmpccer;
-	// interupt ch3 enable
-	TIM2->DIER = TIM_DIER_CC3IE;
-	/* Reset the CCxE Bit */
-	TIM2->CCER &= ~TIM_CCER_CC3E;
-	/* Set or reset the CCxE Bit */
-	TIM2->CCER |= TIM_CCER_CC3E; // ch1 enable
+// 	TIM2->CCER &= ~TIM_CCER_CC3E;
+// 	tmpccer = TIM2->CCER;
+// 	tmpccmr2 = TIM2->CCMR2;
+// 	/* Select the Polarity and set the CC3E Bit */
+// 	tmpccer &= ~(TIM_CCER_CC3P | TIM_CCER_CC3NP);
+// 	tmpccer |= TIM_CCER_CC3P; //unipolar both edge
+// 	/* Select the Input */
+// 	tmpccmr2 &= ~TIM_CCMR2_CC3S;
+// 	tmpccmr2 |= TIM_CCMR2_CC3S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
+// 	/* Write to TIMx CCMR2 and CCER registers */
+// 	TIM2->CCMR2 = tmpccmr2;
+// 	TIM2->CCER = tmpccer;
+// 	// interupt ch3 enable
+// 	TIM2->DIER = TIM_DIER_CC3IE;
+// 	/* Reset the CCxE Bit */
+// 	TIM2->CCER &= ~TIM_CCER_CC3E;
+// 	/* Set or reset the CCxE Bit */
+// 	TIM2->CCER |= TIM_CCER_CC3E; // ch1 enable
 
-	/*-----------------CHANNEL_4-----------------*/
-	TIM2->CCER &= ~TIM_CCER_CC4E;
-	tmpccer = TIM2->CCER;
-	tmpccmr2 = TIM2->CCMR2;
-	/* Select the Polarity and set the CC3E Bit */
-	tmpccer &= ~(TIM_CCER_CC4P | TIM_CCER_CC4NP);
-	tmpccer |= TIM_CCER_CC4P; //unipolar both edge
-	/* Select the Input */
-	tmpccmr2 &= ~TIM_CCMR2_CC4S;
-	tmpccmr2 |= TIM_CCMR2_CC4S_0; //CC4 channel is configured as input, IC4 is mapped on TI4
-	/* Write to TIMx CCMR2 and CCER registers */
-	TIM2->CCMR2 = tmpccmr2;
-	TIM2->CCER = tmpccer;
-	// interupt ch3 enable
-	TIM2->DIER = TIM_DIER_CC4IE;
-	/* Reset the CCxE Bit */
-	TIM2->CCER &= ~TIM_CCER_CC4E;
-	/* Set or reset the CCxE Bit */
-	TIM2->CCER |= TIM_CCER_CC4E; // ch4 enable
-	/*-------------------------------------------*/
+// 	/*-----------------CHANNEL_4-----------------*/
+// 	TIM2->CCER &= ~TIM_CCER_CC4E;
+// 	tmpccer = TIM2->CCER;
+// 	tmpccmr2 = TIM2->CCMR2;
+// 	/* Select the Polarity and set the CC3E Bit */
+// 	tmpccer &= ~(TIM_CCER_CC4P | TIM_CCER_CC4NP);
+// 	tmpccer |= TIM_CCER_CC4P; //unipolar both edge
+// 	/* Select the Input */
+// 	tmpccmr2 &= ~TIM_CCMR2_CC4S;
+// 	tmpccmr2 |= TIM_CCMR2_CC4S_0; //CC4 channel is configured as input, IC4 is mapped on TI4
+// 	/* Write to TIMx CCMR2 and CCER registers */
+// 	TIM2->CCMR2 = tmpccmr2;
+// 	TIM2->CCER = tmpccer;
+// 	// interupt ch3 enable
+// 	TIM2->DIER = TIM_DIER_CC4IE;
+// 	/* Reset the CCxE Bit */
+// 	TIM2->CCER &= ~TIM_CCER_CC4E;
+// 	/* Set or reset the CCxE Bit */
+// 	TIM2->CCER |= TIM_CCER_CC4E; // ch4 enable
+// 	/*-------------------------------------------*/
 
-	TIM2->CR1 |= TIM_CR1_CEN; // tim2 enable
+// 	TIM2->CR1 |= TIM_CR1_CEN; // tim2 enable
 
-	__NVIC_SetPriority(TIM2_IRQn, 0);
-	__NVIC_EnableIRQ(TIM2_IRQn);
-}
+// 	__NVIC_SetPriority(TIM2_IRQn, 0);
+// 	__NVIC_EnableIRQ(TIM2_IRQn);
+// }
 
-void TIM3_Init(void) {
+// void TIM3_Init(void) {
 
-	RCC_TIM3EN();
-	/* Set the Autoreload value */
-	TIM3->ARR = 0xFFFFFFFF;
-	/* Set the Prescaler value */
-	TIM3->PSC = 108 - 1;
-	TIM3->EGR = TIM_EGR_UG;
-	/* Clear the update flag */
-	TIM3->SR &= ~TIM_SR_UIF;
-	uint32_t tmpccer;
-	uint32_t tmpccmr1;
-	uint32_t tmpccmr2;
-	/*-----------------CHANNEL_1-----------------*/
-	TIM3->CCER &= ~TIM_CCER_CC1E;
-	tmpccer = TIM3->CCER;
-	tmpccmr1 = TIM3->CCMR1;
-	/* Select the Polarity and set the CC3E Bit */
-	tmpccer &= ~(TIM_CCER_CC1P | TIM_CCER_CC1NP);
-	tmpccer |= TIM_CCER_CC1P; //unipolar both edge
-	/* Select the Input */
-	tmpccmr1 &= ~TIM_CCMR1_CC1S;
-	tmpccmr1 |= TIM_CCMR1_CC1S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
-	/* Write to TIMx CCMR2 and CCER registers */
-	TIM3->CCMR1 = tmpccmr1;
-	TIM3->CCER = tmpccer;
-	// interupt ch3 enable
-	TIM3->DIER = TIM_DIER_CC1IE;
-	/* Reset the CCxE Bit */
-	TIM3->CCER &= ~TIM_CCER_CC1E;
-	/* Set or reset the CCxE Bit */
-	TIM3->CCER |= TIM_CCER_CC1E; // ch1 enable
-	/*-----------------CHANNEL_2-----------------*/
+// 	RCC_TIM3EN();
+// 	/* Set the Autoreload value */
+// 	TIM3->ARR = 0xFFFFFFFF;
+// 	/* Set the Prescaler value */
+// 	TIM3->PSC = 108 - 1;
+// 	TIM3->EGR = TIM_EGR_UG;
+// 	/* Clear the update flag */
+// 	TIM3->SR &= ~TIM_SR_UIF;
+// 	uint32_t tmpccer;
+// 	uint32_t tmpccmr1;
+// 	uint32_t tmpccmr2;
+// 	/*-----------------CHANNEL_1-----------------*/
+// 	TIM3->CCER &= ~TIM_CCER_CC1E;
+// 	tmpccer = TIM3->CCER;
+// 	tmpccmr1 = TIM3->CCMR1;
+// 	/* Select the Polarity and set the CC3E Bit */
+// 	tmpccer &= ~(TIM_CCER_CC1P | TIM_CCER_CC1NP);
+// 	tmpccer |= TIM_CCER_CC1P; //unipolar both edge
+// 	/* Select the Input */
+// 	tmpccmr1 &= ~TIM_CCMR1_CC1S;
+// 	tmpccmr1 |= TIM_CCMR1_CC1S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
+// 	/* Write to TIMx CCMR2 and CCER registers */
+// 	TIM3->CCMR1 = tmpccmr1;
+// 	TIM3->CCER = tmpccer;
+// 	// interupt ch3 enable
+// 	TIM3->DIER = TIM_DIER_CC1IE;
+// 	/* Reset the CCxE Bit */
+// 	TIM3->CCER &= ~TIM_CCER_CC1E;
+// 	/* Set or reset the CCxE Bit */
+// 	TIM3->CCER |= TIM_CCER_CC1E; // ch1 enable
+// 	/*-----------------CHANNEL_2-----------------*/
 
-	TIM3->CCER &= ~TIM_CCER_CC2E;
-	tmpccer = TIM3->CCER;
-	tmpccmr1 = TIM3->CCMR1;
-	/* Select the Polarity and set the CC3E Bit */
-	tmpccer &= ~(TIM_CCER_CC2P | TIM_CCER_CC2NP);
-	tmpccer |= TIM_CCER_CC2P; //unipolar both edge
-	/* Select the Input */
-	tmpccmr1 &= ~TIM_CCMR1_CC2S;
-	tmpccmr1 |= TIM_CCMR1_CC2S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
-	/* Write to TIMx CCMR2 and CCER registers */
-	TIM3->CCMR1 = tmpccmr1;
-	TIM3->CCER = tmpccer;
-	// interupt ch3 enable
-	TIM3->DIER = TIM_DIER_CC2IE;
-	/* Reset the CCxE Bit */
-	TIM3->CCER &= ~TIM_CCER_CC2E;
-	/* Set or reset the CCxE Bit */
-	TIM3->CCER |= TIM_CCER_CC2E; // ch1 enable
+// 	TIM3->CCER &= ~TIM_CCER_CC2E;
+// 	tmpccer = TIM3->CCER;
+// 	tmpccmr1 = TIM3->CCMR1;
+// 	/* Select the Polarity and set the CC3E Bit */
+// 	tmpccer &= ~(TIM_CCER_CC2P | TIM_CCER_CC2NP);
+// 	tmpccer |= TIM_CCER_CC2P; //unipolar both edge
+// 	/* Select the Input */
+// 	tmpccmr1 &= ~TIM_CCMR1_CC2S;
+// 	tmpccmr1 |= TIM_CCMR1_CC2S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
+// 	/* Write to TIMx CCMR2 and CCER registers */
+// 	TIM3->CCMR1 = tmpccmr1;
+// 	TIM3->CCER = tmpccer;
+// 	// interupt ch3 enable
+// 	TIM3->DIER = TIM_DIER_CC2IE;
+// 	/* Reset the CCxE Bit */
+// 	TIM3->CCER &= ~TIM_CCER_CC2E;
+// 	/* Set or reset the CCxE Bit */
+// 	TIM3->CCER |= TIM_CCER_CC2E; // ch1 enable
 
-	/*-----------------CHANNEL_3-----------------*/
+// 	/*-----------------CHANNEL_3-----------------*/
 
-	TIM3->CCER &= ~TIM_CCER_CC3E;
-	tmpccer = TIM3->CCER;
-	tmpccmr2 = TIM3->CCMR2;
-	/* Select the Polarity and set the CC3E Bit */
-	tmpccer &= ~(TIM_CCER_CC3P | TIM_CCER_CC3NP);
-	tmpccer |= TIM_CCER_CC3P; //unipolar both edge
-	/* Select the Input */
-	tmpccmr2 &= ~TIM_CCMR2_CC3S;
-	tmpccmr2 |= TIM_CCMR2_CC3S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
-	/* Write to TIMx CCMR2 and CCER registers */
-	TIM3->CCMR2 = tmpccmr2;
-	TIM3->CCER = tmpccer;
-	// interupt ch3 enable
-	TIM3->DIER = TIM_DIER_CC3IE;
-	/* Reset the CCxE Bit */
-	TIM3->CCER &= ~TIM_CCER_CC3E;
-	/* Set or reset the CCxE Bit */
-	TIM3->CCER |= TIM_CCER_CC3E; // ch1 enable
+// 	TIM3->CCER &= ~TIM_CCER_CC3E;
+// 	tmpccer = TIM3->CCER;
+// 	tmpccmr2 = TIM3->CCMR2;
+// 	/* Select the Polarity and set the CC3E Bit */
+// 	tmpccer &= ~(TIM_CCER_CC3P | TIM_CCER_CC3NP);
+// 	tmpccer |= TIM_CCER_CC3P; //unipolar both edge
+// 	/* Select the Input */
+// 	tmpccmr2 &= ~TIM_CCMR2_CC3S;
+// 	tmpccmr2 |= TIM_CCMR2_CC3S_0; //CC1 channel is configured as input, IC1 is mapped on TI1
+// 	/* Write to TIMx CCMR2 and CCER registers */
+// 	TIM3->CCMR2 = tmpccmr2;
+// 	TIM3->CCER = tmpccer;
+// 	// interupt ch3 enable
+// 	TIM3->DIER = TIM_DIER_CC3IE;
+// 	/* Reset the CCxE Bit */
+// 	TIM3->CCER &= ~TIM_CCER_CC3E;
+// 	/* Set or reset the CCxE Bit */
+// 	TIM3->CCER |= TIM_CCER_CC3E; // ch1 enable
 
-	/*-----------------CHANNEL_4-----------------*/
-	TIM3->CCER &= ~TIM_CCER_CC4E;
-	tmpccer = TIM3->CCER;
-	tmpccmr2 = TIM3->CCMR2;
-	/* Select the Polarity and set the CC3E Bit */
-	tmpccer &= ~(TIM_CCER_CC4P | TIM_CCER_CC4NP);
-	tmpccer |= TIM_CCER_CC4P; //unipolar both edge
-	/* Select the Input */
-	tmpccmr2 &= ~TIM_CCMR2_CC4S;
-	tmpccmr2 |= TIM_CCMR2_CC4S_0; //CC4 channel is configured as input, IC4 is mapped on TI4
-	/* Write to TIMx CCMR2 and CCER registers */
-	TIM3->CCMR2 = tmpccmr2;
-	TIM3->CCER = tmpccer;
-	// interupt ch3 enable
-	TIM3->DIER = TIM_DIER_CC4IE;
-	/* Reset the CCxE Bit */
-	TIM3->CCER &= ~TIM_CCER_CC4E;
-	/* Set or reset the CCxE Bit */
-	TIM3->CCER |= TIM_CCER_CC4E; // ch4 enable
-	/*-------------------------------------------*/
+// 	/*-----------------CHANNEL_4-----------------*/
+// 	TIM3->CCER &= ~TIM_CCER_CC4E;
+// 	tmpccer = TIM3->CCER;
+// 	tmpccmr2 = TIM3->CCMR2;
+// 	/* Select the Polarity and set the CC3E Bit */
+// 	tmpccer &= ~(TIM_CCER_CC4P | TIM_CCER_CC4NP);
+// 	tmpccer |= TIM_CCER_CC4P; //unipolar both edge
+// 	/* Select the Input */
+// 	tmpccmr2 &= ~TIM_CCMR2_CC4S;
+// 	tmpccmr2 |= TIM_CCMR2_CC4S_0; //CC4 channel is configured as input, IC4 is mapped on TI4
+// 	/* Write to TIMx CCMR2 and CCER registers */
+// 	TIM3->CCMR2 = tmpccmr2;
+// 	TIM3->CCER = tmpccer;
+// 	// interupt ch3 enable
+// 	TIM3->DIER = TIM_DIER_CC4IE;
+// 	/* Reset the CCxE Bit */
+// 	TIM3->CCER &= ~TIM_CCER_CC4E;
+// 	/* Set or reset the CCxE Bit */
+// 	TIM3->CCER |= TIM_CCER_CC4E; // ch4 enable
+// 	/*-------------------------------------------*/
 
-	TIM3->CR1 |= TIM_CR1_CEN; // tim2 enable
-	__NVIC_SetPriority(TIM3_IRQn, 0);
-	__NVIC_EnableIRQ(TIM3_IRQn);
-}
+// 	TIM3->CR1 |= TIM_CR1_CEN; // tim2 enable
+// 	__NVIC_SetPriority(TIM3_IRQn, 0);
+// 	__NVIC_EnableIRQ(TIM3_IRQn);
+// }
 
-void GPIO_Init(void) {
+// void GPIO_Init(void) {
 
-	RCC_GPIO_ALLEN();
+// 	RCC_GPIO_ALLEN();
 
-	GPIO::GPIO_Config GPIO_ConfigStruct = { };
-	uint32_t pin_mask;
+// 	GPIO::GPIO_Config GPIO_ConfigStruct = { };
+// 	uint32_t pin_mask;
 
-	/**ETH GPIO Configuration
-	 PC1     ------> ETH_MDC
-	 PA1     ------> ETH_REF_CLK
-	 PA2     ------> ETH_MDIO
-	 PA7     ------> ETH_CRS_DV
-	 PC4     ------> ETH_RXD0
-	 PC5     ------> ETH_RXD1
-	 PB13     ------> ETH_TXD1
-	 PG11     ------> ETH_TX_EN
-	 PG13     ------> ETH_TXD0
-	 */
-	GPIO_ConfigStruct.port = GPIOA;
-	GPIO_ConfigStruct.mode = GPIO::Mode::Alt;
-	GPIO_ConfigStruct.otype = GPIO::OType::PP;
-	GPIO_ConfigStruct.pull = GPIO::Pull::None;
-	GPIO_ConfigStruct.speed = GPIO::Speed::VeryHigh;
-	GPIO_ConfigStruct.af = GPIO::AF::AF11;
-	pin_mask = (1U << 1) | (1U << 2) | (1U << 7); //(PA1,2,7)
-	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
+// 	/**ETH GPIO Configuration
+// 	 PC1     ------> ETH_MDC
+// 	 PA1     ------> ETH_REF_CLK
+// 	 PA2     ------> ETH_MDIO
+// 	 PA7     ------> ETH_CRS_DV
+// 	 PC4     ------> ETH_RXD0
+// 	 PC5     ------> ETH_RXD1
+// 	 PB13     ------> ETH_TXD1
+// 	 PG11     ------> ETH_TX_EN
+// 	 PG13     ------> ETH_TXD0
+// 	 */
+// 	GPIO_ConfigStruct.port = GPIOA;
+// 	GPIO_ConfigStruct.mode = GPIO::Mode::Alt;
+// 	GPIO_ConfigStruct.otype = GPIO::OType::PP;
+// 	GPIO_ConfigStruct.pull = GPIO::Pull::None;
+// 	GPIO_ConfigStruct.speed = GPIO::Speed::VeryHigh;
+// 	GPIO_ConfigStruct.af = GPIO::AF::AF11;
+// 	pin_mask = (1U << 1) | (1U << 2) | (1U << 7); //(PA1,2,7)
+// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
 
-	GPIO_ConfigStruct.port = GPIOB;
-	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 13); //PB13
+// 	GPIO_ConfigStruct.port = GPIOB;
+// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 13); //PB13
 
-	GPIO_ConfigStruct.port = GPIOC;
-	pin_mask = (1U << 1) | (1U << 4) | (1U << 5); //PC1,4,5
-	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
+// 	GPIO_ConfigStruct.port = GPIOC;
+// 	pin_mask = (1U << 1) | (1U << 4) | (1U << 5); //PC1,4,5
+// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
 
-	GPIO_ConfigStruct.port = GPIOG;
-	pin_mask = (1U << 11) | (1U << 13); //PG11,13
-	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
+// 	GPIO_ConfigStruct.port = GPIOG;
+// 	pin_mask = (1U << 11) | (1U << 13); //PG11,13
+// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
 
-	/**TIM GPIO Configuration
-	 PB10     ------> TIM2_CH3
-	 PA3     ------> TIM2_CH4
-	 PA6     ------> TIM3_CH1
-	 PC7     ------> TIM3_CH2
-	 PB0     ------> TIM3_CH3
-	 PB1     ------> TIM3_CH4
-	 */
-	GPIO_ConfigStruct.port = GPIOB;
-	GPIO_ConfigStruct.pull = GPIO::Pull::PullUp;
-	GPIO_ConfigStruct.af = GPIO::AF::AF1; // TIM2
-	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 10); // PB10
+// 	/**TIM GPIO Configuration
+// 	 PB10     ------> TIM2_CH3
+// 	 PA3     ------> TIM2_CH4
+// 	 PA6     ------> TIM3_CH1
+// 	 PC7     ------> TIM3_CH2
+// 	 PB0     ------> TIM3_CH3
+// 	 PB1     ------> TIM3_CH4
+// 	 */
+// 	GPIO_ConfigStruct.port = GPIOB;
+// 	GPIO_ConfigStruct.pull = GPIO::Pull::PullUp;
+// 	GPIO_ConfigStruct.af = GPIO::AF::AF1; // TIM2
+// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 10); // PB10
 
-	GPIO_ConfigStruct.port = GPIOA;
-	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 3); // PA3
+// 	GPIO_ConfigStruct.port = GPIOA;
+// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 3); // PA3
 
-	GPIO_ConfigStruct.af = GPIO::AF::AF2; // TIM3
-	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 6); //PA6
+// 	GPIO_ConfigStruct.af = GPIO::AF::AF2; // TIM3
+// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 6); //PA6
 
-	GPIO_ConfigStruct.port = GPIOC;
-	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 7); //PC7
+// 	GPIO_ConfigStruct.port = GPIOC;
+// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 7); //PC7
 
-	pin_mask = (1U << 0) | (1U << 1); //PB0,1
-	GPIO_ConfigStruct.port = GPIOB;
-	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
-}
+// 	pin_mask = (1U << 0) | (1U << 1); //PB0,1
+// 	GPIO_ConfigStruct.port = GPIOB;
+// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
+// }
 
-void Error_Handler(void) {
-	while (1) {
-	}
-}
+// void Error_Handler(void) {
+// 	while (1) {
+// 	}
+// }
 

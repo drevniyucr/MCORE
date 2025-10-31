@@ -1,61 +1,116 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "type": "cmake",
-      "label": "CMake: build",
-      "command": "build",
-      "targets": [
-          "ALL_BUILD"
-      ],
-      "problemMatcher": [],
-      "group": "build"
-    },
-    {
-      "type": "shell",
-      "label": "flash",
-      "command": "st-flash",
-      "args": [
-        "--reset",
-        "write",
-        "${input:workspaceFolderForwardSlash}/build/${workspaceFolderBasename}.bin",
-        "0x8000000"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}/build"
-      },
-      "dependsOn": "CMake: build",
-      "problemMatcher": [],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "detail": "Builds project and flashes firmware."
-
-    },
-    {
-      "type": "shell",
-      "label": "erase",
-      "command": "st-flash",
-      "args": [
-        "--connect-under-reset",
-        "erase"
-      ],
-      "detail": "mass erase of chip"
-    }
-  ],
-  
-  "inputs": [
-    {
-      "id": "workspaceFolderForwardSlash",
-      "type": "command",
-      "command": "extension.commandvariable.transform",
-      "args": {
-        "text": "${workspaceFolder}",
-        "find": "\\\\",
-        "replace": "/",
-        "flags": "g"
-      }
-    }
-  ]
+    "tasks": [
+        {
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--target",
+                "clean"
+            ],
+            "command": "cmake",
+            "group": "build",
+            "label": "CMake Clean",
+            "problemMatcher": [],
+            "type": "shell"
+        },
+        {
+            "args": [
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build",
+                "-DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "command": "cmake",
+            "label": "CMake Configure",
+            "problemMatcher": [],
+            "type": "shell"
+        },
+        {
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--target",
+                "STM32F767"
+            ],
+            "command": "cmake",
+            "dependsOn": [
+                "CMake Clean"
+            ],
+            "dependsOrder": "sequence",
+            "label": "CMake Build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "type": "shell"
+        },
+        {
+            "args": [
+                "-O",
+                "binary",
+                "${workspaceFolder}/build/STM32F767.elf",
+                "${workspaceFolder}/build/STM32F767.bin"
+            ],
+            "command": "${OBJCOPY}",
+            "dependsOn": "CMake Build",
+            "label": "Generate BIN",
+            "problemMatcher": [],
+            "type": "shell"
+        },
+        {
+            "args": [
+                "${workspaceFolder}/build/STM32F767.elf"
+            ],
+            "command": "${SIZE}",
+            "dependsOn": "Generate BIN",
+            "label": "View Firmware Size",
+            "problemMatcher": [],
+            "type": "shell"
+        },
+        {
+            "args": [
+                "-f",
+                "interface/stlink.cfg",
+                "-f",
+                "target/stm32f7x.cfg",
+                "-c",
+                "init; reset halt; stm32f7x mass_erase 0; reset; exit"
+            ],
+            "command": "openocd",
+            "label": "Erase MCU",
+            "problemMatcher": [],
+            "type": "shell"
+        },
+        {
+            "args": [
+                "-f",
+                "interface/stlink.cfg",
+                "-f",
+                "target/stm32f7x.cfg",
+                "-c",
+                "program C:/Users/AkimovMA/Documents/GitHub/MCORE/build/STM32F767.bin 0x08000000 verify reset exit"
+            ],
+            "command": "openocd",
+            "label": "Flash MCU",
+            "problemMatcher": [],
+            "type": "shell"
+        },
+        {
+            "command": "echo Automatic workflow running...",
+            "dependsOn": [
+                "CMake Build",
+                "Generate BIN",
+                "Erase MCU",
+                "Flash MCU",
+                "View Firmware Size"
+            ],
+            "dependsOrder": "sequence",
+            "label": "Build + Flash + Size",
+            "problemMatcher": [],
+            "type": "shell"
+        }
+    ],
+    "version": "2.0.0"
 }

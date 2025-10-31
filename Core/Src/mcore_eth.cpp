@@ -270,7 +270,7 @@ void PHY_Init(void) {
 	tickstart = get_tick();
 
 	while (!(bsr & (PHY_AUTONEG_DONE))) {
-		if ((get_tick() - tickstart) > 50000) {
+		if ((get_tick() - tickstart) > 5000) {
 			return;
 		}
 		PHY_Read(PHY_ADDR, PHY_BSR, &bsr);

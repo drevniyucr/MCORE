@@ -6,88 +6,94 @@
 #include "mcore_rcc.hpp"
 
 
-#define HSE_TIMEOUT 0x1000
-#define PLL_TIMEOUT 0x1000
-#define MS_DIV 1000U
+namespace {
+constexpr uint32_t HSE_TIMEOUT = 0x1000U;
+constexpr uint32_t PLL_TIMEOUT = 0x1000U;
+constexpr uint32_t MS_DIV = 1000U;
+}
 
 RCCStatus RCCInit(const ClockConfig &cfg) {
 
 	const uint8_t pll_p = static_cast<uint8_t>(cfg.PLLP);
-	const uint16_t ahb_div = static_cast<uint16_t>(cfg.AHBDiv);
-	const uint16_t apb1_div = static_cast<uint16_t>(cfg.APB1Div);
-	const uint16_t apb2_div = static_cast<uint16_t>(cfg.APB2Div);
+	const uint32_t ahb_div = static_cast<uint32_t>(cfg.AHBDiv);
+	const uint32_t apb1_div = static_cast<uint32_t>(cfg.APB1Div);
+	const uint32_t apb2_div = static_cast<uint32_t>(cfg.APB2Div);
 	const uint8_t flash_ws = static_cast<uint8_t>(cfg.FLASHLatency);
-	uint32_t tmpreg;
 
 	// 1. Проверка PLL параметров (валидные диапазоны по Reference Manual)
-	if ((cfg.PLLM < 2 || cfg.PLLM > 63) && (cfg.PLLN < 50 || cfg.PLLN > 432)) {
+	if (cfg.PLLM < 2 || cfg.PLLM > 63 || cfg.PLLN < 50 || cfg.PLLN > 432) {
 		return RCCStatus::PLL_CONFIG_INVALID;
 	}
-	// Enable voltage scale 1
-	tmpreg = (PWR->CR1 & (~PWR_CR1_VOS | PWR_CR1_VOS));
-	PWR->CR1 = tmpreg;
-	tmpreg = PWR->CR1;
 
+	// Enable voltage scale 1 (set VOS bits to required value)
+	PWR->CR1 = (PWR->CR1 & ~PWR_CR1_VOS) | static_cast<uint32_t>(VoltageScale::Scale1);
+
+	// 2. Включение HSE (если нужно)
 	if (cfg.useHSE) {
-		// 2. Включение HSE
 		if (cfg.useHSEBypass) {
 			RCC->CR |= RCC_CR_HSEBYP;
 		}
 		RCC->CR |= RCC_CR_HSEON;
-
-		for (uint32_t i = 0; !(RCC->CR & RCC_CR_HSERDY); ++i) {
-			if (i > HSE_TIMEOUT) {
+		uint32_t i = 0;
+		while (!(RCC->CR & RCC_CR_HSERDY)) {
+			if (++i > HSE_TIMEOUT) {
 				RCC->CR &= ~RCC_CR_HSEON;
 				return RCCStatus::HSE_FAILED;
 			}
 		}
 	}
+
 	// 3. Настройка PLL
-	RCC->PLLCFGR = (cfg.PLLM << RCC_PLLCFGR_PLLM_Pos)
-			| (cfg.PLLN << RCC_PLLCFGR_PLLN_Pos)
-			| (pll_p << RCC_PLLCFGR_PLLP_Pos)
+	RCC->PLLCFGR = (static_cast<uint32_t>(cfg.PLLM) << RCC_PLLCFGR_PLLM_Pos)
+			| (static_cast<uint32_t>(cfg.PLLN) << RCC_PLLCFGR_PLLN_Pos)
+			| (static_cast<uint32_t>(pll_p) << RCC_PLLCFGR_PLLP_Pos)
 			| (cfg.useHSE ? RCC_PLLCFGR_PLLSRC_HSE : RCC_PLLCFGR_PLLSRC_HSI);
-	// 4. Включение PLL
+
+	// 4. Включение PLL и ожидание готовности
 	RCC->CR |= RCC_CR_PLLON;
-	for (uint32_t i = 0; !(RCC->CR & RCC_CR_PLLRDY); ++i) {
-		if (i > PLL_TIMEOUT) {
+	uint32_t i = 0;
+	while (!(RCC->CR & RCC_CR_PLLRDY)) {
+		if (++i > PLL_TIMEOUT) {
 			RCC->CR &= ~RCC_CR_PLLON;
-			if (cfg.useHSE)
-				RCC->CR &= ~RCC_CR_HSEON;
+			if (cfg.useHSE) RCC->CR &= ~RCC_CR_HSEON;
 			return RCCStatus::PLL_FAILED;
 		}
 	}
-	//ENABLE OVER-DRIVE
+
+	// ENABLE OVER-DRIVE
 	PWR->CR1 |= PWR_CR1_ODEN;
-	for (uint32_t i = 0; !(PWR->CSR1 & PWR_CSR1_ODRDY); ++i) {
-		if (i > PLL_TIMEOUT) {
-			return RCCStatus::PLL_FAILED;
-		}
+	i = 0;
+	while (!(PWR->CSR1 & PWR_CSR1_ODRDY)) {
+		if (++i > PLL_TIMEOUT) return RCCStatus::PLL_FAILED;
 	}
 	PWR->CR1 |= PWR_CR1_ODSWEN;
-	for (uint32_t i = 0; !(PWR->CSR1 & PWR_CSR1_ODSWRDY); ++i) {
-		if (i > 200000) {
-			return RCCStatus::PLL_FAILED;
-		}
+	i = 0;
+	while (!(PWR->CSR1 & PWR_CSR1_ODSWRDY)) {
+		if (++i > 200000U) return RCCStatus::PLL_FAILED;
 	}
+
 	// 5. Настройка Flash latency
 	FLASH->ACR = flash_ws;
-	// 6. Настройка делителей шин
-	RCC->CFGR |= ahb_div | apb1_div | apb2_div;
+
+	// 6. Настройка делителей шин (обновляем только нужные биты)
+	RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE1 | RCC_CFGR_PPRE2))
+				| ahb_div | apb1_div | apb2_div;
+
 	// 7. Переключение SYSCLK на PLL
-	RCC->CFGR |= RCC_CFGR_SW_PLL;
-	while ((RCC->CFGR & RCC_CFGR_SWS_Msk) != RCC_CFGR_SWS_PLL)
-		;
+	RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_PLL;
+	while ((RCC->CFGR & RCC_CFGR_SWS_Msk) != RCC_CFGR_SWS_PLL) ;
+
 	// 8. Обновление SystemCoreClock
 	SystemCoreClockUpdate();
+
 	// 9. Настройка SysTick
 	if (cfg.useSysTick) {
 		SysTick_Config(SystemCoreClock / MS_DIV);
 	}
+
 	// 10. Выключение HSI (если не нужен)
-	if (cfg.useHSE)
-		RCC->CR &= ~RCC_CR_HSION;
-	// 11. Расчет итоговой частоты (если запрошено)
+	if (cfg.useHSE) RCC->CR &= ~RCC_CR_HSION;
+
 	return RCCStatus::OK;
 }
 

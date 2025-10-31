@@ -6,25 +6,22 @@
 
 #include "mcore_def.hpp"
 
-#define RCC_GPIOAEN()    do{RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;} while(0)
-#define RCC_GPIOBEN()    do{RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;} while(0)
-#define RCC_GPIOCEN()    do{RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;} while(0)
-#define RCC_GPIODEN()    do{RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;} while(0)
-#define RCC_GPIOEEN()    do{RCC->AHB1ENR |= RCC_AHB1ENR_GPIOEEN;} while(0)
-#define RCC_GPIOFEN()    do{RCC->AHB1ENR |= RCC_AHB1ENR_GPIOFEN;} while(0)
-#define RCC_GPIOGEN()    do{RCC->AHB1ENR |= RCC_AHB1ENR_GPIOGEN;} while(0)
+// Replace old macros with inline accessor functions to enable type safety and easier debugging
+static inline void RCC_GPIOAEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN; (void)RCC->AHB1ENR; }
+static inline void RCC_GPIOBEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN; (void)RCC->AHB1ENR; }
+static inline void RCC_GPIOCEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN; (void)RCC->AHB1ENR; }
+static inline void RCC_GPIODEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN; (void)RCC->AHB1ENR; }
+static inline void RCC_GPIOEEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOEEN; (void)RCC->AHB1ENR; }
+static inline void RCC_GPIOFEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOFEN; (void)RCC->AHB1ENR; }
+static inline void RCC_GPIOGEN() { RCC->AHB1ENR |= RCC_AHB1ENR_GPIOGEN; (void)RCC->AHB1ENR; }
 
-#define RCC_TIM2EN()     do{RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;} while(0)
-#define RCC_TIM3EN()     do{RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;} while(0)
+static inline void RCC_TIM2EN()  { RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; (void)RCC->APB1ENR; }
+static inline void RCC_TIM3EN()  { RCC->APB1ENR |= RCC_APB1ENR_TIM3EN; (void)RCC->APB1ENR; }
 
-#define RCC_GPIO_ALLEN() do{RCC->AHB1ENR |=  RCC_AHB1ENR_GPIOAEN\
-									      |RCC_AHB1ENR_GPIOBEN\
-										  |RCC_AHB1ENR_GPIOCEN\
-										  |RCC_AHB1ENR_GPIODEN\
-										  |RCC_AHB1ENR_GPIOEEN\
-										  |RCC_AHB1ENR_GPIOFEN\
-										  |RCC_AHB1ENR_GPIOGEN;\
-					  } while(0)
+static inline void RCC_GPIO_ALLEN() { \
+	RCC->AHB1ENR |= (RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOBEN | RCC_AHB1ENR_GPIOCEN \
+					 | RCC_AHB1ENR_GPIODEN | RCC_AHB1ENR_GPIOEEN | RCC_AHB1ENR_GPIOFEN \
+					 | RCC_AHB1ENR_GPIOGEN); (void)RCC->AHB1ENR; }
 
 enum class PLL_P : uint8_t {
 	Div2 = 0, Div4 = 1, Div6 = 2, Div8 = 3
