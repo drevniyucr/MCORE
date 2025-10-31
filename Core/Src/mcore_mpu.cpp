@@ -7,7 +7,6 @@
 #include "mcore_mpu.hpp"
 #include "mcore_utils.hpp"
 
-
 void MPU_Config(){
 
 	static constexpr _MPU::RegionConfig region0 = {
@@ -23,7 +22,6 @@ void MPU_Config(){
 	    .size = _MPU::regionSize::REGION_SIZE_4GB,
 	    .enable = true
 	};
-
 
 	static constexpr _MPU::RegionConfig region1_eth_rx = {
 	    .regionNum = _MPU::regionNumber::REGION_1,
@@ -54,11 +52,8 @@ void MPU_Config(){
 	};
 
 	_MPU::disable();
-
 	_MPU::configure(region0);
 	_MPU::configure(region1_eth_rx);
 	_MPU::configure(region2_eth_desc);
-
 	_MPU::enable();
-
 }

@@ -103,18 +103,15 @@ constexpr inline uint32_t buildRASR(const RegionConfig &cfg) noexcept {
 
 inline static void disable() {
 	__DMB();
-	SCB::_SHCSR::MEMFAULTENA::clear(non_atomic_mode);
+	SCB::_SHCSR::MEMFAULTENA::clear();
 	MPU::CTRL_Reg::write(0U);
-
 }
 
 inline static void enable() {
-
-	MPU::_CTRL::ENABLE::set(non_atomic_mode);
-	MPU::_CTRL::PRIVDEFENA::set();
 	//set<MPU::_CTRL::ENABLE, MPU::_CTRL::PRIVDEFENA>(non_atomic_mode);
+	MPU::_CTRL::ENABLE::set();
+	MPU::_CTRL::PRIVDEFENA::set();
 	SCB::_SHCSR::MEMFAULTENA::set();
-	
 	__DSB();
 	__ISB();
 }
@@ -122,7 +119,7 @@ inline static void enable() {
 inline static void configure(const RegionConfig &cfg) {
 	
 	MPU::RNR_Reg::write(cfg.regionNum);
-	MPU::_RASR::ENABLE::clear(non_atomic_mode);
+	MPU::_RASR::ENABLE::clear();
 	MPU::RBAR_Reg::write(cfg.baseAddress);
 	MPU::RASR_Reg::write(buildRASR(cfg));
 }

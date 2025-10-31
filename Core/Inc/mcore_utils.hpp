@@ -5,6 +5,7 @@
 #include <cassert>
 #include <utility>
 
+
 // Если вы хотите использовать CMSIS-интринсики вместо inline asm,
 // определите этот макрос (например, в CMake): -DUSE_CMSIS_ATOMICS=1
 // Тогда должны быть доступны __LDREXW / __STREXW или аналоги.
@@ -91,7 +92,6 @@ requires (!std::is_same_v<A, ReadOnly> &&
 // ---------------------------
 template<typename Reg, unsigned Offset, unsigned Width = 1>
 struct Field {
-     using Reg_Type = Reg;
 private:
     using access = typename Reg::access;
     static_assert(Width > 0 && Offset + Width <= 32, "Field out of range");
@@ -192,9 +192,9 @@ private:
 
 public:
     // ------------------- public meta-info -------------------
-    static constexpr unsigned pos = Offset;     
-    static constexpr unsigned width    = Width;       
-    static constexpr uint32_t bitmsk  = mask;        
+    static constexpr unsigned pos    = Offset;     
+    static constexpr unsigned width  = Width;       
+    static constexpr uint32_t bitmsk = mask;        
     static constexpr uint32_t max() noexcept { return (Width == 32 ? 0xFFFFFFFFu : ((1u << Width) - 1u)); }
 
     // ---------- READ ----------
@@ -207,79 +207,66 @@ public:
     }
 
     // ---------- WRITE ----------
-    template<typename A = access>
+    template<typename A = access, typename T = non_atomic_t>
     [[gnu::always_inline]]
-    static void write(uint32_t value, atomic_t) noexcept
+    static void write(uint32_t value, T = {}) noexcept
     requires (!std::is_same_v<A, ReadOnly>)
     {
-        check_atomic_allowed<atomic_t>();
-        assert((value & ~raw_mask_no_shift) == 0 && "Field::write: value out of range");
-        write_atomic_impl(value);
-    }
-
-    template<typename A = access>
-    [[gnu::always_inline]]
-    static void write(uint32_t value, non_atomic_t) noexcept
-    requires (!std::is_same_v<A, ReadOnly>)
-    {
-        assert((value & ~raw_mask_no_shift) == 0 && "Field::write: value out of range");
-        uint32_t regv = Reg::read();
-        regv = (regv & ~mask) | ((value << Offset) & mask);
-        Reg::write(regv);
+        if constexpr (std::is_same_v<T, atomic_t>) {
+            static_assert((value & ~raw_mask_no_shift) == 0 && "Field::write: value out of range");
+            check_atomic_allowed<T>();
+            write_atomic_impl(value);
+        } else {
+            static_assert((value & ~raw_mask_no_shift) == 0 && "Field::write: value out of range");
+            uint32_t regv = Reg::read();
+            regv = (regv & ~mask) | ((value << Offset) & mask);
+            Reg::write(regv);
+        }
     }
 
     // ---------- MODIFY ----------
-    template<typename F, typename A = access>
+    template<typename F, typename A = access, typename T = non_atomic_t>
     [[gnu::always_inline]]
-    static void modify(F&& f, atomic_t) noexcept
+    static void modify(F&& f, T = {}) noexcept
     requires (!std::is_same_v<A, ReadOnly>)
     {
-        check_atomic_allowed<atomic_t>();
-        modify_atomic_impl(std::forward<F>(f));
-    }
-
-    template<typename F, typename A = access>
-    [[gnu::always_inline]]
-    static void modify(F&& f, non_atomic_t) noexcept
-    requires (!std::is_same_v<A, ReadOnly>)
-    {
-        uint32_t cur = Reg::read();
-        uint32_t field = (cur >> Offset) & max();
-        uint32_t next = static_cast<uint32_t>(f(field)) & max();
-        uint32_t new_val = (cur & ~mask) | (next << Offset);
-        Reg::write(new_val);
+        if constexpr (std::is_same_v<T, atomic_t>) {
+            check_atomic_allowed<T>();
+            modify_atomic_impl(std::forward<F>(f));
+        } else {
+            uint32_t cur = Reg::read();
+            uint32_t field = (cur >> Offset) & max();
+            uint32_t next = static_cast<uint32_t>(f(field)) & max();
+            uint32_t new_val = (cur & ~mask) | (next << Offset);
+            Reg::write(new_val);
+        }
     }
 
     // ---------- SET/CLEAR (only for single-bit fields) ----------
- template<typename A = access>
-[[gnu::always_inline]]
-static void set(non_atomic_t = {}) noexcept
-requires (Width == 1 && !std::is_same_v<A, ReadOnly>)
-{
-    using T = non_atomic_t;
-    if constexpr (std::is_same_v<T, atomic_t>) {
-        check_atomic_allowed<T>();
-        write_atomic_impl(1u);
-    } else {
-        Reg::setMask(mask);
-    }
-}
-
-    template<typename A = access>
+    template<typename A = access, typename T = non_atomic_t>
     [[gnu::always_inline]]
-    static void clear(atomic_t) noexcept
+    static void set(T = {}) noexcept
     requires (Width == 1 && !std::is_same_v<A, ReadOnly>)
     {
-        check_atomic_allowed<atomic_t>();
-        write_atomic_impl(0u);
+        if constexpr (std::is_same_v<T, atomic_t>) {
+            check_atomic_allowed<T>();
+            write_atomic_impl(1u);
+        } else {
+            Reg::setMask(mask);
+        }
     }
 
-    template<typename A = access>
+    template<typename A = access, typename T = non_atomic_t>
     [[gnu::always_inline]]
-    static void clear(non_atomic_t) noexcept
+    static void clear(T = {}) noexcept
     requires (Width == 1 && !std::is_same_v<A, ReadOnly>)
     {
-        Reg::clearMask(mask);
+        if constexpr (std::is_same_v<T, atomic_t>) {
+            check_atomic_allowed<T>();
+            write_atomic_impl(0u);
+        } else {
+            Reg::clearMask(mask);
+        }
     }
 
     // ---------- IS_SET ----------

@@ -18,7 +18,7 @@
 
 #include "mcore.hpp"
 
-// #define NVIC_PRIORITYGROUP_4 ((uint32_t)0x00000003U)
+#define NVIC_PRIORITYGROUP_4 ((uint32_t)0x00000003U)
 
 // void GPIO_Init(void);
 
@@ -51,9 +51,9 @@ int main(void) {
 
 	MPU_Config();
 
-	// SCB_EnableICache();
-	// SCB_EnableDCache();
-	// __NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
+	 SCB_EnableICache();
+	// SCB_EnableDCache(); может быть не стоит
+	NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
 	// __enable_irq();
 
 	// enablePowerInterface();

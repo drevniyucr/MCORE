@@ -5,6 +5,7 @@
 // --------------------------------------------
 // SCB:System Control Block
 // Base address: 0xE000ED00 
+// Это неполное описание регистра SCB!
 // --------------------------------------------
 
 namespace SCB {
@@ -124,6 +125,7 @@ namespace SCB {
         using BFSR = Field<CFSR_Reg, 8, 8>;
         using MMFSR = Field<CFSR_Reg, 0, 8>;
     };
+    using ICIALLU_Reg = Register<SCB_BASE + 0x250, WriteOnly>;
 }
 
 // --------------------------------------------
