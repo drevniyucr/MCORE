@@ -1,3 +1,10 @@
 .settings
 build
 /Debug
+.cache
+Release
+tools
+/stinfo.txt
+/mcore Debug.launch
+/mcore Debug.cfg
+/.mxproject
