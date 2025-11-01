@@ -19,12 +19,11 @@
 #include "mcore.hpp"
 
 
-
 //void GPIO_Init(void);
 void RCC_Init(void);
 // void TIM2_Init(void);
 // void TIM3_Init(void);
-// void Error_Handler(void);
+void Error_Handler(void);
 
 // uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
 // uint8_t dst_ip[] = { 192, 168, 0, 10 };
@@ -37,50 +36,55 @@ void RCC_Init(void);
 // UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, // @suppress("Invalid arguments")
 // 		reinterpret_cast<uint8_t*>(high_time), sizeof(high_time) };
 
-int main(void) {
+int main(void)
+{
+    MPU_Config();
+    SCB_EnableICache();
+    // SCB_EnableDCache(); может быть не стоит
+    NVIC::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
+    NVIC::enable_irq();
 
-	MPU_Config();
-	SCB_EnableICache();
-	// SCB_EnableDCache(); может быть не стоит
-	NVIC::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
-	NVIC::enable_irq();
-
-	// enablePowerInterface();
-	RCC_Init();
-	// if (RCCInit(RccCfg) != RCCStatus::OK) {
-	// 	Error_Handler();
-	// }
-	// enableEthInterface();
-	// GPIO_Init();
-	// ETH_Init();
-	// TIM2_Init();
-	// TIM3_Init();
-	// NET_TCP_Init();
-	// uint32_t tickstart = get_tick();
-	while (1) {
-		// ETH_RxWorker();
-		// if ((get_tick() - tickstart) > 5000) {
-		// 	tickstart = get_tick();
-		// 	if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
-		// 	NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
-			//NET_SendUDP(UDPframe);
-		// 	}
-		// }
-	}
+    enablePowerInterface();
+    RCC_Init();
+    // if (RCCInit(RccCfg) != RCCStatus::OK) {
+    // 	Error_Handler();
+    // }
+    // enableEthInterface();
+    // GPIO_Init();
+    // ETH_Init();
+    // TIM2_Init();
+    // TIM3_Init();
+    // NET_TCP_Init();
+    // uint32_t tickstart = get_tick(); 
+    while (true)
+    {
+        // ETH_RxWorker();
+        // if ((get_tick() - tickstart) > 5000) {
+        // 	tickstart = get_tick();
+        // 	if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
+        // 	NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
+        //NET_SendUDP(UDPframe);
+        // 	}
+        // }
+    }
 }
-void RCC_Init(void){
-static constexpr ClockConfig RccCfg = {
-		.PLLM = 4, // MCO(8Mhz)/8=2
-		.PLLN = 216, // 2*216 = 432
-		.PLLP = PLL_P::Div2, // 432/2=216MHz SYSCKL MAX
-		.AHBDiv = AHBPrescaler::Div1, // 216MHz HCKL MAX
-		.APB1Div = APBPrescaler::Div4,  //216/4=54 MHz APB1 MAX
-		.APB2Div = APBPrescaler::Div2,  //216/2=108 MHz APB2 MAX
-		.FLASHLatency = FLASH_Latency::WS7, .useHSE = true,
-		.useHSEBypass = true, .useSysTick = true
-	 };
+void RCC_Init(void)
+{
+    const ClockConfig RccCfg = {.PLLM    = 4,              // MCO(8Mhz)/8=2
+                                .PLLN    = 216,            // 2*216 = 432
+                                .PLLP    = PLL_P::Div2,    // 432/2=216MHz SYSCKL MAX
+                                .AHBDiv  = AHBPrescaler::Div1,    // 216MHz HCKL MAX
+                                .APB1Div = APBPrescaler::Div4,    //216/4=54 MHz APB1 MAX
+                                .APB2Div = APBPrescaler::Div2,    //216/2=108 MHz APB2 MAX
+                                .FLASHLatency = FLASH_Latency::WS7,
+                                .useHSE       = true,
+                                .useHSEBypass = true,
+                                .useSysTick   = true};
 
-	RCCStatus ff =  RCCInit(RccCfg);
+
+    if (RCCInit(&RccCfg) != RCCStatus::OK) {
+        Error_Handler();
+    }
 };
 
 // extern "C" void TIM2_IRQHandler(void) {
@@ -406,8 +410,9 @@ static constexpr ClockConfig RccCfg = {
 // 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
 // }
 
-// void Error_Handler(void) {
-// 	while (1) {
-// 	}
-// }
-
+void Error_Handler(void)
+{
+    while (1)
+    {
+    }
+}

@@ -2425,8 +2425,10 @@ namespace RCC {
         using HPRE = Field<CFGR_Reg, 4, 4>; // AHB prescaler
         using SWS1 = Field<CFGR_Reg, 3, 1>; // System clock switch status
         using SWS0 = Field<CFGR_Reg, 2, 1>; // System clock switch status
+        using SWS = Field<CFGR_Reg, 2, 2>; // System clock switch status
         using SW1 = Field<CFGR_Reg, 1, 1>; // System clock switch
         using SW0 = Field<CFGR_Reg, 0, 1>; // System clock switch
+        using SW = Field<CFGR_Reg, 0, 2>;
     };
 
     // clock interrupt register
@@ -8514,7 +8516,7 @@ namespace CAN3 {
 // Base address: 0x40023C00
 // --------------------------------------------
 
-namespace Flash {
+namespace FLASH {
     static constexpr uint32_t Flash_BASE = 0x40023C00;
 
     // Flash access control register

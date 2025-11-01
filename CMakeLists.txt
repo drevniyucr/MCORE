@@ -43,25 +43,16 @@ find_program(CMAKE_C_COMPILER   NAMES ${STM32_TARGET_TRIPLET}-gcc HINTS ${TOOLCH
 find_program(CMAKE_CXX_COMPILER NAMES ${STM32_TARGET_TRIPLET}-g++ HINTS ${TOOLCHAIN_BIN_PATH})
 find_program(CMAKE_ASM_COMPILER NAMES ${STM32_TARGET_TRIPLET}-gcc HINTS ${TOOLCHAIN_BIN_PATH})
 
-set(CMAKE_EXECUTABLE_SUFFIX_C   .elf)
-set(CMAKE_EXECUTABLE_SUFFIX_CXX .elf)
-set(CMAKE_EXECUTABLE_SUFFIX_ASM .elf)
-
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 
-# set(TOOLCHAIN_PATH C:/Users/AkimovMA/scoop/apps/gcc-arm-none-eabi/current/bin)
-# set(CMAKE_C_COMPILER ${TOOLCHAIN_PATH}/arm-none-eabi-gcc.exe)
-# set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PATH}/arm-none-eabi-g++.exe)
-# set(CMAKE_ASM_COMPILER ${TOOLCHAIN_PATH}/arm-none-eabi-gcc.exe)
-
-# set(OBJCOPY ${TOOLCHAIN_PATH}/arm-none-eabi-objcopy.exe)
-# set(SIZE    ${TOOLCHAIN_PATH}/arm-none-eabi-size.exe)
-
 project(STM32F767 LANGUAGES C CXX ASM)
+
+
+
 # CPU / компилятор
 set(CPU_FLAGS -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard)
 # C flags
-set(C_FLAGS ${CPU_FLAGS} -Os -ffunction-sections -fdata-sections -Wall)
+set(C_FLAGS ${CPU_FLAGS} -Os -ffunction-sections -fdata-sections -Wall -Wextra)
 # C++ flags
 set(CXX_FLAGS ${C_FLAGS} -fno-rtti -fno-exceptions -std=c++20)
 
@@ -75,6 +66,7 @@ file(GLOB SRC
     Core/Startup/startup_stm32f767zitx.s
     Core/Src/main.cpp
     Core/Src/mcore_mpu.cpp
+    Core/Src/mcore_rcc.cpp
     Core/Src/stm32f7xx_it.c
 )
 

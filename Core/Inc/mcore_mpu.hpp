@@ -108,7 +108,7 @@ inline static void disable() {
 }
 
 inline static void enable() {
-	//set<MPU::_CTRL::ENABLE, MPU::_CTRL::PRIVDEFENA>(non_atomic_mode);
+	MPU::_CTRL::set<MPU::_CTRL::ENABLE, MPU::_CTRL::PRIVDEFENA>();
 	MPU::_CTRL::ENABLE::set();
 	MPU::_CTRL::PRIVDEFENA::set();
 	SCB::_SHCSR::MEMFAULTENA::set();

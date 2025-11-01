@@ -108,7 +108,7 @@ struct ClockConfig {
 	bool useSysTick = true;
 };
 // Основная инициализация тактирования
-RCCStatus RCCInit( ClockConfig &cfg);
+RCCStatus RCCInit(const ClockConfig* cfg);
 // Расчёт итоговой частоты PLL
 uint32_t CalculatePLLCLK(uint32_t inputFreq, uint8_t pllm, uint16_t plln,
 		uint8_t pllp);
