@@ -49,7 +49,7 @@ RCCStatus RCCInit(const ClockConfig* cfg) {
 	}
 
 	// 3. Настройка PLL
-	RCC::PLLCFGR_Reg::write(
+	RCC::_PLLCFGR::overwrite(
 		  (static_cast<uint32_t>(cfg->PLLM) << RCC::_PLLCFGR::PLLM0::pos)
 		| (static_cast<uint32_t>(cfg->PLLN) << RCC::_PLLCFGR::PLLN0::pos)
 		| (static_cast<uint32_t>(pll_p) << RCC::_PLLCFGR::PLLP0::pos)
@@ -93,17 +93,17 @@ RCCStatus RCCInit(const ClockConfig* cfg) {
 	}
 
 	// 5. Настройка Flash latency
-	FLASH::ACR_Reg::write(flash_ws);
+	Flash::_ACR::overwrite(flash_ws);
 	//FLASH->ACR = flash_ws;
 	// 6. Настройка делителей шин (обновляем только нужные биты)
-	RCC::CFGR_Reg::clearMask(RCC::_CFGR::HPRE::bitmsk | RCC::_CFGR::PPRE1::bitmsk | RCC::_CFGR::PPRE2::bitmsk);
-	RCC::CFGR_Reg::setMask(ahb_div | apb1_div | apb2_div);
+	RCC::_CFGR::clearMask(RCC::_CFGR::HPRE::bitmsk | RCC::_CFGR::PPRE1::bitmsk | RCC::_CFGR::PPRE2::bitmsk);
+	RCC::_CFGR::setMask(ahb_div | apb1_div | apb2_div);
 	// RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE1 | RCC_CFGR_PPRE2))
 	// 			| ahb_div | apb1_div | apb2_div;
 	// 7. Переключение SYSCLK на PLL
-	RCC::CFGR_Reg::setMask(RCC::_CFGR::SW::bitmsk);
+	///!!!!!!RCC::_CFGR::setMask(RCC::_CFGR::SW::bitmsk);
 	RCC::_CFGR::SW1::set();
-	while (RCC::_CFGR::SWS::read() != 0x02);
+	///!!!!!!while (RCC::_CFGR::SWS::read() != 0x02);
 	// RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_PLL;
 	// while ((RCC->CFGR & RCC_CFGR_SWS_Msk) != RCC_CFGR_SWS_PLL);
 
@@ -135,13 +135,13 @@ void enablePowerInterface(void) {
 	uint32_t tmpreg;
 	RCC::_APB1ENR::PWREN::set();
 	//RCC->APB1ENR |= RCC_APB1ENR_PWREN;
-	tmpreg = RCC::APB1ENR_Reg::read();
+	tmpreg = RCC::_AHB1ENR::read();
 	(void) tmpreg;
 }
 
 void enableEthInterface(void) {
 	uint32_t tmpreg;
-	RCC::AHB1ENR_Reg::setMask(
+	RCC::_AHB1ENR::setMask(
 			RCC::_AHB1ENR::ETHMACEN::bitmsk
 		  | RCC::_AHB1ENR::ETHMACTXEN::bitmsk
 		  | RCC::_AHB1ENR::ETHMACRXEN::bitmsk);
@@ -149,6 +149,6 @@ void enableEthInterface(void) {
 	// 		RCC_AHB1ENR_ETHMACEN
 	// 		| RCC_AHB1ENR_ETHMACTXEN
 	// 		| RCC_AHB1ENR_ETHMACRXEN;
-	tmpreg = RCC::APB1ENR_Reg::read();
+	tmpreg = RCC::_AHB1ENR::read();
 	(void) tmpreg;
 }

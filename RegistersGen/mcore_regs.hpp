@@ -1,5 +1,6 @@
 #pragma once
-#include "mcore_utils.hpp"
+#include <cstdint>
+#include <mcore_utils>
 
 
 /*------------------------------------------------------------------------------
@@ -268,8 +269,8 @@ namespace ID {
         using MultU_instrs = Field <_ID_ISAR2, 20, 4>; // Bits [23:20] : Indicates the supported advanced unsigned multiply instructions.
         using MultS_instrs = Field <_ID_ISAR2, 16, 4>; // Bits [19:16] : Indicates the supported advanced signed multiply instructions.
         using Mult_instrs = Field <_ID_ISAR2, 12, 4>; // Bits [15:12] : Indicates the supported additional multiply instructions.
-        //using MultiAccessInt_instrs = Field <_ID_ISAR2, 8, 4>; // Bits [11:8] : Indicates the supported multi-access interruptible instructions.
-        using MultiAccessInt_instrs = Field <_ID_ISAR2, 4, 8>; // Bits [7:4] : Indicates the supported memory hint instructions.
+        using MultiAccessInt_instrs = Field <_ID_ISAR2, 8, 4>; // Bits [11:8] : Indicates the supported multi-access interruptible instructions.
+        using MultiAccessInt_instrs = Field <_ID_ISAR2, 4, 4>; // Bits [7:4] : Indicates the supported memory hint instructions.
         using LoadStore_instrs = Field <_ID_ISAR2, 0, 4>; // Bits [3:0] : Indicates the supported additional load and store instructions.
     };
 
@@ -1196,7 +1197,7 @@ namespace MPU {
     };
 
     // MPU_CTRL: MPU Control Register
-    struct  _MPU_CTRL : Register <0xE000ED94, ReadWrite, _MPU_CTRL> {
+    struct _MPU_CTRL : Register <0xE000ED94, ReadWrite, _MPU_CTRL> {
         using ENABLE = Field <_MPU_CTRL, 0, 1>; // Bits [0] : Enables the MPU
         using HFNMIENA = Field <_MPU_CTRL, 1, 1>; // Bits [1] : When the ENABLE bit is set to 1, controls whether handlers executing with priority less than 0 access memory with the MPU enabled or with the MPU disabled
         using PRIVDEFENA = Field <_MPU_CTRL, 2, 1>; // Bits [2] : When the ENABLE bit is set to 1, Enables the default memory map as a background region for privileged access

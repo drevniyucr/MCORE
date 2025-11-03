@@ -2,18 +2,18 @@
 # -*- coding: utf-8 -*-
 
 import xml.etree.ElementTree as ET
-import sys
 from pathlib import Path
+import sys
 import re
 
-HEADER = """#pragma once
-#include "mcore_utils.hpp"  // Определи шаблоны Register и Field заранее
+FOOTER = """
+\n /* stm32f767\n 
 
-
+--------------------------------------------------------------------------------
+--------------------- End of STM32F767 Register Descripton ---------------------
+--------------------------------------------------------------------------------    
+*/
 """
-
-FOOTER = "\n // stm32f767\n"
-
 
 def sanitize_name(name: str) -> str:
     """Приводит имена к корректному C++ виду"""
@@ -63,38 +63,47 @@ def gen_registers(periph_elem, base_name):
             rw_type = "WriteOnly"
 
         full_addr = f"{base_name}_BASE + {offset}"
-        reg_alias = f"Register<{full_addr}, {rw_type}>"
+        reg_alias = f"Register<{full_addr}, {rw_type}, _{reg_name}>"
 
         if desc:
             result.append(f"    // {desc}")
-        result.append(f"    using {reg_name}_Reg = {reg_alias};")
 
         fields = parse_fields(reg)
         if fields:
-            result.append(f"    struct _{reg_name} {{")
+            result.append(f"    struct _{reg_name} : {reg_alias} {{")
             for name, off, width, fdesc in fields:
                 comment = f" // {fdesc}" if fdesc else ""
-                result.append(f"        using {name} = Field<{reg_name}_Reg, {off}, {width}>;{comment}")
+                result.append(f"        using {name} = Field<_{reg_name}, {off}, {width}>;{comment}")
             result.append("    };")
         result.append("")
     return result
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: svd2registers.py STM32F767.svd [output.hpp]")
-        sys.exit(1)
-
-    svd_path = Path(sys.argv[1])
-    out_path = Path(sys.argv[2]) if len(sys.argv) > 2 else svd_path.with_suffix(".hpp")
+def main(svd_path,out_path):
+    # if len(sys.argv) < 2:
+    #     print("Usage: svd2registers.py STM32F767.svd [output.hpp]")
+    #     sys.exit(1)
+    print(f"Парсим {svd_path} → {out_path}")
+    # svd_path = Path(sys.argv[1])
+    # out_path = Path(sys.argv[2]) if len(sys.argv) > 2 else svd_path.with_suffix(".hpp")
 
     tree = ET.parse(svd_path)
     root = tree.getroot()
 
+    HEADER = f"""
+/*-----------------------------------------------------------------------------
+------------------------ STM32F767 Register Descripton ------------------------
+-------------------------------------------------------------------------------
+
+Generating from file: {out_path}*/
+
+"""
+  
     out_lines = [HEADER]
 
     for periph in root.findall("peripherals/peripheral"):
         name = sanitize_name(periph.findtext("name"))
+        print(f"{name}")
         base = periph.findtext("baseAddress")
         desc = clean_description(periph.findtext("description"))
 
@@ -110,7 +119,11 @@ def main():
 
     out_lines.append(FOOTER)
 
-    out_path.write_text("\n".join(out_lines), encoding="utf-8")
+    # out_path.write_text("\n".join(out_lines), encoding="utf-8")
+
+    with open(out_path, "a", encoding="utf-8") as f:
+        f.write("\n".join(out_lines) + "\n")
+
     print(f"✅ Generated: {out_path}")
 
 

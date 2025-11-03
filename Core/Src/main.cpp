@@ -41,8 +41,8 @@ int main(void)
     MPU_Config();
     SCB_EnableICache();
     // SCB_EnableDCache(); может быть не стоит
-    NVIC::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
-    NVIC::enable_irq();
+    NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
+    NVIC_API::enable_irq();
 
     enablePowerInterface();
     RCC_Init();

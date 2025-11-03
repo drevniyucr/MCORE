@@ -90,37 +90,37 @@ struct RegionConfig {
 
 // Build RASR register value from RegionConfig. Can be evaluated at compile-time
 constexpr inline uint32_t buildRASR(const RegionConfig &cfg) noexcept {
-	return (static_cast<uint32_t>(cfg.instructionAccessDisable) << MPU::_RASR::XN::pos)
-		| (static_cast<uint32_t>(cfg.accessPermission) << MPU::_RASR::AP::pos)
-		| (static_cast<uint32_t>(cfg.texLevel) << MPU::_RASR::TEX::pos)
-		| (static_cast<uint32_t>(cfg.shareable) << MPU::_RASR::S::pos)
-		| (static_cast<uint32_t>(cfg.cacheable) << MPU::_RASR::C::pos)
-		| (static_cast<uint32_t>(cfg.bufferable) << MPU::_RASR::B::pos)
-		| (static_cast<uint32_t>(cfg.subregionDisable) << MPU::_RASR::SRD::pos)
-		| (static_cast<uint32_t>(cfg.size) << MPU::_RASR::SIZE::pos)
-		| (static_cast<uint32_t>(cfg.enable) << MPU::_RASR::ENABLE::pos);
+	return (static_cast<uint32_t>(cfg.instructionAccessDisable) << MPU::_MPU_RASR::XN::pos)
+		| (static_cast<uint32_t>(cfg.accessPermission) << MPU::_MPU_RASR::AP::pos)
+		| (static_cast<uint32_t>(cfg.texLevel) << MPU::_MPU_RASR::TEX::pos)
+		| (static_cast<uint32_t>(cfg.shareable) << MPU::_MPU_RASR::S::pos)
+		| (static_cast<uint32_t>(cfg.cacheable) << MPU::_MPU_RASR::C::pos)
+		| (static_cast<uint32_t>(cfg.bufferable) << MPU::_MPU_RASR::B::pos)
+		| (static_cast<uint32_t>(cfg.subregionDisable) << MPU::_MPU_RASR::SRD::pos)
+		| (static_cast<uint32_t>(cfg.size) << MPU::_MPU_RASR::SIZE::pos)
+		| (static_cast<uint32_t>(cfg.enable) << MPU::_MPU_RASR::ENABLE::pos);
 }
 
 inline static void disable() {
 	__DMB();
-	SCB::_SHCSR::MEMFAULTENA::clear();
-	MPU::CTRL_Reg::write(0U);
+	Control::_SHCSR::MEMFAULTENA::clear();
+	MPU::_MPU_CTRL::clear();
 }
 
 inline static void enable() {
-	MPU::_CTRL::set<MPU::_CTRL::ENABLE, MPU::_CTRL::PRIVDEFENA>();
-	MPU::_CTRL::ENABLE::set();
-	MPU::_CTRL::PRIVDEFENA::set();
-	SCB::_SHCSR::MEMFAULTENA::set();
+	MPU::_MPU_CTRL::bitSet<MPU::_MPU_CTRL::ENABLE, MPU::_MPU_CTRL::PRIVDEFENA>();
+	MPU::_MPU_CTRL::ENABLE::set();
+	MPU::_MPU_CTRL::PRIVDEFENA::set();
+	Control::_SHCSR::MEMFAULTENA::set();
 	__DSB();
 	__ISB();
 }
 
 inline static void configure(const RegionConfig &cfg) {
 	
-	MPU::RNR_Reg::write(cfg.regionNum);
-	MPU::_RASR::ENABLE::clear();
-	MPU::RBAR_Reg::write(cfg.baseAddress);
-	MPU::RASR_Reg::write(buildRASR(cfg));
+	MPU::_MPU_RNR::overwrite(cfg.regionNum);
+	MPU::_MPU_RASR::ENABLE::clear();
+	MPU::_MPU_RBAR::overwrite(cfg.baseAddress);
+	MPU::_MPU_RASR::overwrite(buildRASR(cfg));
 }
 };

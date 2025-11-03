@@ -60,7 +60,7 @@ enum class AF : uint8_t {
 };
 
 struct GPIO_Config {
-    GPIO_TypeDef* port;   // GPIOA, GPIOB...
+ //   GPIO_TypeDef* port;   // GPIOA, GPIOB...
     Mode  mode;        // Режим работы
     OType otype;      // Тип выхода
     Speed speed;      // Скорость

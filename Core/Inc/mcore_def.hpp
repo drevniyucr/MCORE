@@ -10,7 +10,7 @@
 #ifdef USE_CMSIS
 #include <stm32f7xx.h>
 #else
-#include "mcore_utils.hpp"
+#include "mcore_regs.hpp"
 #endif
 
 inline static void __DSB(void) {
@@ -32,11 +32,11 @@ inline static void SCB_EnableICache (void)
 {
     __DSB();
     __ISB();
-    SCB::ICIALLU_Reg::write(0U);                /* invalidate I-Cache */
+    Cache::_ICIALLU::clear();                /* invalidate I-Cache */
     // SCB->ICIALLU = 0UL;                     /* invalidate I-Cache */
     __DSB();
     __ISB();
-    SCB::_CCR::IC::set();
+    Control::_CCR::IC::set();
     // SCB->CCR |=  (uint32_t)SCB_CCR_IC_Msk;  /* enable I-Cache */
     __DSB();
     __ISB();

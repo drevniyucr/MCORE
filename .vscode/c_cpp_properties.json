@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "STM32F767",
-            "compilerPath": "C:/Users/AkimovMA/scoop/apps/gcc-arm-none-eabi/current/bin/arm-none-eabi-gcc.exe",
+            "compilerPath": "c:/Users/doomt/scoop/apps/gcc-arm-none-eabi/current/bin/arm-none-eabi-gcc.exe",
             "intelliSenseMode": "gcc-arm",
             "includePath": [
                 "${workspaceFolder}/Core/Inc",

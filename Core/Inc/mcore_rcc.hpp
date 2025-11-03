@@ -18,7 +18,7 @@ static inline void RCC_TIM2EN()  { RCC::_APB1ENR::TIM2EN::set(); }
 static inline void RCC_TIM3EN()  { RCC::_APB1ENR::TIM3EN::set(); }
 
 static inline void RCC_GPIO_ALLEN() { 
-	RCC::AHB1ENR_Reg::setMask(
+	RCC::_AHB1ENR::setMask(
 		RCC::_AHB1ENR::GPIOAEN::bitmsk |
 		RCC::_AHB1ENR::GPIOBEN::bitmsk |
 		RCC::_AHB1ENR::GPIOCEN::bitmsk |
