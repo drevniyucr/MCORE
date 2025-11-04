@@ -32,6 +32,11 @@ inline constexpr access_mode<false> non_atomic_mode{};
 template<typename Reg, typename Bit>
 concept BitValid = std::is_same_v<typename Bit::RegType, Reg> && (Bit::width == 1);
 
+
+template<uint32_t Value, uint32_t Mask>
+concept ValueValid = ((Value & ~Mask)== 0);
+
+
 // ---------------------------
 // Register template
 // ---------------------------
@@ -123,7 +128,7 @@ struct Register
     static constexpr uintptr_t address         = Address;   
    
     static_assert((Address % 4) == 0, "Register address must be 4-byte aligned");
-
+    static_assert((Address >= 0x40000000), "Not a register address");
     [[gnu::always_inline]]
     static volatile uint32_t* ptr() noexcept
     {
@@ -136,50 +141,59 @@ struct Register
         return *ptr();
     }
 
-    template<typename A = Access>
     [[gnu::always_inline]]
     static uint32_t read() noexcept
-    requires(!std::is_same_v<A, WriteOnly>)
-    {
+    {   
+        static_assert(!std::is_same_v<Access, WriteOnly>, "Access denied");
         return reg();    // volatile read
     }
-
-    template<typename A = Access, typename T = uint32_t>
+    //run-time
+     template<typename T>
     [[gnu::always_inline]]
-    static void overwrite(T v) noexcept
-    requires(!std::is_same_v<A, ReadOnly> &&
+    static void overwrite(T Val) noexcept
+    requires(!std::is_same_v<Access, ReadOnly> &&
         ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
         (std::is_enum_v<T> && std::is_unsigned_v<std::underlying_type_t<T>>)))
     {
-        reg() = static_cast<uint32_t>(v);   
+        reg() = static_cast<uint32_t>(Val);   
+    }
+
+    //compile-time
+    template<auto Val>
+    [[gnu::always_inline]]
+    static void overwrite() noexcept
+    requires(!std::is_same_v<Access, ReadOnly> &&
+        ((std::is_integral_v<decltype(Val)> && std::is_unsigned_v<decltype(Val)>) ||
+        (std::is_enum_v<decltype(Val)> && std::is_unsigned_v<std::underlying_type_t<decltype(Val)>>)))
+    {
+        reg() = static_cast<uint32_t>(Val);   
     }
    
     [[gnu::always_inline]]
     static void clear() noexcept
     {
-        overwrite(0U);   
+        overwrite<0U>();   
     }
 
-    template<typename A = Access, typename T = uint32_t>
+    template<auto Val>
     [[gnu::always_inline]]
-    static void setMask(T mask) noexcept
-    requires(!std::is_same_v<A, ReadOnly> &&
-        ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
-        (std::is_enum_v<T> && std::is_unsigned_v<std::underlying_type_t<T>>)))
+    static void setMask() noexcept
+    requires(!std::is_same_v<Access, ReadOnly> &&
+        ((std::is_integral_v<decltype(Val)> && std::is_unsigned_v<decltype(Val)>) ||
+        (std::is_enum_v<decltype(Val)> && std::is_unsigned_v<std::underlying_type_t<decltype(Val)>>)))
     {
-        reg() |= static_cast<uint32_t>(mask);
+        reg() |= static_cast<uint32_t>(Val);
     }
 
-    template<typename A = Access, typename T = uint32_t>
+    template<auto Val>
     [[gnu::always_inline]]
-    static void clearMask(T mask) noexcept
-    requires(!std::is_same_v<A, ReadOnly> &&
-        ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
-        (std::is_enum_v<T> && std::is_unsigned_v<std::underlying_type_t<T>>)))
+    static void clearMask() noexcept
+    requires(!std::is_same_v<Access, ReadOnly> &&
+        ((std::is_integral_v<decltype(Val)> && std::is_unsigned_v<decltype(Val)>) ||
+        (std::is_enum_v<decltype(Val)> && std::is_unsigned_v<std::underlying_type_t<decltype(Val)>>)))
     {
-        reg() &= ~static_cast<uint32_t>(mask);
+        reg() &= ~static_cast<uint32_t>(Val);
     }
-
 
     template<typename... Bits>
     [[gnu::always_inline]]
@@ -188,31 +202,28 @@ struct Register
     {   
         static_assert(!std::is_same_v<Access, ReadOnly>, "Acces denied");
         static_assert(sizeof...(Bits) > 0, "Must provide at least one bit");
-        // Проверяем, что все Bits принадлежат этому регистру и одно-битные
-        // static_assert(((std::is_same<typename Bits::RegType, Register>::value && Bits::width == 1) && ...),
-        //               "All bits must belong to this register and be single-bit fields");
-        constexpr uint32_t mask = (Bits::bitmsk| ...);
-        // if constexpr (std::is_same_v<mode, atomic_mode>)
-        //     asm("nop");// write_atomic_impl(mask);
-        //  else
-        setMask(mask);
+       
+        constexpr uint32_t mask = (Bits::BitMsk| ...);
+        setMask<mask>();
     }
     
     template<typename... Bits>
-    static inline void bitReset() noexcept {
+    [[gnu::always_inline]]
+    static void bitReset() noexcept 
+    requires (BitValid<Register_type, Bits> && ...) 
+    {
         static_assert(std::is_same_v<Access, ReadOnly>, "Acces denied");
         static_assert(sizeof...(Bits) > 0, "Must provide at least one bit");
-        static_assert(((std::is_same<typename Bits::RegType, Register>::value && Bits::width == 1) && ...),
-                      "All bits must belong to this register and be single-bit fields");
+      
         constexpr uint32_t mask = (Bits::mask | ...);
-        clearMask(mask);
+        clearMask<mask>();
     }
 };
     
 // ---------------------------
 // Field template
 // ---------------------------
-template<typename Reg, unsigned Offset, unsigned Width = 1>
+template<typename Reg, uint32_t Offset, uint32_t Width>
 struct Field
 {
 private:
@@ -221,10 +232,10 @@ private:
     static_assert(!(Width == 32 && Offset != 0), "32-bit field must have Offset == 0");
 
     // raw mask for width without shift (safe for Width==32)
-    static constexpr uint32_t raw_mask_no_shift =
-        (Width == 32) ? 0xFFFFFFFFu : ((1u << Width) - 1u);
+    constexpr static uint32_t raw_mask_no_shift =
+        (Width == 32) ? 0xFFFFFFFFU : ((1U << Width) - 1U);
     // shifted mask (safe)
-    static constexpr uint32_t mask =
+    constexpr static uint32_t mask =
         (Width == 32) ? 0xFFFFFFFFu : (raw_mask_no_shift << Offset);
 
     // ------------------- atomic impl -------------------
@@ -309,49 +320,47 @@ private:
 public:
     // ------------------- public meta-info -------------------
     using RegType = Reg;
-    static constexpr unsigned pos    = Offset;
-    static constexpr unsigned width  = Width;
-    static constexpr uint32_t bitmsk = mask;
-    static constexpr uint32_t max() noexcept
-    {
-        return (Width == 32 ? 0xFFFFFFFFu : ((1u << Width) - 1u));
-    }
+    static constexpr uint32_t pos    = Offset;
+    static constexpr uint32_t width  = Width;
+    static constexpr uint32_t BitMsk = mask;
+    static constexpr uint32_t BitMskNoShft = raw_mask_no_shift;
+
 
     // ---------- READ ----------
-    template<typename A = access>
     [[gnu::always_inline]]
     static uint32_t read() noexcept
-        requires(!std::is_same_v<A, WriteOnly>)
+    requires(!std::is_same_v<access, WriteOnly>)
     {
-        return (Reg::read() >> Offset) & max();
+        return (Reg::read() >> Offset) & raw_mask_no_shift;
     }
 
     // ---------- WRITE ----------
-   template<typename A = access,typename Mode = access_mode<false>>
-    [[gnu::always_inline]]
-    static void write(uint32_t value, Mode = {}) noexcept
-        requires(!std::is_same_v<A, ReadOnly>)
+template<auto V, typename Mode = access_mode<false>>
+[[gnu::always_inline]]
+static void write(Mode = {}) noexcept
+requires(!std::is_same_v<access, ReadOnly>  && ValueValid<static_cast<uint32_t>(V), raw_mask_no_shift> &&
+        ((std::is_integral_v<decltype(V)> && std::is_unsigned_v<decltype(V)>) ||
+         (std::is_enum_v<decltype(V)> && std::is_unsigned_v<std::underlying_type_t<decltype(V)>>)))
+    
+{
+    constexpr uint32_t value = static_cast<uint32_t>(V);
+    if constexpr (Mode::value)
     {
-        if constexpr (Mode::value)
-        {
-            static_assert((value & ~raw_mask_no_shift) == 0 &&
-                          "Field::write: value out of range");
-            write_atomic_impl(value);
-        } else
-        {
-            static_assert((value & ~raw_mask_no_shift) == 0 &&
-                          "Field::write: value out of range");
-            uint32_t regv = Reg::read();
-            regv          = (regv & ~mask) | ((value << Offset) & mask);
-            Reg::write(regv);
-        }
+        write_atomic_impl(value);
     }
+    else
+    {
+        uint32_t regv = Reg::read();
+        regv = (regv & ~mask) | ((value << Offset) & mask);
+        Reg::overwrite(regv);
+    }
+}
 
     // ---------- MODIFY ----------
-    template<typename F, typename A = access, typename Mode = access_mode<false>>
+    template<typename F, typename Mode = access_mode<false>>
     [[gnu::always_inline]]
     static void modify(F f, Mode = {}) noexcept
-        requires(!std::is_same_v<A, ReadOnly>)
+        requires(!std::is_same_v<access, ReadOnly>)
     {
         if constexpr (Mode::value)
         {
@@ -359,47 +368,46 @@ public:
         } else
         {
             uint32_t cur     = Reg::read();
-           // uint32_t field   = (cur >> Offset) & max();
-            uint32_t next    = static_cast<uint32_t>(f) & max();
+            uint32_t field   = (cur >> Offset) & raw_mask_no_shift;
+            uint32_t next    = static_cast<uint32_t>(f) & raw_mask_no_shift;
             uint32_t new_val = (cur & ~mask) | (next << Offset);
             Reg::overwrite(new_val);
         }
     }
 
     // ---------- SET/CLEAR (only for single-bit fields) ----------
-    template<typename A = access, typename Mode = access_mode<false>>
+    template<typename Mode = access_mode<false>>
     [[gnu::always_inline]]
     static void set(Mode = {}) noexcept
-        requires(Width == 1 && !std::is_same_v<A, ReadOnly>)
+        requires(Width == 1 && !std::is_same_v<access, ReadOnly>)
     {
         if constexpr (Mode::value)
         {
             write_atomic_impl(1u);
         } else
         {
-            Reg::setMask(mask);
+            Reg::template setMask<mask>();
         }
     }
 
-    template<typename A = access, typename Mode = access_mode<false>>
+    template<typename Mode = access_mode<false>>
     [[gnu::always_inline]]
     static void clear(Mode = {}) noexcept
-        requires(Width == 1 && !std::is_same_v<A, ReadOnly>)
+        requires(Width == 1 && !std::is_same_v<access, ReadOnly>)
     {
         if constexpr (Mode::value)
         {
             write_atomic_impl(0u);
         } else
         {
-            Reg::clearMask(mask);
+            Reg::template clearMask<mask>();
         }
     }
 
     // ---------- IS_SET ----------
-    template<typename A = access>
     [[gnu::always_inline]]
     static bool is_set() noexcept
-        requires(Width == 1 && !std::is_same_v<A, WriteOnly>)
+        requires(Width == 1 && !std::is_same_v<access, WriteOnly>)
     {
         return (Reg::read() & mask) != 0u;
     }

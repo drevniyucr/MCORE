@@ -14,15 +14,15 @@
 #endif
 
 inline static void __DSB(void) {
-    __asm volatile ("dsb" ::: "memory");
+    __asm volatile ("dsb 0xF" ::: "memory");
 }
 
 inline static void __ISB(void) {
-    __asm volatile ("isb" ::: "memory");
+    __asm volatile ("isb 0xF" ::: "memory");
 }
 
 inline static void __DMB(void) {
-    __asm volatile ("dmb" ::: "memory");
+    __asm volatile ("dmb 0xF" ::: "memory");
 }
 
 inline static void __NOP(void) {
@@ -36,7 +36,7 @@ inline static void SCB_EnableICache (void)
     // SCB->ICIALLU = 0UL;                     /* invalidate I-Cache */
     __DSB();
     __ISB();
-    Control::_CCR::IC::set();
+    SCB::_CCR::IC::set();
     // SCB->CCR |=  (uint32_t)SCB_CCR_IC_Msk;  /* enable I-Cache */
     __DSB();
     __ISB();

@@ -81,9 +81,13 @@ target_include_directories(${PROJECT_NAME} PRIVATE STM32F767xx
 
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:C>:${C_FLAGS}>)
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${CXX_FLAGS}>)
+
+set(LINKER_MAP_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")
+
 target_link_options(${PROJECT_NAME} PRIVATE
     ${CPU_FLAGS}
     -T${LINKER_SCRIPT}
+    -Wl,-Map=${LINKER_MAP_FILE}
     -Wl,--gc-sections
     -specs=nano.specs
     -lc -lnosys

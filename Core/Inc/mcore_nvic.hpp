@@ -17,8 +17,8 @@ enum class NVIC_PriorityGroup : uint32_t
 struct NVIC_API
 {
     static constexpr uint32_t VECTKEY        = 0x5FAUL;
-    static constexpr uint32_t VECTKEY_SHIFT  = Control::_AIRCR::VECTKEY::pos;
-    static constexpr uint32_t PRIGROUP_SHIFT = Control::_AIRCR::PRIGROUP::pos;
+    static constexpr uint32_t VECTKEY_SHIFT  = SCB::_AIRCR::VECTKEY::pos;
+    static constexpr uint32_t PRIGROUP_SHIFT = SCB::_AIRCR::PRIGROUP::pos;
 
     template<NVIC_PriorityGroup Group>
     [[gnu::always_inline]]
@@ -30,11 +30,11 @@ struct NVIC_API
         constexpr uint32_t new_value_mask =
             (VECTKEY << VECTKEY_SHIFT) | (group_value << PRIGROUP_SHIFT);
 
-        uint32_t reg = Control::_AIRCR::read();
-        reg &= ~(Control::_AIRCR::VECTKEY::bitmsk | Control::_AIRCR::PRIGROUP::bitmsk);
+        uint32_t reg = SCB::_AIRCR::read();
+        reg &= ~(SCB::_AIRCR::VECTKEY::BitMsk | SCB::_AIRCR::PRIGROUP::BitMsk);
         reg |= new_value_mask;
 
-        Control::_AIRCR::overwrite(reg);
+     //   SCB::_AIRCR::overwrite(reg);
     }
 
     [[gnu::always_inline]] 

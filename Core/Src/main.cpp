@@ -37,15 +37,29 @@ void Error_Handler(void);
 // 		reinterpret_cast<uint8_t*>(high_time), sizeof(high_time) };
 
 int main(void)
-{
-    MPU_Config();
-    SCB_EnableICache();
+{   
+        struct TEST : Register <0x43211234, ReadWrite, TEST>
+        {
+            //0x1 assert failed not aligned && not reg addr
+            //-1 cast error
+            //nullptr cast error
+            //"c"  is not a valid template argument for type 'unsigned int' 
+            //0 assert failed not a reg address
+        };
+      // auto test_read = TEST::read();// assert failed access denied @WriteOnly
+       char test_overwrite = 'a';
+        // type int failed
+        //uint32,16,8 pass
+        //char pass?
+       TEST::overwrite(test_overwrite);
+    //MPU_Config();
+    //SCB_EnableICache();
     // SCB_EnableDCache(); может быть не стоит
-    NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
-    NVIC_API::enable_irq();
+   // NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
+  //  NVIC_API::enable_irq();
 
-    enablePowerInterface();
-    RCC_Init();
+   // enablePowerInterface();
+ //   RCC_Init();
     // if (RCCInit(RccCfg) != RCCStatus::OK) {
     // 	Error_Handler();
     // }
@@ -68,24 +82,24 @@ int main(void)
         // }
     }
 }
-void RCC_Init(void)
-{
-    const ClockConfig RccCfg = {.PLLM    = 4,              // MCO(8Mhz)/8=2
-                                .PLLN    = 216,            // 2*216 = 432
-                                .PLLP    = PLL_P::Div2,    // 432/2=216MHz SYSCKL MAX
-                                .AHBDiv  = AHBPrescaler::Div1,    // 216MHz HCKL MAX
-                                .APB1Div = APBPrescaler::Div4,    //216/4=54 MHz APB1 MAX
-                                .APB2Div = APBPrescaler::Div2,    //216/2=108 MHz APB2 MAX
-                                .FLASHLatency = FLASH_Latency::WS7,
-                                .useHSE       = true,
-                                .useHSEBypass = true,
-                                .useSysTick   = true};
+// void RCC_Init(void)
+// {
+//     constexpr static ClockConfig RccCfg = {.PLLM    = 4,              // MCO(8Mhz)/8=2
+//                                 .PLLN    = 216,            // 2*216 = 432
+//                                 .PLLP    = PLL_P::Div2,    // 432/2=216MHz SYSCKL MAX
+//                                 .AHBDiv  = AHBPrescaler::Div1,    // 216MHz HCKL MAX
+//                                 .APB1Div = APBPrescaler::Div4,    //216/4=54 MHz APB1 MAX
+//                                 .APB2Div = APBPrescaler::Div2,    //216/2=108 MHz APB2 MAX
+//                                 .FLASHLatency = FLASH_Latency::WS7,
+//                                 .useHSE       = true,
+//                                 .useHSEBypass = true,
+//                                 .useSysTick   = true};
 
 
-    if (RCCInit(&RccCfg) != RCCStatus::OK) {
-        Error_Handler();
-    }
-};
+//     if (RCCInit(&RccCfg) != RCCStatus::OK) {
+//         Error_Handler();
+//     }
+// };
 
 // extern "C" void TIM2_IRQHandler(void) {
 // 	uint32_t now;

@@ -103,7 +103,7 @@ constexpr inline uint32_t buildRASR(const RegionConfig &cfg) noexcept {
 
 inline static void disable() {
 	__DMB();
-	Control::_SHCSR::MEMFAULTENA::clear();
+	SCB::_SHCSR::MEMFAULTENA::clear();
 	MPU::_MPU_CTRL::clear();
 }
 
@@ -111,16 +111,16 @@ inline static void enable() {
 	MPU::_MPU_CTRL::bitSet<MPU::_MPU_CTRL::ENABLE, MPU::_MPU_CTRL::PRIVDEFENA>();
 	MPU::_MPU_CTRL::ENABLE::set();
 	MPU::_MPU_CTRL::PRIVDEFENA::set();
-	Control::_SHCSR::MEMFAULTENA::set();
+	SCB::_SHCSR::MEMFAULTENA::set();
 	__DSB();
 	__ISB();
 }
-
-inline static void configure(const RegionConfig &cfg) {
+template<RegionConfig cfg>
+inline static void configure() {
 	
-	MPU::_MPU_RNR::overwrite(cfg.regionNum);
+	MPU::_MPU_RNR ::REGION::write<cfg.regionNum>();
 	MPU::_MPU_RASR::ENABLE::clear();
-	MPU::_MPU_RBAR::overwrite(cfg.baseAddress);
-	MPU::_MPU_RASR::overwrite(buildRASR(cfg));
+	MPU::_MPU_RBAR::overwrite<cfg.baseAddress>();
+	//MPU::_MPU_RASR::overwrite(buildRASR(cfg));
 }
 };

@@ -11,7 +11,7 @@
 // --------------------------------------------
 // Control: System Control registers
 // --------------------------------------------
-namespace Control {
+namespace SCB {
 
     // ACTLR: Disables certain aspects of functionality within the processor
     struct _ACTLR : Register <0xE000E008, ReadWrite, _ACTLR> {
@@ -299,7 +299,7 @@ namespace ID {
 // --------------------------------------------
 // FPE: FP System Control registers
 // --------------------------------------------
-namespace FPE {
+namespace FPU {
 
     // FPCCR: Holds control data for the floating-point unit
     struct _FPCCR : Register <0xE000EF34, ReadWrite, _FPCCR> {
@@ -351,7 +351,7 @@ namespace FPE {
         using VFP_Misc = Field <_MVFR2, 4, 4>; // Bits [7:4] : Indicates whether the FP hardware implementation supports Floating-point selection, Floating-point Conversion to Integer with Direct Rounding Modes, Floating-point Round to Integral Floating-point and Floating-point MaxNum and MinNum
     };
 
-} // namespace FPE
+} // namespace FPU
 
 // --------------------------------------------
 // SysTick: System Timer registers
