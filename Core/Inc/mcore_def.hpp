@@ -13,31 +13,34 @@
 #include "mcore_regs.hpp"
 #endif
 
+[[gnu::always_inline]] 
 inline static void __DSB(void) {
     __asm volatile ("dsb 0xF" ::: "memory");
 }
 
+[[gnu::always_inline]] 
 inline static void __ISB(void) {
     __asm volatile ("isb 0xF" ::: "memory");
 }
 
+[[gnu::always_inline]] 
 inline static void __DMB(void) {
     __asm volatile ("dmb 0xF" ::: "memory");
 }
 
+[[gnu::always_inline]] 
 inline static void __NOP(void) {
     __asm volatile ("nop" ::: "memory");
 }
-inline static void SCB_EnableICache (void)
+[[gnu::always_inline]] 
+inline static void SCB_EnableICache (void)                             
 {
     __DSB();
     __ISB();
     Cache::_ICIALLU::clear();                /* invalidate I-Cache */
-    // SCB->ICIALLU = 0UL;                     /* invalidate I-Cache */
     __DSB();
     __ISB();
     SCB::_CCR::IC::set();
-    // SCB->CCR |=  (uint32_t)SCB_CCR_IC_Msk;  /* enable I-Cache */
     __DSB();
     __ISB();
 }

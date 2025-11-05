@@ -33,8 +33,7 @@ struct NVIC_API
         uint32_t reg = SCB::_AIRCR::read();
         reg &= ~(SCB::_AIRCR::VECTKEY::BitMsk | SCB::_AIRCR::PRIGROUP::BitMsk);
         reg |= new_value_mask;
-
-     //   SCB::_AIRCR::overwrite(reg);
+        SCB::_AIRCR::overwrite(reg);
     }
 
     [[gnu::always_inline]] 

@@ -3236,28 +3236,11 @@ namespace RCC {
 
     // PLL configuration register
     struct _PLLCFGR : Register<RCC_BASE + 0x4, ReadWrite, _PLLCFGR> {
-        using PLLQ3 = Field<_PLLCFGR, 27, 1>; // Main PLL (PLL) division factor for USB OTG FS, SDIO and random number generator clocks
-        using PLLQ2 = Field<_PLLCFGR, 26, 1>; // Main PLL (PLL) division factor for USB OTG FS, SDIO and random number generator clocks
-        using PLLQ1 = Field<_PLLCFGR, 25, 1>; // Main PLL (PLL) division factor for USB OTG FS, SDIO and random number generator clocks
-        using PLLQ0 = Field<_PLLCFGR, 24, 1>; // Main PLL (PLL) division factor for USB OTG FS, SDIO and random number generator clocks
+        using PLLQ = Field<_PLLCFGR, 24, 4>; // Main PLL (PLL) division factor for USB OTG FS, SDIO and random number generator clocks
         using PLLSRC = Field<_PLLCFGR, 22, 1>; // Main PLL(PLL) and audio PLL (PLLI2S) entry clock source
-        using PLLP1 = Field<_PLLCFGR, 17, 1>; // Main PLL (PLL) division factor for main system clock
-        using PLLP0 = Field<_PLLCFGR, 16, 1>; // Main PLL (PLL) division factor for main system clock
-        using PLLN8 = Field<_PLLCFGR, 14, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN7 = Field<_PLLCFGR, 13, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN6 = Field<_PLLCFGR, 12, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN5 = Field<_PLLCFGR, 11, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN4 = Field<_PLLCFGR, 10, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN3 = Field<_PLLCFGR, 9, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN2 = Field<_PLLCFGR, 8, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN1 = Field<_PLLCFGR, 7, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLN0 = Field<_PLLCFGR, 6, 1>; // Main PLL (PLL) multiplication factor for VCO
-        using PLLM5 = Field<_PLLCFGR, 5, 1>; // Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input clock
-        using PLLM4 = Field<_PLLCFGR, 4, 1>; // Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input clock
-        using PLLM3 = Field<_PLLCFGR, 3, 1>; // Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input clock
-        using PLLM2 = Field<_PLLCFGR, 2, 1>; // Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input clock
-        using PLLM1 = Field<_PLLCFGR, 1, 1>; // Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input clock
-        using PLLM0 = Field<_PLLCFGR, 0, 1>; // Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input clock
+        using PLLP = Field<_PLLCFGR, 16, 2>; // Main PLL (PLL) division factor for main system clock
+        using PLLN = Field<_PLLCFGR, 6, 9>; // Main PLL (PLL) multiplication factor for VCO
+        using PLLM = Field<_PLLCFGR, 0, 6>; // Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input clock
     };
 
     // clock configuration register
@@ -3271,10 +3254,8 @@ namespace RCC {
         using PPRE2 = Field<_CFGR, 13, 3>; // APB high-speed prescaler (APB2)
         using PPRE1 = Field<_CFGR, 10, 3>; // APB Low speed prescaler (APB1)
         using HPRE = Field<_CFGR, 4, 4>; // AHB prescaler
-        using SWS1 = Field<_CFGR, 3, 1>; // System clock switch status
-        using SWS0 = Field<_CFGR, 2, 1>; // System clock switch status
-        using SW1 = Field<_CFGR, 1, 1>; // System clock switch
-        using SW0 = Field<_CFGR, 0, 1>; // System clock switch
+        using SWS = Field<_CFGR, 2, 2>; // System clock switch status
+        using SW = Field<_CFGR, 0, 2>; // System clock switch
     };
 
     // clock interrupt register

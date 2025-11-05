@@ -121,6 +121,6 @@ inline static void configure() {
 	MPU::_MPU_RNR ::REGION::write<cfg.regionNum>();
 	MPU::_MPU_RASR::ENABLE::clear();
 	MPU::_MPU_RBAR::overwrite<cfg.baseAddress>();
-	//MPU::_MPU_RASR::overwrite(buildRASR(cfg));
+	MPU::_MPU_RASR::overwrite<buildRASR(cfg)>();
 }
 };
