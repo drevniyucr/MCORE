@@ -1,0 +1,32 @@
+[
+{
+  "directory": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build",
+  "command": "C:\\Users\\AkimovMA\\scoop\\apps\\gcc-arm-none-eabi\\current\\bin\\arm-none-eabi-g++.exe -IC:/Users/AkimovMA/Documents/GitHub/MCORE/STM32F767xx -IC:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc -g -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Os -ffunction-sections -fdata-sections -Wall -Wextra -fno-rtti -fno-exceptions -std=c++20 -o CMakeFiles\\STM32F767.dir\\Core\\Src\\main.cpp.obj -c C:\\Users\\AkimovMA\\Documents\\GitHub\\MCORE\\Core\\Src\\main.cpp",
+  "file": "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Src/main.cpp",
+  "output": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/STM32F767.dir/Core/Src/main.cpp.obj"
+},
+{
+  "directory": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build",
+  "command": "C:\\Users\\AkimovMA\\scoop\\apps\\gcc-arm-none-eabi\\current\\bin\\arm-none-eabi-g++.exe -IC:/Users/AkimovMA/Documents/GitHub/MCORE/STM32F767xx -IC:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc -g -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Os -ffunction-sections -fdata-sections -Wall -Wextra -fno-rtti -fno-exceptions -std=c++20 -o CMakeFiles\\STM32F767.dir\\Core\\Src\\mcore_mpu.cpp.obj -c C:\\Users\\AkimovMA\\Documents\\GitHub\\MCORE\\Core\\Src\\mcore_mpu.cpp",
+  "file": "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Src/mcore_mpu.cpp",
+  "output": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/STM32F767.dir/Core/Src/mcore_mpu.cpp.obj"
+},
+{
+  "directory": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build",
+  "command": "C:\\Users\\AkimovMA\\scoop\\apps\\gcc-arm-none-eabi\\current\\bin\\arm-none-eabi-g++.exe -IC:/Users/AkimovMA/Documents/GitHub/MCORE/STM32F767xx -IC:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc -g -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Os -ffunction-sections -fdata-sections -Wall -Wextra -fno-rtti -fno-exceptions -std=c++20 -o CMakeFiles\\STM32F767.dir\\Core\\Src\\mcore_rcc.cpp.obj -c C:\\Users\\AkimovMA\\Documents\\GitHub\\MCORE\\Core\\Src\\mcore_rcc.cpp",
+  "file": "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Src/mcore_rcc.cpp",
+  "output": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/STM32F767.dir/Core/Src/mcore_rcc.cpp.obj"
+},
+{
+  "directory": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build",
+  "command": "C:\\Users\\AkimovMA\\scoop\\apps\\gcc-arm-none-eabi\\current\\bin\\arm-none-eabi-gcc.exe -IC:/Users/AkimovMA/Documents/GitHub/MCORE/STM32F767xx -IC:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc -g -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Os -ffunction-sections -fdata-sections -Wall -Wextra -o CMakeFiles\\STM32F767.dir\\Core\\Src\\stm32f7xx_it.c.obj -c C:\\Users\\AkimovMA\\Documents\\GitHub\\MCORE\\Core\\Src\\stm32f7xx_it.c",
+  "file": "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Src/stm32f7xx_it.c",
+  "output": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/STM32F767.dir/Core/Src/stm32f7xx_it.c.obj"
+},
+{
+  "directory": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build",
+  "command": "C:\\Users\\AkimovMA\\scoop\\apps\\gcc-arm-none-eabi\\current\\bin\\arm-none-eabi-gcc.exe -IC:/Users/AkimovMA/Documents/GitHub/MCORE/STM32F767xx -IC:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc -g -o CMakeFiles\\STM32F767.dir\\Core\\Startup\\startup_stm32f767zitx.s.obj -c C:\\Users\\AkimovMA\\Documents\\GitHub\\MCORE\\Core\\Startup\\startup_stm32f767zitx.s",
+  "file": "C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Startup/startup_stm32f767zitx.s",
+  "output": "C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/STM32F767.dir/Core/Startup/startup_stm32f767zitx.s.obj"
+}
+]

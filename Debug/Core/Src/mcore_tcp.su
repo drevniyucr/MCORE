@@ -1,0 +1,12 @@
+C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc/mcore_eth_utils.hpp:22:24:uint32_t bswap32(uint32_t)	0	static
+../Core/Src/mcore_tcp.cpp:25:6:void NET_TCP_Init()	8	static
+../Core/Src/mcore_tcp.cpp:35:5:int NET_TCP_ClientAdd()	0	static
+../Core/Src/mcore_tcp.cpp:44:6:void NET_TCP_ClientRemove(uint8_t)	16	static
+../Core/Src/mcore_tcp.cpp:61:6:void NET_SendTCP_RST(ipv4_frame*, uint16_t, uint16_t, uint32_t, uint32_t, uint8_t)	32	static
+../Core/Src/mcore_tcp.cpp:93:6:void NET_SendRetransmitTCP(tcp_conn_t*)	16	static
+../Core/Src/mcore_tcp.cpp:116:6:void NET_SendTCP(tcp_conn_t*, uint32_t, uint32_t, uint8_t, uint8_t, const uint8_t*, uint16_t)	48	static
+../Core/Src/mcore_tcp.cpp:165:6:void NET_TCP_Timers()	48	static
+../Core/Src/mcore_tcp.cpp:211:6:void NET_ProcessTCP(ipv4_frame*)	80	static
+../Core/Src/mcore_tcp.cpp:416:6:void NET_TCP_Close(tcp_conn_t*)	24	static
+../Core/Src/mcore_tcp.cpp:424:5:int NET_TCP_SendUser(tcp_conn_t*, const uint8_t*, uint16_t)	32	static
+../Core/Src/mcore_tcp.cpp:438:1:cpp)	0	static

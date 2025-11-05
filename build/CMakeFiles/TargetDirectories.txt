@@ -1,0 +1,3 @@
+C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/STM32F767.dir
+C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/edit_cache.dir
+C:/Users/AkimovMA/Documents/GitHub/MCORE/build/CMakeFiles/rebuild_cache.dir

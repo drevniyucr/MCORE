@@ -1,0 +1,2 @@
+C:/Users/AkimovMA/Documents/GitHub/MCORE/Core/Inc/mcore_mpu.hpp:117:20:void _MPU::configure(const RegionConfig&)	0	static
+../Core/Src/mcore_mpu.cpp:11:6:void MPU_Config()	8	static,ignoring_inline_asm

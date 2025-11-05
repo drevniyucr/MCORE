@@ -1,0 +1,4 @@
+../Core/Src/mcore_rcc.cpp:15:11:RCCStatus RCCInit(const ClockConfig&)	32	static
+../Core/Src/mcore_rcc.cpp:100:10:uint32_t CalculatePLLCLK(uint32_t, uint8_t, uint16_t, uint8_t)	0	static
+../Core/Src/mcore_rcc.cpp:109:6:void enablePowerInterface()	0	static
+../Core/Src/mcore_rcc.cpp:116:6:void enableEthInterface()	0	static
