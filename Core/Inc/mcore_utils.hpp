@@ -28,13 +28,23 @@ struct access_mode : std::bool_constant<IsAtomic> {};
 inline constexpr access_mode<true>  atomic_mode{};
 inline constexpr access_mode<false> non_atomic_mode{};
 
-
+//concepts
 template<typename Reg, typename Bit>
 concept BitValid = std::is_same_v<typename Bit::RegType, Reg> && (Bit::width == 1);
 
 
 template<uint32_t Value, uint32_t Mask>
 concept ValueValid = ((Value & ~Mask)== 0);
+
+template<typename Access, typename T>
+concept WriteTypeReq = (!std::is_same_v<Access, ReadOnly> &&
+        ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
+        (std::is_enum_v<T> && std::is_unsigned_v<std::underlying_type_t<T>>)));
+
+template<typename Access, auto Val>
+concept WriteValReq = (!std::is_same_v<Access, ReadOnly> &&
+        ((std::is_integral_v<decltype(Val)> && std::is_unsigned_v<decltype(Val)>) ||
+        (std::is_enum_v<decltype(Val)> && std::is_unsigned_v<std::underlying_type_t<decltype(Val)>>)));
 
 
 // ---------------------------
@@ -151,9 +161,7 @@ struct Register
      template<typename T>
     [[gnu::always_inline]]
     static void overwrite(T Val) noexcept
-    requires(!std::is_same_v<Access, ReadOnly> &&
-        ((std::is_integral_v<T> && std::is_unsigned_v<T>) ||
-        (std::is_enum_v<T> && std::is_unsigned_v<std::underlying_type_t<T>>)))
+    requires(WriteTypeReq<Access,T>)
     {
         reg() = static_cast<uint32_t>(Val);   
     }
@@ -162,9 +170,7 @@ struct Register
     template<auto Val>
     [[gnu::always_inline]]
     static void overwrite() noexcept
-    requires(!std::is_same_v<Access, ReadOnly> &&
-        ((std::is_integral_v<decltype(Val)> && std::is_unsigned_v<decltype(Val)>) ||
-        (std::is_enum_v<decltype(Val)> && std::is_unsigned_v<std::underlying_type_t<decltype(Val)>>)))
+    requires(WriteValReq<Access,Val>)
     {
         reg() = static_cast<uint32_t>(Val);   
     }
@@ -178,9 +184,7 @@ struct Register
     template<auto Val>
     [[gnu::always_inline]]
     static void setMask() noexcept
-    requires(!std::is_same_v<Access, ReadOnly> &&
-        ((std::is_integral_v<decltype(Val)> && std::is_unsigned_v<decltype(Val)>) ||
-        (std::is_enum_v<decltype(Val)> && std::is_unsigned_v<std::underlying_type_t<decltype(Val)>>)))
+    requires(WriteValReq<Access,Val>)
     {
         reg() |= static_cast<uint32_t>(Val);
     }

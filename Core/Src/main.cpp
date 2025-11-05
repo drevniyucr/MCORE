@@ -47,11 +47,17 @@ int main(void)
             //0 assert failed not a reg address
         };
       // auto test_read = TEST::read();// assert failed access denied @WriteOnly
-       char test_overwrite = 'a';
+       enum class test_overwrite : char{
+                ONE,
+                TWO,
+                THREE
+       };
         // type int failed
         //uint32,16,8 pass
         //char pass?
-       TEST::overwrite(test_overwrite);
+        //enum pass
+       TEST::overwrite<test_overwrite::ONE>();
+       TEST::clear();
     //MPU_Config();
     //SCB_EnableICache();
     // SCB_EnableDCache(); может быть не стоит
