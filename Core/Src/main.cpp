@@ -19,7 +19,7 @@
 #include "mcore.hpp"
 
 
-//void GPIO_Init(void);
+void GPIO_Init(void);
 void RCC_Init(void);
 // void TIM2_Init(void);
 // void TIM3_Init(void);
@@ -43,15 +43,10 @@ int main(void)
     // SCB_EnableDCache(); может быть не стоит
     NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
     NVIC_API::enable_irq();
-
-    enablePowerInterface();
     RCC_Init();
-    // if (RCCInit(RccCfg) != RCCStatus::OK) {
-    // 	Error_Handler();
-    // }
-    // enableEthInterface();
-    // GPIO_Init();
-    // ETH_Init();
+    enableEthInterface();
+    GPIO_Init();
+    ETH_Init();
     // TIM2_Init();
     // TIM3_Init();
     // NET_TCP_Init();
@@ -70,21 +65,29 @@ int main(void)
 }
 void RCC_Init(void)
 {
-    constexpr static ClockConfig RccCfg = {.PLLM    = 4,              // MCO(8Mhz)/8=2
-                                .PLLN    = 216,            // 2*216 = 432
-                                .PLLP    = PLL_P::Div2,    // 432/2=216MHz SYSCKL MAX
-                                .AHBDiv  = AHBPrescaler::Div1,    // 216MHz HCKL MAX
-                                .APB1Div = APBPrescaler::Div4,    //216/4=54 MHz APB1 MAX
-                                .APB2Div = APBPrescaler::Div2,    //216/2=108 MHz APB2 MAX
-                                .FLASHLatency = FLASH_Latency::WS7,
-                                .useHSE       = true,
-                                .useHSEBypass = true,
-                                .useSysTick   = true};
+    constexpr ClockConfig cfg = {
+        .PLLM    = 4,              // MCO(8Mhz)/8=2
+        .PLLN    = 216,            // 2*216 = 432
+        .PLLP    = PLL_P::Div2,    // 432/2=216MHz SYSCKL MAX
+        .AHBDiv  = AHBPrescaler::Div1,    // 216MHz HCKL MAX
+        .APB1Div = APBPrescaler::Div4,    //216/4=54 MHz APB1 MAX
+        .APB2Div = APBPrescaler::Div2,    //216/2=108 MHz APB2 MAX
+        .FLASHLatency = FLASH_Latency::WS7,
+        .useHSE       = true,
+        .useHSEBypass = true,
+        .useSysTick   = true
+    };
 
+    enablePowerInterface();
+    SetVoltageScale(VoltageScale::Scale1);
 
-    if (RCCInit(&RccCfg) != RCCStatus::OK) {
+    if (OSCInit(&cfg) != RCCStatus::OK ||
+        OverDriveInit() != RCCStatus::OK ||
+        RCC_ClockInit(&cfg) != RCCStatus::OK)
+    {
         Error_Handler();
     }
+
 };
 
 // extern "C" void TIM2_IRQHandler(void) {
@@ -345,70 +348,66 @@ void RCC_Init(void)
 // 	__NVIC_EnableIRQ(TIM3_IRQn);
 // }
 
-// void GPIO_Init(void) {
+void GPIO_Init(void) {
 
-// 	RCC_GPIO_ALLEN();
+	RCC_GPIO_ALLEN();
 
-// 	GPIO::GPIO_Config GPIO_ConfigStruct = { };
-// 	uint32_t pin_mask;
+	GPIO_Config GPIO_ConfigStruct = {};
+	uint32_t pin_mask;
 
-// 	/**ETH GPIO Configuration
-// 	 PC1     ------> ETH_MDC
-// 	 PA1     ------> ETH_REF_CLK
-// 	 PA2     ------> ETH_MDIO
-// 	 PA7     ------> ETH_CRS_DV
-// 	 PC4     ------> ETH_RXD0
-// 	 PC5     ------> ETH_RXD1
-// 	 PB13     ------> ETH_TXD1
-// 	 PG11     ------> ETH_TX_EN
-// 	 PG13     ------> ETH_TXD0
-// 	 */
-// 	GPIO_ConfigStruct.port = GPIOA;
-// 	GPIO_ConfigStruct.mode = GPIO::Mode::Alt;
-// 	GPIO_ConfigStruct.otype = GPIO::OType::PP;
-// 	GPIO_ConfigStruct.pull = GPIO::Pull::None;
-// 	GPIO_ConfigStruct.speed = GPIO::Speed::VeryHigh;
-// 	GPIO_ConfigStruct.af = GPIO::AF::AF11;
-// 	pin_mask = (1U << 1) | (1U << 2) | (1U << 7); //(PA1,2,7)
-// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
+	/**ETH GPIO Configuration
+	 PC1     ------> ETH_MDC
+	 PA1     ------> ETH_REF_CLK
+	 PA2     ------> ETH_MDIO
+	 PA7     ------> ETH_CRS_DV
+	 PC4     ------> ETH_RXD0
+	 PC5     ------> ETH_RXD1
+	 PB13     ------> ETH_TXD1
+	 PG11     ------> ETH_TX_EN
+	 PG13     ------> ETH_TXD0
+	 */
 
-// 	GPIO_ConfigStruct.port = GPIOB;
-// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 13); //PB13
+	GPIO_ConfigStruct.mode = Mode::Alt;
+	GPIO_ConfigStruct.otype = OType::PP;
+	GPIO_ConfigStruct.pull = Pull::None;
+	GPIO_ConfigStruct.speed = Speed::VeryHigh;
+	GPIO_ConfigStruct.af = AF::AF11;
+	pin_mask = (1U << 1) | (1U << 2) | (1U << 7); //(PA1,2,7)
+	GPIO_ConfigGroupPin<GPIOA>(GPIO_ConfigStruct, pin_mask);
 
-// 	GPIO_ConfigStruct.port = GPIOC;
-// 	pin_mask = (1U << 1) | (1U << 4) | (1U << 5); //PC1,4,5
-// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
+	GPIO_ConfigPin<GPIOB>(GPIO_ConfigStruct, 13); //PB13
 
-// 	GPIO_ConfigStruct.port = GPIOG;
-// 	pin_mask = (1U << 11) | (1U << 13); //PG11,13
-// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
+	pin_mask = (1U << 1) | (1U << 4) | (1U << 5); //PC1,4,5
+//	GPIO_ConfigGroupPin<GPIOC>(GPIO_ConfigStruct, pin_mask);
 
-// 	/**TIM GPIO Configuration
-// 	 PB10     ------> TIM2_CH3
-// 	 PA3     ------> TIM2_CH4
-// 	 PA6     ------> TIM3_CH1
-// 	 PC7     ------> TIM3_CH2
-// 	 PB0     ------> TIM3_CH3
-// 	 PB1     ------> TIM3_CH4
-// 	 */
-// 	GPIO_ConfigStruct.port = GPIOB;
-// 	GPIO_ConfigStruct.pull = GPIO::Pull::PullUp;
-// 	GPIO_ConfigStruct.af = GPIO::AF::AF1; // TIM2
-// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 10); // PB10
+	pin_mask = (1U << 11) | (1U << 13); //PG11,13
+	GPIO_ConfigGroupPin<GPIOG>(GPIO_ConfigStruct, pin_mask);
 
-// 	GPIO_ConfigStruct.port = GPIOA;
-// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 3); // PA3
+	/**TIM GPIO Configuration
+	 PB10     ------> TIM2_CH3
+	 PA3     ------> TIM2_CH4
+	 PA6     ------> TIM3_CH1
+	 PC7     ------> TIM3_CH2
+	 PB0     ------> TIM3_CH3
+	 PB1     ------> TIM3_CH4
+	 */
 
-// 	GPIO_ConfigStruct.af = GPIO::AF::AF2; // TIM3
-// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 6); //PA6
+	GPIO_ConfigStruct.pull = Pull::PullUp;
+	GPIO_ConfigStruct.af = AF::AF1; // TIM2
+	GPIO_ConfigPin<GPIOB>(GPIO_ConfigStruct, 10); // PB10
 
-// 	GPIO_ConfigStruct.port = GPIOC;
-// 	GPIO::GPIO_ConfigPin(GPIO_ConfigStruct, 7); //PC7
 
-// 	pin_mask = (1U << 0) | (1U << 1); //PB0,1
-// 	GPIO_ConfigStruct.port = GPIOB;
-// 	GPIO::GPIO_ConfigGroupPin(GPIO_ConfigStruct, pin_mask);
-// }
+	GPIO_ConfigPin<GPIOA>(GPIO_ConfigStruct, 3); // PA3
+
+	GPIO_ConfigStruct.af = AF::AF2; // TIM3
+	GPIO_ConfigPin<GPIOA>(GPIO_ConfigStruct, 6); //PA6
+
+	GPIO_ConfigPin<GPIOC>(GPIO_ConfigStruct, 7); //PC7
+
+	pin_mask = (1U << 0) | (1U << 1); //PB0,1
+	GPIO_ConfigGroupPin<GPIOB>(GPIO_ConfigStruct, pin_mask);
+
+}
 
 void Error_Handler(void)
 {

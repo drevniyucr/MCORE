@@ -11,7 +11,7 @@
 // --------------------------------------------
 // Control: System Control registers
 // --------------------------------------------
-namespace SCB {
+struct SCB {
 
     // ACTLR: Disables certain aspects of functionality within the processor
     struct _ACTLR : Register <0xE000E008, ReadWrite, _ACTLR> {
@@ -190,12 +190,12 @@ namespace SCB {
         using INTID = Field <_STIR, 0, 9>; // Bits [8:0] : Indicates the interrupt to be triggered. The value written is (ExceptionNumber - 16)
     };
 
-} // namespace Control
+}; // struct Control
 
 // --------------------------------------------
 // ID: ID registers
 // --------------------------------------------
-namespace ID {
+struct ID {
 
     // CPUID: Identification information for the processor
     struct _CPUID : Register <0xE000ED00, ReadOnly, _CPUID> {
@@ -294,12 +294,12 @@ namespace ID {
         using Unpriv_instrs = Field <_ID_ISAR4, 0, 4>; // Bits [3:0] : Indicates the supported unprivileged instructions
     };
 
-} // namespace ID
+}; // struct ID
 
 // --------------------------------------------
 // FPE: FP System Control registers
 // --------------------------------------------
-namespace FPU {
+struct FPU {
 
     // FPCCR: Holds control data for the floating-point unit
     struct _FPCCR : Register <0xE000EF34, ReadWrite, _FPCCR> {
@@ -351,12 +351,12 @@ namespace FPU {
         using VFP_Misc = Field <_MVFR2, 4, 4>; // Bits [7:4] : Indicates whether the FP hardware implementation supports Floating-point selection, Floating-point Conversion to Integer with Direct Rounding Modes, Floating-point Round to Integral Floating-point and Floating-point MaxNum and MinNum
     };
 
-} // namespace FPU
+}; // struct FPU
 
 // --------------------------------------------
 // SysTick: System Timer registers
 // --------------------------------------------
-namespace SysTick {
+struct SysTick {
 
     // STCSR: Controls the system timer and provides status data
     struct _STCSR : Register <0xE000E010, ReadWrite, _STCSR> {
@@ -383,12 +383,12 @@ namespace SysTick {
         using TENMS = Field <_STCR, 0, 24>; // Bits [23:0] : Optionally, holds a reload value to be used for 10ms (100Hz) timing, subject to system clock skew errors
     };
 
-} // namespace SysTick
+}; // struct SysTick
 
 // --------------------------------------------
 // ImpDef: Implementation defined registers
 // --------------------------------------------
-namespace ImpDef {
+struct ImpDef {
 
     // ITCMCR: Controls whether an access is mapped to TCM or AXIM
     struct _ITCMCR : Register <0xE000EF90, ReadWrite, _ITCMCR> {
@@ -435,14 +435,14 @@ namespace ImpDef {
         using ITCM = Field <_ABFSR, 0, 1>; // Bits [0] : Asynchronous fault on ITCM interface
     };
 
-} // namespace ImpDef
+}; // struct ImpDef
 
 // Generated from xml file: ./xml-svd/nvic_registers_v7m.xml
 
 // --------------------------------------------
 // NVIC: Nested Vectored Interrupt Controller registers
 // --------------------------------------------
-namespace NVIC {
+struct NVIC {
 
     // ICTR: Provides information about the interrupt controller
     struct _ICTR : Register <0xE000E004, ReadOnly, _ICTR> {
@@ -1089,14 +1089,14 @@ namespace NVIC {
         using PRI_N0 = Field <_NVIC_IPR59, 0, 8>; // Bits [7:0] : Priority of interrupt 236
     };
 
-} // namespace NVIC
+}; // struct NVIC
 
 // Generated from xml file: ./xml-svd/cache_registers_v7em.xml
 
 // --------------------------------------------
 // Cache: Cache Control
 // --------------------------------------------
-namespace Cache {
+struct Cache {
 
     // CLIDR: Cache Level ID Register
     struct _CLIDR : Register <0xE000ED78, ReadOnly, _CLIDR> {
@@ -1179,14 +1179,14 @@ namespace Cache {
     struct _BPIALL : Register <0xE000EF78, WriteOnly, _BPIALL> {
     };
 
-} // namespace Cache
+}; // struct Cache
 
 // Generated from xml file: ./xml-svd/mpu_registers_v7m.xml
 
 // --------------------------------------------
 // MPU: Memory Protection Unit
 // --------------------------------------------
-namespace MPU {
+struct MPU {
 
     // MPU_TYPE: MPU Type Register
     struct _MPU_TYPE : Register <0xE000ED90, ReadOnly, _MPU_TYPE> {
@@ -1287,7 +1287,7 @@ namespace MPU {
         using XN = Field <_MPU_RASR_A3, 28, 1>; // Bits [28] : Execute Never
     };
 
-} // namespace MPU
+}; // struct MPU
 
 
 /*-------------------------------------------------------------------------------
@@ -1307,7 +1307,7 @@ Generating from file: ./mcore_regs.hpp*/
 // Base address: 0x50060800
 // --------------------------------------------
 
-namespace RNG {
+struct RNG {
     static constexpr uint32_t RNG_BASE = 0x50060800;
 
     // control register
@@ -1330,14 +1330,14 @@ namespace RNG {
         using RNDATA = Field<_DR, 0, 32>; // Random data
     };
 
-} // namespace RNG
+}; // struct RNG
 
 // --------------------------------------------
 // HASH: Hash processor
 // Base address: 0x50060400
 // --------------------------------------------
 
-namespace HASH {
+struct HASH {
     static constexpr uint32_t HASH_BASE = 0x50060400;
 
     // control register
@@ -1714,14 +1714,14 @@ namespace HASH {
         using H7 = Field<_HASH_HR7, 0, 32>; // H7
     };
 
-} // namespace HASH
+}; // struct HASH
 
 // --------------------------------------------
 // CRYP: Cryptographic processor
 // Base address: 0x50060000
 // --------------------------------------------
 
-namespace CRYP {
+struct CRYP {
     static constexpr uint32_t CRYP_BASE = 0x50060000;
 
     // control register
@@ -2291,14 +2291,14 @@ namespace CRYP {
         using CSGCM7R = Field<_CSGCM7R, 0, 32>; // CSGCM7R
     };
 
-} // namespace CRYP
+}; // struct CRYP
 
 // --------------------------------------------
 // DCMI: Digital camera interface
 // Base address: 0x50050000
 // --------------------------------------------
 
-namespace DCMI {
+struct DCMI {
     static constexpr uint32_t DCMI_BASE = 0x50050000;
 
     // control register 1
@@ -2395,14 +2395,14 @@ namespace DCMI {
         using Byte0 = Field<_DR, 0, 8>; // Data byte 0
     };
 
-} // namespace DCMI
+}; // struct DCMI
 
 // --------------------------------------------
 // FMC: Flexible memory controller
 // Base address: 0xA0000000
 // --------------------------------------------
 
-namespace FMC {
+struct FMC {
     static constexpr uint32_t FMC_BASE = 0xA0000000;
 
     // SRAM/NOR-Flash chip-select control register 1
@@ -2677,14 +2677,14 @@ namespace FMC {
         using BUSY = Field<_SDSR, 5, 1>; // Busy status
     };
 
-} // namespace FMC
+}; // struct FMC
 
 // --------------------------------------------
 // DMA2: DMA controller
 // Base address: 0x40026400
 // --------------------------------------------
 
-namespace DMA2 {
+struct DMA2 {
     static constexpr uint32_t DMA2_BASE = 0x40026400;
 
     // low interrupt status register
@@ -3198,24 +3198,24 @@ namespace DMA2 {
         using FTH = Field<_S7FCR, 0, 2>; // FIFO threshold selection
     };
 
-} // namespace DMA2
+}; // struct DMA2
 
 // --------------------------------------------
 // DMA1: 
 // Base address: 0x40026000
 // --------------------------------------------
 
-namespace DMA1 {
+struct DMA1 {
     static constexpr uint32_t DMA1_BASE = 0x40026000;
 
-} // namespace DMA1
+}; // struct DMA1
 
 // --------------------------------------------
 // RCC: Reset and clock control
 // Base address: 0x40023800
 // --------------------------------------------
 
-namespace RCC {
+struct RCC {
     static constexpr uint32_t RCC_BASE = 0x40023800;
 
     // clock control register
@@ -3657,18 +3657,18 @@ namespace RCC {
         using DSISEL = Field<_DKCFGR2, 30, 1>; // DSI clock source selection
     };
 
-} // namespace RCC
+}; // struct RCC
 
 // --------------------------------------------
-// GPIOD: General-purpose I/Os
-// Base address: 0X40020C00
+// Template GPIOD: General-purpose I/Os
 // --------------------------------------------
-
-namespace GPIOD {
-    static constexpr uint32_t GPIOD_BASE = 0X40020C00;
+template <uint32_t BASE_ADDR>
+struct GPIO
+{
+    static constexpr uint32_t GPIOx_BASE = BASE_ADDR;
 
     // GPIO port mode register
-    struct _MODER : Register<GPIOD_BASE + 0x0, ReadWrite, _MODER> {
+    struct _MODER : Register<GPIOx_BASE + 0x0, ReadWrite, _MODER> {
         using MODER15 = Field<_MODER, 30, 2>; // Port x configuration bits (y = 0..15)
         using MODER14 = Field<_MODER, 28, 2>; // Port x configuration bits (y = 0..15)
         using MODER13 = Field<_MODER, 26, 2>; // Port x configuration bits (y = 0..15)
@@ -3688,7 +3688,7 @@ namespace GPIOD {
     };
 
     // GPIO port output type register
-    struct _OTYPER : Register<GPIOD_BASE + 0x4, ReadWrite, _OTYPER> {
+    struct _OTYPER : Register<GPIOx_BASE + 0x4, ReadWrite, _OTYPER> {
         using OT15 = Field<_OTYPER, 15, 1>; // Port x configuration bits (y = 0..15)
         using OT14 = Field<_OTYPER, 14, 1>; // Port x configuration bits (y = 0..15)
         using OT13 = Field<_OTYPER, 13, 1>; // Port x configuration bits (y = 0..15)
@@ -3708,7 +3708,7 @@ namespace GPIOD {
     };
 
     // GPIO port output speed register
-    struct _OSPEEDR : Register<GPIOD_BASE + 0x8, ReadWrite, _OSPEEDR> {
+    struct _OSPEEDR : Register<GPIOx_BASE + 0x8, ReadWrite, _OSPEEDR> {
         using OSPEEDR15 = Field<_OSPEEDR, 30, 2>; // Port x configuration bits (y = 0..15)
         using OSPEEDR14 = Field<_OSPEEDR, 28, 2>; // Port x configuration bits (y = 0..15)
         using OSPEEDR13 = Field<_OSPEEDR, 26, 2>; // Port x configuration bits (y = 0..15)
@@ -3728,7 +3728,7 @@ namespace GPIOD {
     };
 
     // GPIO port pull-up/pull-down register
-    struct _PUPDR : Register<GPIOD_BASE + 0xC, ReadWrite, _PUPDR> {
+    struct _PUPDR : Register<GPIOx_BASE + 0xC, ReadWrite, _PUPDR> {
         using PUPDR15 = Field<_PUPDR, 30, 2>; // Port x configuration bits (y = 0..15)
         using PUPDR14 = Field<_PUPDR, 28, 2>; // Port x configuration bits (y = 0..15)
         using PUPDR13 = Field<_PUPDR, 26, 2>; // Port x configuration bits (y = 0..15)
@@ -3748,7 +3748,7 @@ namespace GPIOD {
     };
 
     // GPIO port input data register
-    struct _IDR : Register<GPIOD_BASE + 0x10, ReadOnly, _IDR> {
+    struct _IDR : Register<GPIOx_BASE + 0x10, ReadOnly, _IDR> {
         using IDR15 = Field<_IDR, 15, 1>; // Port input data (y = 0..15)
         using IDR14 = Field<_IDR, 14, 1>; // Port input data (y = 0..15)
         using IDR13 = Field<_IDR, 13, 1>; // Port input data (y = 0..15)
@@ -3768,7 +3768,7 @@ namespace GPIOD {
     };
 
     // GPIO port output data register
-    struct _ODR : Register<GPIOD_BASE + 0x14, ReadWrite, _ODR> {
+    struct _ODR : Register<GPIOx_BASE + 0x14, ReadWrite, _ODR> {
         using ODR15 = Field<_ODR, 15, 1>; // Port output data (y = 0..15)
         using ODR14 = Field<_ODR, 14, 1>; // Port output data (y = 0..15)
         using ODR13 = Field<_ODR, 13, 1>; // Port output data (y = 0..15)
@@ -3788,7 +3788,7 @@ namespace GPIOD {
     };
 
     // GPIO port bit set/reset register
-    struct _BSRR : Register<GPIOD_BASE + 0x18, WriteOnly, _BSRR> {
+    struct _BSRR : Register<GPIOx_BASE + 0x18, WriteOnly, _BSRR> {
         using BR15 = Field<_BSRR, 31, 1>; // Port x reset bit y (y = 0..15)
         using BR14 = Field<_BSRR, 30, 1>; // Port x reset bit y (y = 0..15)
         using BR13 = Field<_BSRR, 29, 1>; // Port x reset bit y (y = 0..15)
@@ -3824,7 +3824,7 @@ namespace GPIOD {
     };
 
     // GPIO port configuration lock register
-    struct _LCKR : Register<GPIOD_BASE + 0x1C, ReadWrite, _LCKR> {
+    struct _LCKR : Register<GPIOx_BASE + 0x1C, ReadWrite, _LCKR> {
         using LCKK = Field<_LCKR, 16, 1>; // Port x lock bit y (y= 0..15)
         using LCK15 = Field<_LCKR, 15, 1>; // Port x lock bit y (y= 0..15)
         using LCK14 = Field<_LCKR, 14, 1>; // Port x lock bit y (y= 0..15)
@@ -3845,7 +3845,7 @@ namespace GPIOD {
     };
 
     // GPIO alternate function lowregister
-    struct _AFRL : Register<GPIOD_BASE + 0x20, ReadWrite, _AFRL> {
+    struct _AFRL : Register<GPIOx_BASE + 0x20, ReadWrite, _AFRL> {
         using AFRL7 = Field<_AFRL, 28, 4>; // Alternate function selection for port x bit y (y = 0..7)
         using AFRL6 = Field<_AFRL, 24, 4>; // Alternate function selection for port x bit y (y = 0..7)
         using AFRL5 = Field<_AFRL, 20, 4>; // Alternate function selection for port x bit y (y = 0..7)
@@ -3857,7 +3857,7 @@ namespace GPIOD {
     };
 
     // GPIO alternate function high register
-    struct _AFRH : Register<GPIOD_BASE + 0x24, ReadWrite, _AFRH> {
+    struct _AFRH : Register<GPIOx_BASE + 0x24, ReadWrite, _AFRH> {
         using AFRH15 = Field<_AFRH, 28, 4>; // Alternate function selection for port x bit y (y = 8..15)
         using AFRH14 = Field<_AFRH, 24, 4>; // Alternate function selection for port x bit y (y = 8..15)
         using AFRH13 = Field<_AFRH, 20, 4>; // Alternate function selection for port x bit y (y = 8..15)
@@ -3869,575 +3869,88 @@ namespace GPIOD {
     };
 
     // GPIO port bit reset register
-    struct _BRR : Register<GPIOD_BASE + 0x28, ReadWrite, _BRR> {
-        using BR0 = Field<_BRR, 0, 1>; // Port D Reset bit 0
-        using BR1 = Field<_BRR, 1, 1>; // Port D Reset bit 1
-        using BR2 = Field<_BRR, 2, 1>; // Port D Reset bit 2
-        using BR3 = Field<_BRR, 3, 1>; // Port D Reset bit 3
-        using BR4 = Field<_BRR, 4, 1>; // Port D Reset bit 4
-        using BR5 = Field<_BRR, 5, 1>; // Port D Reset bit 5
-        using BR6 = Field<_BRR, 6, 1>; // Port D Reset bit 6
-        using BR7 = Field<_BRR, 7, 1>; // Port D Reset bit 7
-        using BR8 = Field<_BRR, 8, 1>; // Port D Reset bit 8
-        using BR9 = Field<_BRR, 9, 1>; // Port D Reset bit 9
-        using BR10 = Field<_BRR, 10, 1>; // Port D Reset bit 10
-        using BR11 = Field<_BRR, 11, 1>; // Port D Reset bit 11
-        using BR12 = Field<_BRR, 12, 1>; // Port D Reset bit 12
-        using BR13 = Field<_BRR, 13, 1>; // Port D Reset bit 13
-        using BR14 = Field<_BRR, 14, 1>; // Port D Reset bit 14
-        using BR15 = Field<_BRR, 15, 1>; // Port D Reset bit 15
-    };
+    struct _BRR : Register<GPIOx_BASE + 0x28, ReadWrite, _BRR> {
+        using BR0 = Field<_BRR, 0, 1>; // Port x Reset bit 0
+        using BR1 = Field<_BRR, 1, 1>; // Port x Reset bit 1
+        using BR2 = Field<_BRR, 2, 1>; // Port x Reset bit 2
+        using BR3 = Field<_BRR, 3, 1>; // Port x Reset bit 3
+        using BR4 = Field<_BRR, 4, 1>; // Port x Reset bit 4
+        using BR5 = Field<_BRR, 5, 1>; // Port x Reset bit 5
+        using BR6 = Field<_BRR, 6, 1>; // Port x Reset bit 6
+        using BR7 = Field<_BRR, 7, 1>; // Port x Reset bit 7
+        using BR8 = Field<_BRR, 8, 1>; // Port x Reset bit 8
+        using BR9 = Field<_BRR, 9, 1>; // Port x Reset bit 9
+        using BR10 = Field<_BRR, 10, 1>; // Port x Reset bit 10
+        using BR11 = Field<_BRR, 11, 1>; // Port x Reset bit 11
+        using BR12 = Field<_BRR, 12, 1>; // Port x Reset bit 12
+        using BR13 = Field<_BRR, 13, 1>; // Port x Reset bit 13
+        using BR14 = Field<_BRR, 14, 1>; // Port x Reset bit 14
+        using BR15 = Field<_BRR, 15, 1>; // Port x Reset bit 15
+};
 
-} // namespace GPIOD
+};
 
 // --------------------------------------------
-// GPIOC: 
+// GPIOD: General-purpose I/Os
+// Base address: 0X40020C00
+// --------------------------------------------
+using GPIOD = GPIO<0X40020C00>;
+// --------------------------------------------
+// GPIOC:General-purpose I/Os 
 // Base address: 0x40020800
 // --------------------------------------------
-
-namespace GPIOC {
-    static constexpr uint32_t GPIOC_BASE = 0x40020800;
-
-} // namespace GPIOC
-
+using GPIOC = GPIO<0x40020800>;
 // --------------------------------------------
-// GPIOK: 
+// GPIOK:General-purpose I/Os 
 // Base address: 0X40022800
 // --------------------------------------------
-
-namespace GPIOK {
-    static constexpr uint32_t GPIOK_BASE = 0X40022800;
-
-} // namespace GPIOK
-
+//using GPIOK = GPIO<0X40022800>;
 // --------------------------------------------
-// GPIOJ: 
+// GPIOJ:General-purpose I/Os 
 // Base address: 0X40022400
 // --------------------------------------------
-
-namespace GPIOJ {
-    static constexpr uint32_t GPIOJ_BASE = 0X40022400;
-
-} // namespace GPIOJ
-
+//using GPIOJ = GPIO<0X40022400>;
 // --------------------------------------------
-// GPIOI: 
+// GPIOI:General-purpose I/Os 
 // Base address: 0X40022000
 // --------------------------------------------
-
-namespace GPIOI {
-    static constexpr uint32_t GPIOI_BASE = 0X40022000;
-
-} // namespace GPIOI
-
+//using GPIOI = GPIO<0X40022000>;
 // --------------------------------------------
-// GPIOH: 
+// GPIOH:General-purpose I/Os 
 // Base address: 0X40021C00
 // --------------------------------------------
-
-namespace GPIOH {
-    static constexpr uint32_t GPIOH_BASE = 0X40021C00;
-
-} // namespace GPIOH
-
+using GPIOH = GPIO<0X40021C00>;
 // --------------------------------------------
-// GPIOG: 
+// GPIOG:General-purpose I/Os 
 // Base address: 0X40021800
 // --------------------------------------------
-
-namespace GPIOG {
-    static constexpr uint32_t GPIOG_BASE = 0X40021800;
-
-} // namespace GPIOG
-
+using GPIOG = GPIO<0X40021800>;
 // --------------------------------------------
-// GPIOF: 
+// GPIOF:General-purpose I/Os 
 // Base address: 0X40021400
 // --------------------------------------------
-
-namespace GPIOF {
-    static constexpr uint32_t GPIOF_BASE = 0X40021400;
-
-} // namespace GPIOF
-
+using GPIOF = GPIO<0X40021400>;
 // --------------------------------------------
-// GPIOE: 
+// GPIOE:General-purpose I/Os
 // Base address: 0X40021000
 // --------------------------------------------
-
-namespace GPIOE {
-    static constexpr uint32_t GPIOE_BASE = 0X40021000;
-
-} // namespace GPIOE
-
+using GPIOE = GPIO<0X40021000>;
 // --------------------------------------------
 // GPIOB: General-purpose I/Os
 // Base address: 0x40020400
 // --------------------------------------------
-
-namespace GPIOB {
-    static constexpr uint32_t GPIOB_BASE = 0x40020400;
-
-    // GPIO port mode register
-    struct _MODER : Register<GPIOB_BASE + 0x0, ReadWrite, _MODER> {
-        using MODER15 = Field<_MODER, 30, 2>; // Port x configuration bits (y = 0..15)
-        using MODER14 = Field<_MODER, 28, 2>; // Port x configuration bits (y = 0..15)
-        using MODER13 = Field<_MODER, 26, 2>; // Port x configuration bits (y = 0..15)
-        using MODER12 = Field<_MODER, 24, 2>; // Port x configuration bits (y = 0..15)
-        using MODER11 = Field<_MODER, 22, 2>; // Port x configuration bits (y = 0..15)
-        using MODER10 = Field<_MODER, 20, 2>; // Port x configuration bits (y = 0..15)
-        using MODER9 = Field<_MODER, 18, 2>; // Port x configuration bits (y = 0..15)
-        using MODER8 = Field<_MODER, 16, 2>; // Port x configuration bits (y = 0..15)
-        using MODER7 = Field<_MODER, 14, 2>; // Port x configuration bits (y = 0..15)
-        using MODER6 = Field<_MODER, 12, 2>; // Port x configuration bits (y = 0..15)
-        using MODER5 = Field<_MODER, 10, 2>; // Port x configuration bits (y = 0..15)
-        using MODER4 = Field<_MODER, 8, 2>; // Port x configuration bits (y = 0..15)
-        using MODER3 = Field<_MODER, 6, 2>; // Port x configuration bits (y = 0..15)
-        using MODER2 = Field<_MODER, 4, 2>; // Port x configuration bits (y = 0..15)
-        using MODER1 = Field<_MODER, 2, 2>; // Port x configuration bits (y = 0..15)
-        using MODER0 = Field<_MODER, 0, 2>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port output type register
-    struct _OTYPER : Register<GPIOB_BASE + 0x4, ReadWrite, _OTYPER> {
-        using OT15 = Field<_OTYPER, 15, 1>; // Port x configuration bits (y = 0..15)
-        using OT14 = Field<_OTYPER, 14, 1>; // Port x configuration bits (y = 0..15)
-        using OT13 = Field<_OTYPER, 13, 1>; // Port x configuration bits (y = 0..15)
-        using OT12 = Field<_OTYPER, 12, 1>; // Port x configuration bits (y = 0..15)
-        using OT11 = Field<_OTYPER, 11, 1>; // Port x configuration bits (y = 0..15)
-        using OT10 = Field<_OTYPER, 10, 1>; // Port x configuration bits (y = 0..15)
-        using OT9 = Field<_OTYPER, 9, 1>; // Port x configuration bits (y = 0..15)
-        using OT8 = Field<_OTYPER, 8, 1>; // Port x configuration bits (y = 0..15)
-        using OT7 = Field<_OTYPER, 7, 1>; // Port x configuration bits (y = 0..15)
-        using OT6 = Field<_OTYPER, 6, 1>; // Port x configuration bits (y = 0..15)
-        using OT5 = Field<_OTYPER, 5, 1>; // Port x configuration bits (y = 0..15)
-        using OT4 = Field<_OTYPER, 4, 1>; // Port x configuration bits (y = 0..15)
-        using OT3 = Field<_OTYPER, 3, 1>; // Port x configuration bits (y = 0..15)
-        using OT2 = Field<_OTYPER, 2, 1>; // Port x configuration bits (y = 0..15)
-        using OT1 = Field<_OTYPER, 1, 1>; // Port x configuration bits (y = 0..15)
-        using OT0 = Field<_OTYPER, 0, 1>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port output speed register
-    struct _OSPEEDR : Register<GPIOB_BASE + 0x8, ReadWrite, _OSPEEDR> {
-        using OSPEEDR15 = Field<_OSPEEDR, 30, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR14 = Field<_OSPEEDR, 28, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR13 = Field<_OSPEEDR, 26, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR12 = Field<_OSPEEDR, 24, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR11 = Field<_OSPEEDR, 22, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR10 = Field<_OSPEEDR, 20, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR9 = Field<_OSPEEDR, 18, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR8 = Field<_OSPEEDR, 16, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR7 = Field<_OSPEEDR, 14, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR6 = Field<_OSPEEDR, 12, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR5 = Field<_OSPEEDR, 10, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR4 = Field<_OSPEEDR, 8, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR3 = Field<_OSPEEDR, 6, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR2 = Field<_OSPEEDR, 4, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR1 = Field<_OSPEEDR, 2, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR0 = Field<_OSPEEDR, 0, 2>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port pull-up/pull-down register
-    struct _PUPDR : Register<GPIOB_BASE + 0xC, ReadWrite, _PUPDR> {
-        using PUPDR15 = Field<_PUPDR, 30, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR14 = Field<_PUPDR, 28, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR13 = Field<_PUPDR, 26, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR12 = Field<_PUPDR, 24, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR11 = Field<_PUPDR, 22, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR10 = Field<_PUPDR, 20, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR9 = Field<_PUPDR, 18, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR8 = Field<_PUPDR, 16, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR7 = Field<_PUPDR, 14, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR6 = Field<_PUPDR, 12, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR5 = Field<_PUPDR, 10, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR4 = Field<_PUPDR, 8, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR3 = Field<_PUPDR, 6, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR2 = Field<_PUPDR, 4, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR1 = Field<_PUPDR, 2, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR0 = Field<_PUPDR, 0, 2>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port input data register
-    struct _IDR : Register<GPIOB_BASE + 0x10, ReadOnly, _IDR> {
-        using IDR15 = Field<_IDR, 15, 1>; // Port input data (y = 0..15)
-        using IDR14 = Field<_IDR, 14, 1>; // Port input data (y = 0..15)
-        using IDR13 = Field<_IDR, 13, 1>; // Port input data (y = 0..15)
-        using IDR12 = Field<_IDR, 12, 1>; // Port input data (y = 0..15)
-        using IDR11 = Field<_IDR, 11, 1>; // Port input data (y = 0..15)
-        using IDR10 = Field<_IDR, 10, 1>; // Port input data (y = 0..15)
-        using IDR9 = Field<_IDR, 9, 1>; // Port input data (y = 0..15)
-        using IDR8 = Field<_IDR, 8, 1>; // Port input data (y = 0..15)
-        using IDR7 = Field<_IDR, 7, 1>; // Port input data (y = 0..15)
-        using IDR6 = Field<_IDR, 6, 1>; // Port input data (y = 0..15)
-        using IDR5 = Field<_IDR, 5, 1>; // Port input data (y = 0..15)
-        using IDR4 = Field<_IDR, 4, 1>; // Port input data (y = 0..15)
-        using IDR3 = Field<_IDR, 3, 1>; // Port input data (y = 0..15)
-        using IDR2 = Field<_IDR, 2, 1>; // Port input data (y = 0..15)
-        using IDR1 = Field<_IDR, 1, 1>; // Port input data (y = 0..15)
-        using IDR0 = Field<_IDR, 0, 1>; // Port input data (y = 0..15)
-    };
-
-    // GPIO port output data register
-    struct _ODR : Register<GPIOB_BASE + 0x14, ReadWrite, _ODR> {
-        using ODR15 = Field<_ODR, 15, 1>; // Port output data (y = 0..15)
-        using ODR14 = Field<_ODR, 14, 1>; // Port output data (y = 0..15)
-        using ODR13 = Field<_ODR, 13, 1>; // Port output data (y = 0..15)
-        using ODR12 = Field<_ODR, 12, 1>; // Port output data (y = 0..15)
-        using ODR11 = Field<_ODR, 11, 1>; // Port output data (y = 0..15)
-        using ODR10 = Field<_ODR, 10, 1>; // Port output data (y = 0..15)
-        using ODR9 = Field<_ODR, 9, 1>; // Port output data (y = 0..15)
-        using ODR8 = Field<_ODR, 8, 1>; // Port output data (y = 0..15)
-        using ODR7 = Field<_ODR, 7, 1>; // Port output data (y = 0..15)
-        using ODR6 = Field<_ODR, 6, 1>; // Port output data (y = 0..15)
-        using ODR5 = Field<_ODR, 5, 1>; // Port output data (y = 0..15)
-        using ODR4 = Field<_ODR, 4, 1>; // Port output data (y = 0..15)
-        using ODR3 = Field<_ODR, 3, 1>; // Port output data (y = 0..15)
-        using ODR2 = Field<_ODR, 2, 1>; // Port output data (y = 0..15)
-        using ODR1 = Field<_ODR, 1, 1>; // Port output data (y = 0..15)
-        using ODR0 = Field<_ODR, 0, 1>; // Port output data (y = 0..15)
-    };
-
-    // GPIO port bit set/reset register
-    struct _BSRR : Register<GPIOB_BASE + 0x18, WriteOnly, _BSRR> {
-        using BR15 = Field<_BSRR, 31, 1>; // Port x reset bit y (y = 0..15)
-        using BR14 = Field<_BSRR, 30, 1>; // Port x reset bit y (y = 0..15)
-        using BR13 = Field<_BSRR, 29, 1>; // Port x reset bit y (y = 0..15)
-        using BR12 = Field<_BSRR, 28, 1>; // Port x reset bit y (y = 0..15)
-        using BR11 = Field<_BSRR, 27, 1>; // Port x reset bit y (y = 0..15)
-        using BR10 = Field<_BSRR, 26, 1>; // Port x reset bit y (y = 0..15)
-        using BR9 = Field<_BSRR, 25, 1>; // Port x reset bit y (y = 0..15)
-        using BR8 = Field<_BSRR, 24, 1>; // Port x reset bit y (y = 0..15)
-        using BR7 = Field<_BSRR, 23, 1>; // Port x reset bit y (y = 0..15)
-        using BR6 = Field<_BSRR, 22, 1>; // Port x reset bit y (y = 0..15)
-        using BR5 = Field<_BSRR, 21, 1>; // Port x reset bit y (y = 0..15)
-        using BR4 = Field<_BSRR, 20, 1>; // Port x reset bit y (y = 0..15)
-        using BR3 = Field<_BSRR, 19, 1>; // Port x reset bit y (y = 0..15)
-        using BR2 = Field<_BSRR, 18, 1>; // Port x reset bit y (y = 0..15)
-        using BR1 = Field<_BSRR, 17, 1>; // Port x reset bit y (y = 0..15)
-        using BR0 = Field<_BSRR, 16, 1>; // Port x set bit y (y= 0..15)
-        using BS15 = Field<_BSRR, 15, 1>; // Port x set bit y (y= 0..15)
-        using BS14 = Field<_BSRR, 14, 1>; // Port x set bit y (y= 0..15)
-        using BS13 = Field<_BSRR, 13, 1>; // Port x set bit y (y= 0..15)
-        using BS12 = Field<_BSRR, 12, 1>; // Port x set bit y (y= 0..15)
-        using BS11 = Field<_BSRR, 11, 1>; // Port x set bit y (y= 0..15)
-        using BS10 = Field<_BSRR, 10, 1>; // Port x set bit y (y= 0..15)
-        using BS9 = Field<_BSRR, 9, 1>; // Port x set bit y (y= 0..15)
-        using BS8 = Field<_BSRR, 8, 1>; // Port x set bit y (y= 0..15)
-        using BS7 = Field<_BSRR, 7, 1>; // Port x set bit y (y= 0..15)
-        using BS6 = Field<_BSRR, 6, 1>; // Port x set bit y (y= 0..15)
-        using BS5 = Field<_BSRR, 5, 1>; // Port x set bit y (y= 0..15)
-        using BS4 = Field<_BSRR, 4, 1>; // Port x set bit y (y= 0..15)
-        using BS3 = Field<_BSRR, 3, 1>; // Port x set bit y (y= 0..15)
-        using BS2 = Field<_BSRR, 2, 1>; // Port x set bit y (y= 0..15)
-        using BS1 = Field<_BSRR, 1, 1>; // Port x set bit y (y= 0..15)
-        using BS0 = Field<_BSRR, 0, 1>; // Port x set bit y (y= 0..15)
-    };
-
-    // GPIO port configuration lock register
-    struct _LCKR : Register<GPIOB_BASE + 0x1C, ReadWrite, _LCKR> {
-        using LCKK = Field<_LCKR, 16, 1>; // Port x lock bit y (y= 0..15)
-        using LCK15 = Field<_LCKR, 15, 1>; // Port x lock bit y (y= 0..15)
-        using LCK14 = Field<_LCKR, 14, 1>; // Port x lock bit y (y= 0..15)
-        using LCK13 = Field<_LCKR, 13, 1>; // Port x lock bit y (y= 0..15)
-        using LCK12 = Field<_LCKR, 12, 1>; // Port x lock bit y (y= 0..15)
-        using LCK11 = Field<_LCKR, 11, 1>; // Port x lock bit y (y= 0..15)
-        using LCK10 = Field<_LCKR, 10, 1>; // Port x lock bit y (y= 0..15)
-        using LCK9 = Field<_LCKR, 9, 1>; // Port x lock bit y (y= 0..15)
-        using LCK8 = Field<_LCKR, 8, 1>; // Port x lock bit y (y= 0..15)
-        using LCK7 = Field<_LCKR, 7, 1>; // Port x lock bit y (y= 0..15)
-        using LCK6 = Field<_LCKR, 6, 1>; // Port x lock bit y (y= 0..15)
-        using LCK5 = Field<_LCKR, 5, 1>; // Port x lock bit y (y= 0..15)
-        using LCK4 = Field<_LCKR, 4, 1>; // Port x lock bit y (y= 0..15)
-        using LCK3 = Field<_LCKR, 3, 1>; // Port x lock bit y (y= 0..15)
-        using LCK2 = Field<_LCKR, 2, 1>; // Port x lock bit y (y= 0..15)
-        using LCK1 = Field<_LCKR, 1, 1>; // Port x lock bit y (y= 0..15)
-        using LCK0 = Field<_LCKR, 0, 1>; // Port x lock bit y (y= 0..15)
-    };
-
-    // GPIO alternate function low register
-    struct _AFRL : Register<GPIOB_BASE + 0x20, ReadWrite, _AFRL> {
-        using AFRL7 = Field<_AFRL, 28, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL6 = Field<_AFRL, 24, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL5 = Field<_AFRL, 20, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL4 = Field<_AFRL, 16, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL3 = Field<_AFRL, 12, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL2 = Field<_AFRL, 8, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL1 = Field<_AFRL, 4, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL0 = Field<_AFRL, 0, 4>; // Alternate function selection for port x bit y (y = 0..7)
-    };
-
-    // GPIO alternate function high register
-    struct _AFRH : Register<GPIOB_BASE + 0x24, ReadWrite, _AFRH> {
-        using AFRH15 = Field<_AFRH, 28, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH14 = Field<_AFRH, 24, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH13 = Field<_AFRH, 20, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH12 = Field<_AFRH, 16, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH11 = Field<_AFRH, 12, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH10 = Field<_AFRH, 8, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH9 = Field<_AFRH, 4, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH8 = Field<_AFRH, 0, 4>; // Alternate function selection for port x bit y (y = 8..15)
-    };
-
-    // GPIO port bit reset register
-    struct _BRR : Register<GPIOB_BASE + 0x28, ReadWrite, _BRR> {
-        using BR0 = Field<_BRR, 0, 1>; // Port B Reset bit 0
-        using BR1 = Field<_BRR, 1, 1>; // Port B Reset bit 1
-        using BR2 = Field<_BRR, 2, 1>; // Port B Reset bit 2
-        using BR3 = Field<_BRR, 3, 1>; // Port B Reset bit 3
-        using BR4 = Field<_BRR, 4, 1>; // Port B Reset bit 4
-        using BR5 = Field<_BRR, 5, 1>; // Port B Reset bit 5
-        using BR6 = Field<_BRR, 6, 1>; // Port B Reset bit 6
-        using BR7 = Field<_BRR, 7, 1>; // Port B Reset bit 7
-        using BR8 = Field<_BRR, 8, 1>; // Port B Reset bit 8
-        using BR9 = Field<_BRR, 9, 1>; // Port B Reset bit 9
-        using BR10 = Field<_BRR, 10, 1>; // Port B Reset bit 10
-        using BR11 = Field<_BRR, 11, 1>; // Port B Reset bit 11
-        using BR12 = Field<_BRR, 12, 1>; // Port B Reset bit 12
-        using BR13 = Field<_BRR, 13, 1>; // Port B Reset bit 13
-        using BR14 = Field<_BRR, 14, 1>; // Port B Reset bit 14
-        using BR15 = Field<_BRR, 15, 1>; // Port B Reset bit 15
-    };
-
-} // namespace GPIOB
-
+using GPIOB = GPIO<0x40020400>;
 // --------------------------------------------
 // GPIOA: General-purpose I/Os
 // Base address: 0x40020000
 // --------------------------------------------
-
-namespace GPIOA {
-    static constexpr uint32_t GPIOA_BASE = 0x40020000;
-
-    // GPIO port mode register
-    struct _MODER : Register<GPIOA_BASE + 0x0, ReadWrite, _MODER> {
-        using MODER15 = Field<_MODER, 30, 2>; // Port x configuration bits (y = 0..15)
-        using MODER14 = Field<_MODER, 28, 2>; // Port x configuration bits (y = 0..15)
-        using MODER13 = Field<_MODER, 26, 2>; // Port x configuration bits (y = 0..15)
-        using MODER12 = Field<_MODER, 24, 2>; // Port x configuration bits (y = 0..15)
-        using MODER11 = Field<_MODER, 22, 2>; // Port x configuration bits (y = 0..15)
-        using MODER10 = Field<_MODER, 20, 2>; // Port x configuration bits (y = 0..15)
-        using MODER9 = Field<_MODER, 18, 2>; // Port x configuration bits (y = 0..15)
-        using MODER8 = Field<_MODER, 16, 2>; // Port x configuration bits (y = 0..15)
-        using MODER7 = Field<_MODER, 14, 2>; // Port x configuration bits (y = 0..15)
-        using MODER6 = Field<_MODER, 12, 2>; // Port x configuration bits (y = 0..15)
-        using MODER5 = Field<_MODER, 10, 2>; // Port x configuration bits (y = 0..15)
-        using MODER4 = Field<_MODER, 8, 2>; // Port x configuration bits (y = 0..15)
-        using MODER3 = Field<_MODER, 6, 2>; // Port x configuration bits (y = 0..15)
-        using MODER2 = Field<_MODER, 4, 2>; // Port x configuration bits (y = 0..15)
-        using MODER1 = Field<_MODER, 2, 2>; // Port x configuration bits (y = 0..15)
-        using MODER0 = Field<_MODER, 0, 2>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port output type register
-    struct _OTYPER : Register<GPIOA_BASE + 0x4, ReadWrite, _OTYPER> {
-        using OT15 = Field<_OTYPER, 15, 1>; // Port x configuration bits (y = 0..15)
-        using OT14 = Field<_OTYPER, 14, 1>; // Port x configuration bits (y = 0..15)
-        using OT13 = Field<_OTYPER, 13, 1>; // Port x configuration bits (y = 0..15)
-        using OT12 = Field<_OTYPER, 12, 1>; // Port x configuration bits (y = 0..15)
-        using OT11 = Field<_OTYPER, 11, 1>; // Port x configuration bits (y = 0..15)
-        using OT10 = Field<_OTYPER, 10, 1>; // Port x configuration bits (y = 0..15)
-        using OT9 = Field<_OTYPER, 9, 1>; // Port x configuration bits (y = 0..15)
-        using OT8 = Field<_OTYPER, 8, 1>; // Port x configuration bits (y = 0..15)
-        using OT7 = Field<_OTYPER, 7, 1>; // Port x configuration bits (y = 0..15)
-        using OT6 = Field<_OTYPER, 6, 1>; // Port x configuration bits (y = 0..15)
-        using OT5 = Field<_OTYPER, 5, 1>; // Port x configuration bits (y = 0..15)
-        using OT4 = Field<_OTYPER, 4, 1>; // Port x configuration bits (y = 0..15)
-        using OT3 = Field<_OTYPER, 3, 1>; // Port x configuration bits (y = 0..15)
-        using OT2 = Field<_OTYPER, 2, 1>; // Port x configuration bits (y = 0..15)
-        using OT1 = Field<_OTYPER, 1, 1>; // Port x configuration bits (y = 0..15)
-        using OT0 = Field<_OTYPER, 0, 1>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port output speed register
-    struct _OSPEEDR : Register<GPIOA_BASE + 0x8, ReadWrite, _OSPEEDR> {
-        using OSPEEDR15 = Field<_OSPEEDR, 30, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR14 = Field<_OSPEEDR, 28, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR13 = Field<_OSPEEDR, 26, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR12 = Field<_OSPEEDR, 24, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR11 = Field<_OSPEEDR, 22, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR10 = Field<_OSPEEDR, 20, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR9 = Field<_OSPEEDR, 18, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR8 = Field<_OSPEEDR, 16, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR7 = Field<_OSPEEDR, 14, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR6 = Field<_OSPEEDR, 12, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR5 = Field<_OSPEEDR, 10, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR4 = Field<_OSPEEDR, 8, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR3 = Field<_OSPEEDR, 6, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR2 = Field<_OSPEEDR, 4, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR1 = Field<_OSPEEDR, 2, 2>; // Port x configuration bits (y = 0..15)
-        using OSPEEDR0 = Field<_OSPEEDR, 0, 2>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port pull-up/pull-down register
-    struct _PUPDR : Register<GPIOA_BASE + 0xC, ReadWrite, _PUPDR> {
-        using PUPDR15 = Field<_PUPDR, 30, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR14 = Field<_PUPDR, 28, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR13 = Field<_PUPDR, 26, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR12 = Field<_PUPDR, 24, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR11 = Field<_PUPDR, 22, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR10 = Field<_PUPDR, 20, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR9 = Field<_PUPDR, 18, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR8 = Field<_PUPDR, 16, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR7 = Field<_PUPDR, 14, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR6 = Field<_PUPDR, 12, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR5 = Field<_PUPDR, 10, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR4 = Field<_PUPDR, 8, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR3 = Field<_PUPDR, 6, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR2 = Field<_PUPDR, 4, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR1 = Field<_PUPDR, 2, 2>; // Port x configuration bits (y = 0..15)
-        using PUPDR0 = Field<_PUPDR, 0, 2>; // Port x configuration bits (y = 0..15)
-    };
-
-    // GPIO port input data register
-    struct _IDR : Register<GPIOA_BASE + 0x10, ReadOnly, _IDR> {
-        using IDR15 = Field<_IDR, 15, 1>; // Port input data (y = 0..15)
-        using IDR14 = Field<_IDR, 14, 1>; // Port input data (y = 0..15)
-        using IDR13 = Field<_IDR, 13, 1>; // Port input data (y = 0..15)
-        using IDR12 = Field<_IDR, 12, 1>; // Port input data (y = 0..15)
-        using IDR11 = Field<_IDR, 11, 1>; // Port input data (y = 0..15)
-        using IDR10 = Field<_IDR, 10, 1>; // Port input data (y = 0..15)
-        using IDR9 = Field<_IDR, 9, 1>; // Port input data (y = 0..15)
-        using IDR8 = Field<_IDR, 8, 1>; // Port input data (y = 0..15)
-        using IDR7 = Field<_IDR, 7, 1>; // Port input data (y = 0..15)
-        using IDR6 = Field<_IDR, 6, 1>; // Port input data (y = 0..15)
-        using IDR5 = Field<_IDR, 5, 1>; // Port input data (y = 0..15)
-        using IDR4 = Field<_IDR, 4, 1>; // Port input data (y = 0..15)
-        using IDR3 = Field<_IDR, 3, 1>; // Port input data (y = 0..15)
-        using IDR2 = Field<_IDR, 2, 1>; // Port input data (y = 0..15)
-        using IDR1 = Field<_IDR, 1, 1>; // Port input data (y = 0..15)
-        using IDR0 = Field<_IDR, 0, 1>; // Port input data (y = 0..15)
-    };
-
-    // GPIO port output data register
-    struct _ODR : Register<GPIOA_BASE + 0x14, ReadWrite, _ODR> {
-        using ODR15 = Field<_ODR, 15, 1>; // Port output data (y = 0..15)
-        using ODR14 = Field<_ODR, 14, 1>; // Port output data (y = 0..15)
-        using ODR13 = Field<_ODR, 13, 1>; // Port output data (y = 0..15)
-        using ODR12 = Field<_ODR, 12, 1>; // Port output data (y = 0..15)
-        using ODR11 = Field<_ODR, 11, 1>; // Port output data (y = 0..15)
-        using ODR10 = Field<_ODR, 10, 1>; // Port output data (y = 0..15)
-        using ODR9 = Field<_ODR, 9, 1>; // Port output data (y = 0..15)
-        using ODR8 = Field<_ODR, 8, 1>; // Port output data (y = 0..15)
-        using ODR7 = Field<_ODR, 7, 1>; // Port output data (y = 0..15)
-        using ODR6 = Field<_ODR, 6, 1>; // Port output data (y = 0..15)
-        using ODR5 = Field<_ODR, 5, 1>; // Port output data (y = 0..15)
-        using ODR4 = Field<_ODR, 4, 1>; // Port output data (y = 0..15)
-        using ODR3 = Field<_ODR, 3, 1>; // Port output data (y = 0..15)
-        using ODR2 = Field<_ODR, 2, 1>; // Port output data (y = 0..15)
-        using ODR1 = Field<_ODR, 1, 1>; // Port output data (y = 0..15)
-        using ODR0 = Field<_ODR, 0, 1>; // Port output data (y = 0..15)
-    };
-
-    // GPIO port bit set/reset register
-    struct _BSRR : Register<GPIOA_BASE + 0x18, WriteOnly, _BSRR> {
-        using BR15 = Field<_BSRR, 31, 1>; // Port x reset bit y (y = 0..15)
-        using BR14 = Field<_BSRR, 30, 1>; // Port x reset bit y (y = 0..15)
-        using BR13 = Field<_BSRR, 29, 1>; // Port x reset bit y (y = 0..15)
-        using BR12 = Field<_BSRR, 28, 1>; // Port x reset bit y (y = 0..15)
-        using BR11 = Field<_BSRR, 27, 1>; // Port x reset bit y (y = 0..15)
-        using BR10 = Field<_BSRR, 26, 1>; // Port x reset bit y (y = 0..15)
-        using BR9 = Field<_BSRR, 25, 1>; // Port x reset bit y (y = 0..15)
-        using BR8 = Field<_BSRR, 24, 1>; // Port x reset bit y (y = 0..15)
-        using BR7 = Field<_BSRR, 23, 1>; // Port x reset bit y (y = 0..15)
-        using BR6 = Field<_BSRR, 22, 1>; // Port x reset bit y (y = 0..15)
-        using BR5 = Field<_BSRR, 21, 1>; // Port x reset bit y (y = 0..15)
-        using BR4 = Field<_BSRR, 20, 1>; // Port x reset bit y (y = 0..15)
-        using BR3 = Field<_BSRR, 19, 1>; // Port x reset bit y (y = 0..15)
-        using BR2 = Field<_BSRR, 18, 1>; // Port x reset bit y (y = 0..15)
-        using BR1 = Field<_BSRR, 17, 1>; // Port x reset bit y (y = 0..15)
-        using BR0 = Field<_BSRR, 16, 1>; // Port x set bit y (y= 0..15)
-        using BS15 = Field<_BSRR, 15, 1>; // Port x set bit y (y= 0..15)
-        using BS14 = Field<_BSRR, 14, 1>; // Port x set bit y (y= 0..15)
-        using BS13 = Field<_BSRR, 13, 1>; // Port x set bit y (y= 0..15)
-        using BS12 = Field<_BSRR, 12, 1>; // Port x set bit y (y= 0..15)
-        using BS11 = Field<_BSRR, 11, 1>; // Port x set bit y (y= 0..15)
-        using BS10 = Field<_BSRR, 10, 1>; // Port x set bit y (y= 0..15)
-        using BS9 = Field<_BSRR, 9, 1>; // Port x set bit y (y= 0..15)
-        using BS8 = Field<_BSRR, 8, 1>; // Port x set bit y (y= 0..15)
-        using BS7 = Field<_BSRR, 7, 1>; // Port x set bit y (y= 0..15)
-        using BS6 = Field<_BSRR, 6, 1>; // Port x set bit y (y= 0..15)
-        using BS5 = Field<_BSRR, 5, 1>; // Port x set bit y (y= 0..15)
-        using BS4 = Field<_BSRR, 4, 1>; // Port x set bit y (y= 0..15)
-        using BS3 = Field<_BSRR, 3, 1>; // Port x set bit y (y= 0..15)
-        using BS2 = Field<_BSRR, 2, 1>; // Port x set bit y (y= 0..15)
-        using BS1 = Field<_BSRR, 1, 1>; // Port x set bit y (y= 0..15)
-        using BS0 = Field<_BSRR, 0, 1>; // Port x set bit y (y= 0..15)
-    };
-
-    // GPIO port configuration lock register
-    struct _LCKR : Register<GPIOA_BASE + 0x1C, ReadWrite, _LCKR> {
-        using LCKK = Field<_LCKR, 16, 1>; // Port x lock bit y (y= 0..15)
-        using LCK15 = Field<_LCKR, 15, 1>; // Port x lock bit y (y= 0..15)
-        using LCK14 = Field<_LCKR, 14, 1>; // Port x lock bit y (y= 0..15)
-        using LCK13 = Field<_LCKR, 13, 1>; // Port x lock bit y (y= 0..15)
-        using LCK12 = Field<_LCKR, 12, 1>; // Port x lock bit y (y= 0..15)
-        using LCK11 = Field<_LCKR, 11, 1>; // Port x lock bit y (y= 0..15)
-        using LCK10 = Field<_LCKR, 10, 1>; // Port x lock bit y (y= 0..15)
-        using LCK9 = Field<_LCKR, 9, 1>; // Port x lock bit y (y= 0..15)
-        using LCK8 = Field<_LCKR, 8, 1>; // Port x lock bit y (y= 0..15)
-        using LCK7 = Field<_LCKR, 7, 1>; // Port x lock bit y (y= 0..15)
-        using LCK6 = Field<_LCKR, 6, 1>; // Port x lock bit y (y= 0..15)
-        using LCK5 = Field<_LCKR, 5, 1>; // Port x lock bit y (y= 0..15)
-        using LCK4 = Field<_LCKR, 4, 1>; // Port x lock bit y (y= 0..15)
-        using LCK3 = Field<_LCKR, 3, 1>; // Port x lock bit y (y= 0..15)
-        using LCK2 = Field<_LCKR, 2, 1>; // Port x lock bit y (y= 0..15)
-        using LCK1 = Field<_LCKR, 1, 1>; // Port x lock bit y (y= 0..15)
-        using LCK0 = Field<_LCKR, 0, 1>; // Port x lock bit y (y= 0..15)
-    };
-
-    // GPIO alternate function low register
-    struct _AFRL : Register<GPIOA_BASE + 0x20, ReadWrite, _AFRL> {
-        using AFRL7 = Field<_AFRL, 28, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL6 = Field<_AFRL, 24, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL5 = Field<_AFRL, 20, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL4 = Field<_AFRL, 16, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL3 = Field<_AFRL, 12, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL2 = Field<_AFRL, 8, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL1 = Field<_AFRL, 4, 4>; // Alternate function selection for port x bit y (y = 0..7)
-        using AFRL0 = Field<_AFRL, 0, 4>; // Alternate function selection for port x bit y (y = 0..7)
-    };
-
-    // GPIO alternate function high register
-    struct _AFRH : Register<GPIOA_BASE + 0x24, ReadWrite, _AFRH> {
-        using AFRH15 = Field<_AFRH, 28, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH14 = Field<_AFRH, 24, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH13 = Field<_AFRH, 20, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH12 = Field<_AFRH, 16, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH11 = Field<_AFRH, 12, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH10 = Field<_AFRH, 8, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH9 = Field<_AFRH, 4, 4>; // Alternate function selection for port x bit y (y = 8..15)
-        using AFRH8 = Field<_AFRH, 0, 4>; // Alternate function selection for port x bit y (y = 8..15)
-    };
-
-    // GPIO port bit reset register
-    struct _BRR : Register<GPIOA_BASE + 0x28, ReadWrite, _BRR> {
-        using BR0 = Field<_BRR, 0, 1>; // Port A Reset bit 0
-        using BR1 = Field<_BRR, 1, 1>; // Port A Reset bit 1
-        using BR2 = Field<_BRR, 2, 1>; // Port A Reset bit 2
-        using BR3 = Field<_BRR, 3, 1>; // Port A Reset bit 3
-        using BR4 = Field<_BRR, 4, 1>; // Port A Reset bit 4
-        using BR5 = Field<_BRR, 5, 1>; // Port A Reset bit 5
-        using BR6 = Field<_BRR, 6, 1>; // Port A Reset bit 6
-        using BR7 = Field<_BRR, 7, 1>; // Port A Reset bit 7
-        using BR8 = Field<_BRR, 8, 1>; // Port A Reset bit 8
-        using BR9 = Field<_BRR, 9, 1>; // Port A Reset bit 9
-        using BR10 = Field<_BRR, 10, 1>; // Port A Reset bit 10
-        using BR11 = Field<_BRR, 11, 1>; // Port A Reset bit 11
-        using BR12 = Field<_BRR, 12, 1>; // Port A Reset bit 12
-        using BR13 = Field<_BRR, 13, 1>; // Port A Reset bit 13
-        using BR14 = Field<_BRR, 14, 1>; // Port A Reset bit 14
-        using BR15 = Field<_BRR, 15, 1>; // Port A Reset bit 15
-    };
-
-} // namespace GPIOA
-
+using GPIOA = GPIO<0x40020000>;
 // --------------------------------------------
 // SYSCFG: System configuration controller
 // Base address: 0x40013800
 // --------------------------------------------
 
-namespace SYSCFG {
+struct SYSCFG {
     static constexpr uint32_t SYSCFG_BASE = 0x40013800;
 
     // memory remap register
@@ -4493,14 +4006,14 @@ namespace SYSCFG {
         using CMP_PD = Field<_CMPCR, 0, 1>; // Compensation cell power-down
     };
 
-} // namespace SYSCFG
+}; // struct SYSCFG
 
 // --------------------------------------------
 // SPI1: Serial peripheral interface
 // Base address: 0x40013000
 // --------------------------------------------
 
-namespace SPI1 {
+struct SPI1 {
     static constexpr uint32_t SPI1_BASE = 0x40013000;
 
     // control register 1
@@ -4592,64 +4105,64 @@ namespace SPI1 {
         using I2SDIV = Field<_I2SPR, 0, 8>; // I2S Linear prescaler
     };
 
-} // namespace SPI1
+}; // struct SPI1
 
 // --------------------------------------------
 // SPI2: 
 // Base address: 0x40003800
 // --------------------------------------------
 
-namespace SPI2 {
+struct SPI2 {
     static constexpr uint32_t SPI2_BASE = 0x40003800;
 
-} // namespace SPI2
+}; // struct SPI2
 
 // --------------------------------------------
 // SPI4: 
 // Base address: 0x40013400
 // --------------------------------------------
 
-namespace SPI4 {
+struct SPI4 {
     static constexpr uint32_t SPI4_BASE = 0x40013400;
 
-} // namespace SPI4
+}; // struct SPI4
 
 // --------------------------------------------
 // SPI5: 
 // Base address: 0x40015000
 // --------------------------------------------
 
-namespace SPI5 {
+struct SPI5 {
     static constexpr uint32_t SPI5_BASE = 0x40015000;
 
-} // namespace SPI5
+}; // struct SPI5
 
 // --------------------------------------------
 // SPI3: 
 // Base address: 0x40003C00
 // --------------------------------------------
 
-namespace SPI3 {
+struct SPI3 {
     static constexpr uint32_t SPI3_BASE = 0x40003C00;
 
-} // namespace SPI3
+}; // struct SPI3
 
 // --------------------------------------------
 // SPI6: 
 // Base address: 0x40015400
 // --------------------------------------------
 
-namespace SPI6 {
+struct SPI6 {
     static constexpr uint32_t SPI6_BASE = 0x40015400;
 
-} // namespace SPI6
+}; // struct SPI6
 
 // --------------------------------------------
 // ADC1: Analog-to-digital converter
 // Base address: 0x40012000
 // --------------------------------------------
 
-namespace ADC1 {
+struct ADC1 {
     static constexpr uint32_t ADC1_BASE = 0x40012000;
 
     // status register
@@ -4799,34 +4312,34 @@ namespace ADC1 {
         using DATA = Field<_DR, 0, 16>; // Regular data
     };
 
-} // namespace ADC1
+}; // struct ADC1
 
 // --------------------------------------------
 // ADC2: 
 // Base address: 0x40012100
 // --------------------------------------------
 
-namespace ADC2 {
+struct ADC2 {
     static constexpr uint32_t ADC2_BASE = 0x40012100;
 
-} // namespace ADC2
+}; // struct ADC2
 
 // --------------------------------------------
 // ADC3: 
 // Base address: 0x40012200
 // --------------------------------------------
 
-namespace ADC3 {
+struct ADC3 {
     static constexpr uint32_t ADC3_BASE = 0x40012200;
 
-} // namespace ADC3
+}; // struct ADC3
 
 // --------------------------------------------
 // ADC_Common: Common ADC registers
 // Base address: 0x40012300
 // --------------------------------------------
 
-namespace ADC_Common {
+struct ADC_Common {
     static constexpr uint32_t ADC_Common_BASE = 0x40012300;
 
     // ADC Common status register
@@ -4868,14 +4381,14 @@ namespace ADC_Common {
         using DATA2 = Field<_CDR, 16, 16>; // DATA2
     };
 
-} // namespace ADC_Common
+}; // struct ADC_Common
 
 // --------------------------------------------
 // DAC: Digital-to-analog converter
 // Base address: 0x40007400
 // --------------------------------------------
 
-namespace DAC {
+struct DAC {
     static constexpr uint32_t DAC_BASE = 0x40007400;
 
     // control register
@@ -4968,14 +4481,14 @@ namespace DAC {
         using DMAUDR1 = Field<_SR, 13, 1>; // DAC channel1 DMA underrun flag
     };
 
-} // namespace DAC
+}; // struct DAC
 
 // --------------------------------------------
 // PWR: Power control
 // Base address: 0x40007000
 // --------------------------------------------
 
-namespace PWR {
+struct PWR {
     static constexpr uint32_t PWR_BASE = 0x40007000;
 
     // power control register
@@ -5041,14 +4554,14 @@ namespace PWR {
         using EWUP6 = Field<_CSR2, 13, 1>; // Enable Wakeup pin for PI11
     };
 
-} // namespace PWR
+}; // struct PWR
 
 // --------------------------------------------
 // IWDG: Independent watchdog
 // Base address: 0x40003000
 // --------------------------------------------
 
-namespace IWDG {
+struct IWDG {
     static constexpr uint32_t IWDG_BASE = 0x40003000;
 
     // Key register
@@ -5077,14 +4590,14 @@ namespace IWDG {
         using WIN = Field<_WINR, 0, 12>; // Watchdog counter window value
     };
 
-} // namespace IWDG
+}; // struct IWDG
 
 // --------------------------------------------
 // WWDG: Window watchdog
 // Base address: 0x40002C00
 // --------------------------------------------
 
-namespace WWDG {
+struct WWDG {
     static constexpr uint32_t WWDG_BASE = 0x40002C00;
 
     // Control register
@@ -5106,14 +4619,14 @@ namespace WWDG {
         using EWIF = Field<_SR, 0, 1>; // Early wakeup interrupt flag
     };
 
-} // namespace WWDG
+}; // struct WWDG
 
 // --------------------------------------------
 // TIM1: Advanced-timers
 // Base address: 0x40010000
 // --------------------------------------------
 
-namespace TIM1 {
+struct TIM1 {
     static constexpr uint32_t TIM1_BASE = 0x40010000;
 
     // control register 1
@@ -5379,24 +4892,24 @@ namespace TIM1 {
         using BK2INP = Field<_AF2, 9, 1>; // BRK2 BKIN2 input polarity
     };
 
-} // namespace TIM1
+}; // struct TIM1
 
 // --------------------------------------------
 // TIM8: 
 // Base address: 0x40010400
 // --------------------------------------------
 
-namespace TIM8 {
+struct TIM8 {
     static constexpr uint32_t TIM8_BASE = 0x40010400;
 
-} // namespace TIM8
+}; // struct TIM8
 
 // --------------------------------------------
 // TIM2: General purpose timers
 // Base address: 0x40000000
 // --------------------------------------------
 
-namespace TIM2 {
+struct TIM2 {
     static constexpr uint32_t TIM2_BASE = 0x40000000;
 
     // control register 1
@@ -5597,14 +5110,14 @@ namespace TIM2 {
         using ETRSEL = Field<_OR2, 14, 3>; // ETR source selection
     };
 
-} // namespace TIM2
+}; // struct TIM2
 
 // --------------------------------------------
 // TIM3: General purpose timers
 // Base address: 0x40000400
 // --------------------------------------------
 
-namespace TIM3 {
+struct TIM3 {
     static constexpr uint32_t TIM3_BASE = 0x40000400;
 
     // control register 1
@@ -5803,14 +5316,14 @@ namespace TIM3 {
         using ETRSEL = Field<_OR2, 14, 3>; // ETR source selection
     };
 
-} // namespace TIM3
+}; // struct TIM3
 
 // --------------------------------------------
 // TIM4: General purpose timers
 // Base address: 0x40000800
 // --------------------------------------------
 
-namespace TIM4 {
+struct TIM4 {
     static constexpr uint32_t TIM4_BASE = 0x40000800;
 
     // control register 1
@@ -5999,24 +5512,24 @@ namespace TIM4 {
         using DMAB = Field<_DMAR, 0, 16>; // DMA register for burst accesses
     };
 
-} // namespace TIM4
+}; // struct TIM4
 
 // --------------------------------------------
 // TIM5: 
 // Base address: 0x40000C00
 // --------------------------------------------
 
-namespace TIM5 {
+struct TIM5 {
     static constexpr uint32_t TIM5_BASE = 0x40000C00;
 
-} // namespace TIM5
+}; // struct TIM5
 
 // --------------------------------------------
 // TIM9: General purpose timers
 // Base address: 0x40014000
 // --------------------------------------------
 
-namespace TIM9 {
+struct TIM9 {
     static constexpr uint32_t TIM9_BASE = 0x40014000;
 
     // control register 1
@@ -6119,24 +5632,24 @@ namespace TIM9 {
         using CCR2 = Field<_CCR2, 0, 16>; // Capture/Compare 2 value
     };
 
-} // namespace TIM9
+}; // struct TIM9
 
 // --------------------------------------------
 // TIM12: 
 // Base address: 0x40001800
 // --------------------------------------------
 
-namespace TIM12 {
+struct TIM12 {
     static constexpr uint32_t TIM12_BASE = 0x40001800;
 
-} // namespace TIM12
+}; // struct TIM12
 
 // --------------------------------------------
 // TIM10: General-purpose-timers
 // Base address: 0x40014400
 // --------------------------------------------
 
-namespace TIM10 {
+struct TIM10 {
     static constexpr uint32_t TIM10_BASE = 0x40014400;
 
     // control register 1
@@ -6226,44 +5739,44 @@ namespace TIM10 {
         using TI1_RMP = Field<_OR, 0, 2>; // TIM11 Input 1 remapping capability
     };
 
-} // namespace TIM10
+}; // struct TIM10
 
 // --------------------------------------------
 // TIM11: 
 // Base address: 0x40014800
 // --------------------------------------------
 
-namespace TIM11 {
+struct TIM11 {
     static constexpr uint32_t TIM11_BASE = 0x40014800;
 
-} // namespace TIM11
+}; // struct TIM11
 
 // --------------------------------------------
 // TIM13: 
 // Base address: 0x40001C00
 // --------------------------------------------
 
-namespace TIM13 {
+struct TIM13 {
     static constexpr uint32_t TIM13_BASE = 0x40001C00;
 
-} // namespace TIM13
+}; // struct TIM13
 
 // --------------------------------------------
 // TIM14: 
 // Base address: 0x40002000
 // --------------------------------------------
 
-namespace TIM14 {
+struct TIM14 {
     static constexpr uint32_t TIM14_BASE = 0x40002000;
 
-} // namespace TIM14
+}; // struct TIM14
 
 // --------------------------------------------
 // TIM6: Basic timers
 // Base address: 0x40001000
 // --------------------------------------------
 
-namespace TIM6 {
+struct TIM6 {
     static constexpr uint32_t TIM6_BASE = 0x40001000;
 
     // control register 1
@@ -6311,24 +5824,24 @@ namespace TIM6 {
         using ARR = Field<_ARR, 0, 16>; // Low Auto-reload value
     };
 
-} // namespace TIM6
+}; // struct TIM6
 
 // --------------------------------------------
 // TIM7: 
 // Base address: 0x40001400
 // --------------------------------------------
 
-namespace TIM7 {
+struct TIM7 {
     static constexpr uint32_t TIM7_BASE = 0x40001400;
 
-} // namespace TIM7
+}; // struct TIM7
 
 // --------------------------------------------
 // Ethernet_MAC: Ethernet: media access control (MAC)
 // Base address: 0x40028000
 // --------------------------------------------
 
-namespace Ethernet_MAC {
+struct Ethernet_MAC {
     static constexpr uint32_t Ethernet_MAC_BASE = 0x40028000;
 
     // Ethernet MAC configuration register
@@ -6495,14 +6008,14 @@ namespace Ethernet_MAC {
 
     // Ethernet MAC remote wakeup frame filter register
 
-} // namespace Ethernet_MAC
+}; // struct Ethernet_MAC
 
 // --------------------------------------------
 // CRC: Cryptographic processor
 // Base address: 0x40023000
 // --------------------------------------------
 
-namespace CRC {
+struct CRC {
     static constexpr uint32_t CRC_BASE = 0x40023000;
 
     // Data register
@@ -6530,14 +6043,14 @@ namespace CRC {
         using POL = Field<_POL, 0, 32>; // Programmable polynomial
     };
 
-} // namespace CRC
+}; // struct CRC
 
 // --------------------------------------------
 // CAN1: Controller area network
 // Base address: 0x40006400
 // --------------------------------------------
 
-namespace CAN1 {
+struct CAN1 {
     static constexpr uint32_t CAN1_BASE = 0x40006400;
 
     // master control register
@@ -8955,34 +8468,34 @@ namespace CAN1 {
         using FB31 = Field<_F27R2, 31, 1>; // Filter bits
     };
 
-} // namespace CAN1
+}; // struct CAN1
 
 // --------------------------------------------
 // CAN2: 
 // Base address: 0x40006800
 // --------------------------------------------
 
-namespace CAN2 {
+struct CAN2 {
     static constexpr uint32_t CAN2_BASE = 0x40006800;
 
-} // namespace CAN2
+}; // struct CAN2
 
 // --------------------------------------------
 // CAN3: 
 // Base address: 0x40003400
 // --------------------------------------------
 
-namespace CAN3 {
+struct CAN3 {
     static constexpr uint32_t CAN3_BASE = 0x40003400;
 
-} // namespace CAN3
+}; // struct CAN3
 
 // --------------------------------------------
 // Flash: FLASH
 // Base address: 0x40023C00
 // --------------------------------------------
 
-namespace Flash {
+struct Flash {
     static constexpr uint32_t Flash_BASE = 0x40023C00;
 
     // Flash access control register
@@ -9051,14 +8564,14 @@ namespace Flash {
         using BOOT_ADD1 = Field<_OPTCR1, 16, 16>; // Boot base address when Boot pin =1
     };
 
-} // namespace Flash
+}; // struct Flash
 
 // --------------------------------------------
 // EXTI: External interrupt/event controller
 // Base address: 0x40013C00
 // --------------------------------------------
 
-namespace EXTI {
+struct EXTI {
     static constexpr uint32_t EXTI_BASE = 0x40013C00;
 
     // Interrupt mask register (EXTI_IMR)
@@ -9223,14 +8736,14 @@ namespace EXTI {
         using PR22 = Field<_PR, 22, 1>; // Pending bit 22
     };
 
-} // namespace EXTI
+}; // struct EXTI
 
 // --------------------------------------------
 // LTCD: LCD-TFT Controller
 // Base address: 0x40016800
 // --------------------------------------------
 
-namespace LTCD {
+struct LTCD {
     static constexpr uint32_t LTCD_BASE = 0x40016800;
 
     // Synchronization Size Configuration Register
@@ -9472,14 +8985,14 @@ namespace LTCD {
         using BLUE = Field<_L2CLUTWR, 0, 8>; // Blue value
     };
 
-} // namespace LTCD
+}; // struct LTCD
 
 // --------------------------------------------
 // SAI1: Serial audio interface
 // Base address: 0x40015800
 // --------------------------------------------
 
-namespace SAI1 {
+struct SAI1 {
     static constexpr uint32_t SAI1_BASE = 0x40015800;
 
     // BConfiguration register 1
@@ -9654,24 +9167,24 @@ namespace SAI1 {
         using SYNCOUT = Field<_GCR, 4, 2>; // Synchronization outputs
     };
 
-} // namespace SAI1
+}; // struct SAI1
 
 // --------------------------------------------
 // SAI2: 
 // Base address: 0x40015C00
 // --------------------------------------------
 
-namespace SAI2 {
+struct SAI2 {
     static constexpr uint32_t SAI2_BASE = 0x40015C00;
 
-} // namespace SAI2
+}; // struct SAI2
 
 // --------------------------------------------
 // DMA2D: DMA2D controller
 // Base address: 0x4002B000
 // --------------------------------------------
 
-namespace DMA2D {
+struct DMA2D {
     static constexpr uint32_t DMA2D_BASE = 0x4002B000;
 
     // control register
@@ -9828,14 +9341,14 @@ namespace DMA2D {
         using BLUE = Field<_BGCLUT, 0, 8>; // BLUE
     };
 
-} // namespace DMA2D
+}; // struct DMA2D
 
 // --------------------------------------------
 // QUADSPI: QuadSPI interface
 // Base address: 0xA0001000
 // --------------------------------------------
 
-namespace QUADSPI {
+struct QUADSPI {
     static constexpr uint32_t QUADSPI_BASE = 0xA0001000;
 
     // control register
@@ -9940,14 +9453,14 @@ namespace QUADSPI {
         using TIMEOUT = Field<_LPTR, 0, 16>; // Timeout period
     };
 
-} // namespace QUADSPI
+}; // struct QUADSPI
 
 // --------------------------------------------
 // CEC: HDMI-CEC controller
 // Base address: 0x40006C00
 // --------------------------------------------
 
-namespace CEC {
+struct CEC {
     static constexpr uint32_t CEC_BASE = 0x40006C00;
 
     // control register
@@ -10014,14 +9527,14 @@ namespace CEC {
         using RXBRIE = Field<_IER, 0, 1>; // Rx-Byte Received Interrupt Enable
     };
 
-} // namespace CEC
+}; // struct CEC
 
 // --------------------------------------------
 // SPDIFRX: Receiver Interface
 // Base address: 0x40004000
 // --------------------------------------------
 
-namespace SPDIFRX {
+struct SPDIFRX {
     static constexpr uint32_t SPDIFRX_BASE = 0x40004000;
 
     // Control register
@@ -10097,14 +9610,14 @@ namespace SPDIFRX {
         using TLO = Field<_DIR, 16, 13>; // Threshold LOW
     };
 
-} // namespace SPDIFRX
+}; // struct SPDIFRX
 
 // --------------------------------------------
 // SDMMC1: Secure digital input/output interface
 // Base address: 0x40012C00
 // --------------------------------------------
 
-namespace SDMMC1 {
+struct SDMMC1 {
     static constexpr uint32_t SDMMC1_BASE = 0x40012C00;
 
     // power control register
@@ -10277,24 +9790,24 @@ namespace SDMMC1 {
         using FIFOData = Field<_FIFO, 0, 32>; // Receive and transmit FIFO data
     };
 
-} // namespace SDMMC1
+}; // struct SDMMC1
 
 // --------------------------------------------
 // SDMMC2: 
 // Base address: 0x40011C00
 // --------------------------------------------
 
-namespace SDMMC2 {
+struct SDMMC2 {
     static constexpr uint32_t SDMMC2_BASE = 0x40011C00;
 
-} // namespace SDMMC2
+}; // struct SDMMC2
 
 // --------------------------------------------
 // LPTIM1: Low power timer
 // Base address: 0x40002400
 // --------------------------------------------
 
-namespace LPTIM1 {
+struct LPTIM1 {
     static constexpr uint32_t LPTIM1_BASE = 0x40002400;
 
     // Interrupt and Status Register
@@ -10369,14 +9882,14 @@ namespace LPTIM1 {
         using CNT = Field<_CNT, 0, 16>; // Counter value
     };
 
-} // namespace LPTIM1
+}; // struct LPTIM1
 
 // --------------------------------------------
 // I2C1: Inter-integrated circuit
 // Base address: 0x40005400
 // --------------------------------------------
 
-namespace I2C1 {
+struct I2C1 {
     static constexpr uint32_t I2C1_BASE = 0x40005400;
 
     // Control register 1
@@ -10499,44 +10012,44 @@ namespace I2C1 {
         using TXDATA = Field<_TXDR, 0, 8>; // 8-bit transmit data
     };
 
-} // namespace I2C1
+}; // struct I2C1
 
 // --------------------------------------------
 // I2C2: 
 // Base address: 0x40005800
 // --------------------------------------------
 
-namespace I2C2 {
+struct I2C2 {
     static constexpr uint32_t I2C2_BASE = 0x40005800;
 
-} // namespace I2C2
+}; // struct I2C2
 
 // --------------------------------------------
 // I2C3: 
 // Base address: 0x40005C00
 // --------------------------------------------
 
-namespace I2C3 {
+struct I2C3 {
     static constexpr uint32_t I2C3_BASE = 0x40005C00;
 
-} // namespace I2C3
+}; // struct I2C3
 
 // --------------------------------------------
 // I2C4: 
 // Base address: 0x40006000
 // --------------------------------------------
 
-namespace I2C4 {
+struct I2C4 {
     static constexpr uint32_t I2C4_BASE = 0x40006000;
 
-} // namespace I2C4
+}; // struct I2C4
 
 // --------------------------------------------
 // RTC: Real-time clock
 // Base address: 0x40002800
 // --------------------------------------------
 
-namespace RTC {
+struct RTC {
     static constexpr uint32_t RTC_BASE = 0x40002800;
 
     // time register
@@ -10906,14 +10419,14 @@ namespace RTC {
         using BKP = Field<_BKP31R, 0, 32>; // BKP
     };
 
-} // namespace RTC
+}; // struct RTC
 
 // --------------------------------------------
 // USART6: Universal synchronous asynchronous receiver transmitter
 // Base address: 0x40011400
 // --------------------------------------------
 
-namespace USART6 {
+struct USART6 {
     static constexpr uint32_t USART6_BASE = 0x40011400;
 
     // Control register 1
@@ -11075,84 +10588,84 @@ namespace USART6 {
         using TDR = Field<_TDR, 0, 9>; // Transmit data value
     };
 
-} // namespace USART6
+}; // struct USART6
 
 // --------------------------------------------
 // USART1: 
 // Base address: 0x40011000
 // --------------------------------------------
 
-namespace USART1 {
+struct USART1 {
     static constexpr uint32_t USART1_BASE = 0x40011000;
 
-} // namespace USART1
+}; // struct USART1
 
 // --------------------------------------------
 // USART3: 
 // Base address: 0x40004800
 // --------------------------------------------
 
-namespace USART3 {
+struct USART3 {
     static constexpr uint32_t USART3_BASE = 0x40004800;
 
-} // namespace USART3
+}; // struct USART3
 
 // --------------------------------------------
 // USART2: 
 // Base address: 0x40004400
 // --------------------------------------------
 
-namespace USART2 {
+struct USART2 {
     static constexpr uint32_t USART2_BASE = 0x40004400;
 
-} // namespace USART2
+}; // struct USART2
 
 // --------------------------------------------
 // UART5: 
 // Base address: 0x40005000
 // --------------------------------------------
 
-namespace UART5 {
+struct UART5 {
     static constexpr uint32_t UART5_BASE = 0x40005000;
 
-} // namespace UART5
+}; // struct UART5
 
 // --------------------------------------------
 // UART4: 
 // Base address: 0x40004C00
 // --------------------------------------------
 
-namespace UART4 {
+struct UART4 {
     static constexpr uint32_t UART4_BASE = 0x40004C00;
 
-} // namespace UART4
+}; // struct UART4
 
 // --------------------------------------------
 // UART8: 
 // Base address: 0x40007C00
 // --------------------------------------------
 
-namespace UART8 {
+struct UART8 {
     static constexpr uint32_t UART8_BASE = 0x40007C00;
 
-} // namespace UART8
+}; // struct UART8
 
 // --------------------------------------------
 // UART7: 
 // Base address: 0x40007800
 // --------------------------------------------
 
-namespace UART7 {
+struct UART7 {
     static constexpr uint32_t UART7_BASE = 0x40007800;
 
-} // namespace UART7
+}; // struct UART7
 
 // --------------------------------------------
 // OTG_FS_GLOBAL: USB on the go full speed
 // Base address: 0x50000000
 // --------------------------------------------
 
-namespace OTG_FS_GLOBAL {
+struct OTG_FS_GLOBAL {
     static constexpr uint32_t OTG_FS_GLOBAL_BASE = 0x50000000;
 
     // OTG_FS control and status register (OTG_FS_GOTGCTL)
@@ -11447,14 +10960,14 @@ namespace OTG_FS_GLOBAL {
         using ENBESL = Field<_OTG_FS_GLPMCFG, 28, 1>; // Enable best effort service latency
     };
 
-} // namespace OTG_FS_GLOBAL
+}; // struct OTG_FS_GLOBAL
 
 // --------------------------------------------
 // OTG_HS_GLOBAL: USB on the go high speed
 // Base address: 0x40040000
 // --------------------------------------------
 
-namespace OTG_HS_GLOBAL {
+struct OTG_HS_GLOBAL {
     static constexpr uint32_t OTG_HS_GLOBAL_BASE = 0x40040000;
 
     // OTG_HS control and status register
@@ -11735,14 +11248,14 @@ namespace OTG_HS_GLOBAL {
         using ENBESL = Field<_OTG_HS_GLPMCFG, 28, 1>; // Enable best effort service latency
     };
 
-} // namespace OTG_HS_GLOBAL
+}; // struct OTG_HS_GLOBAL
 
 // --------------------------------------------
 // MDIOS: Management data input/output slave
 // Base address: 0x40017800
 // --------------------------------------------
 
-namespace MDIOS {
+struct MDIOS {
     static constexpr uint32_t MDIOS_BASE = 0x40017800;
 
     // MDIOS configuration register
@@ -12109,14 +11622,14 @@ namespace MDIOS {
         using DOUT31 = Field<_MDIOS_DOUTR31, 0, 16>; // Output data sent to MDIO Master during read frames
     };
 
-} // namespace MDIOS
+}; // struct MDIOS
 
 // --------------------------------------------
 // DFSDM: Digital filter for sigma delta modulators
 // Base address: 0x40017400
 // --------------------------------------------
 
-namespace DFSDM {
+struct DFSDM {
     static constexpr uint32_t DFSDM_BASE = 0x40017400;
 
     // DFSDM channel configuration 0 register 1
@@ -12911,14 +12424,14 @@ namespace DFSDM {
         using CNVCNT = Field<_DFSDM3_CNVTIMR, 4, 28>; // 28-bit timer counting conversion time
     };
 
-} // namespace DFSDM
+}; // struct DFSDM
 
 // --------------------------------------------
 // JPEG: JPEG codec
 // Base address: 0x50051000
 // --------------------------------------------
 
-namespace JPEG {
+struct JPEG {
     static constexpr uint32_t JPEG_BASE = 0x50051000;
 
     // JPEG codec configuration register 0
@@ -15515,14 +15028,14 @@ namespace JPEG {
         using DHTMem_RAM = Field<_HUFFENC_DC1_7, 0, 32>; // DHTMem RAM
     };
 
-} // namespace JPEG
+}; // struct JPEG
 
 // --------------------------------------------
 // Ethernet_MMC: Ethernet: MAC management counters
 // Base address: 0x40028100
 // --------------------------------------------
 
-namespace Ethernet_MMC {
+struct Ethernet_MMC {
     static constexpr uint32_t Ethernet_MMC_BASE = 0x40028100;
 
     // Ethernet MMC control register
@@ -15593,14 +15106,14 @@ namespace Ethernet_MMC {
         using RGUFC = Field<_MMCRGUFCR, 0, 32>; // RGUFC
     };
 
-} // namespace Ethernet_MMC
+}; // struct Ethernet_MMC
 
 // --------------------------------------------
 // Ethernet_PTP: Ethernet: Precision time protocol
 // Base address: 0x40028700
 // --------------------------------------------
 
-namespace Ethernet_PTP {
+struct Ethernet_PTP {
     static constexpr uint32_t Ethernet_PTP_BASE = 0x40028700;
 
     // Ethernet PTP time stamp control register
@@ -15677,14 +15190,14 @@ namespace Ethernet_PTP {
         using TSTTR = Field<_PTPPPSCR, 1, 1>; // TSTTR
     };
 
-} // namespace Ethernet_PTP
+}; // struct Ethernet_PTP
 
 // --------------------------------------------
 // Ethernet_DMA: Ethernet: DMA controller operation
 // Base address: 0x40029000
 // --------------------------------------------
 
-namespace Ethernet_DMA {
+struct Ethernet_DMA {
     static constexpr uint32_t Ethernet_DMA_BASE = 0x40029000;
 
     // Ethernet DMA bus mode register
@@ -15816,14 +15329,14 @@ namespace Ethernet_DMA {
         using HRBAP = Field<_DMACHRBAR, 0, 32>; // HRBAP
     };
 
-} // namespace Ethernet_DMA
+}; // struct Ethernet_DMA
 
 // --------------------------------------------
 // OTG_FS_HOST: USB on the go full speed
 // Base address: 0x50000400
 // --------------------------------------------
 
-namespace OTG_FS_HOST {
+struct OTG_FS_HOST {
     static constexpr uint32_t OTG_FS_HOST_BASE = 0x50000400;
 
     // OTG_FS host configuration register (OTG_FS_HCFG)
@@ -16453,14 +15966,14 @@ namespace OTG_FS_HOST {
         using DPID = Field<_OTG_FS_HCTSIZ11, 29, 2>; // Data PID
     };
 
-} // namespace OTG_FS_HOST
+}; // struct OTG_FS_HOST
 
 // --------------------------------------------
 // OTG_FS_DEVICE: USB on the go full speed
 // Base address: 0x50000800
 // --------------------------------------------
 
-namespace OTG_FS_DEVICE {
+struct OTG_FS_DEVICE {
     static constexpr uint32_t OTG_FS_DEVICE_BASE = 0x50000800;
 
     // OTG_FS device configuration register (OTG_FS_DCFG)
@@ -16963,14 +16476,14 @@ namespace OTG_FS_DEVICE {
         using XFRSIZ = Field<_OTG_FS_DOEPTSIZ5, 0, 19>; // Transfer size
     };
 
-} // namespace OTG_FS_DEVICE
+}; // struct OTG_FS_DEVICE
 
 // --------------------------------------------
 // OTG_FS_PWRCLK: USB on the go full speed
 // Base address: 0x50000E00
 // --------------------------------------------
 
-namespace OTG_FS_PWRCLK {
+struct OTG_FS_PWRCLK {
     static constexpr uint32_t OTG_FS_PWRCLK_BASE = 0x50000E00;
 
     // OTG_FS power and clock gating control register (OTG_FS_PCGCCTL)
@@ -16980,14 +16493,14 @@ namespace OTG_FS_PWRCLK {
         using PHYSUSP = Field<_OTG_FS_PCGCCTL, 4, 1>; // PHY Suspended
     };
 
-} // namespace OTG_FS_PWRCLK
+}; // struct OTG_FS_PWRCLK
 
 // --------------------------------------------
 // OTG_HS_HOST: USB on the go high speed
 // Base address: 0x40040400
 // --------------------------------------------
 
-namespace OTG_HS_HOST {
+struct OTG_HS_HOST {
     static constexpr uint32_t OTG_HS_HOST_BASE = 0x40040400;
 
     // OTG_HS host configuration register
@@ -18081,14 +17594,14 @@ namespace OTG_HS_HOST {
         using DMAADDR = Field<_OTG_HS_HCDMA15, 0, 32>; // DMA address
     };
 
-} // namespace OTG_HS_HOST
+}; // struct OTG_HS_HOST
 
 // --------------------------------------------
 // OTG_HS_DEVICE: USB on the go high speed
 // Base address: 0x40040800
 // --------------------------------------------
 
-namespace OTG_HS_DEVICE {
+struct OTG_HS_DEVICE {
     static constexpr uint32_t OTG_HS_DEVICE_BASE = 0x40040800;
 
     // OTG_HS device configuration register
@@ -18839,14 +18352,14 @@ namespace OTG_HS_DEVICE {
         using RXDPID_STUPCNT = Field<_OTG_HS_DOEPTSIZ7, 29, 2>; // Received data PID/SETUP packet count
     };
 
-} // namespace OTG_HS_DEVICE
+}; // struct OTG_HS_DEVICE
 
 // --------------------------------------------
 // OTG_HS_PWRCLK: USB on the go high speed
 // Base address: 0x40040E00
 // --------------------------------------------
 
-namespace OTG_HS_PWRCLK {
+struct OTG_HS_PWRCLK {
     static constexpr uint32_t OTG_HS_PWRCLK_BASE = 0x40040E00;
 
     // Power and clock gating control register
@@ -18856,14 +18369,14 @@ namespace OTG_HS_PWRCLK {
         using PHYSUSP = Field<_OTG_HS_PCGCR, 4, 1>; // PHY suspended
     };
 
-} // namespace OTG_HS_PWRCLK
+}; // struct OTG_HS_PWRCLK
 
 // --------------------------------------------
 // DSI: DSI Host
 // Base address: 0x40016C00
 // --------------------------------------------
 
-namespace DSI {
+struct DSI {
     static constexpr uint32_t DSI_BASE = 0x40016C00;
 
     // DSI Host Version Register
@@ -19457,14 +18970,14 @@ namespace DSI {
         using PLLEN = Field<_DSI_WRPCR, 0, 1>; // PLL Enable
     };
 
-} // namespace DSI
+}; // struct DSI
 
 // --------------------------------------------
 // DBGMCU: MCU debug component
 // Base address: 0xE0042000
 // --------------------------------------------
 
-namespace DBGMCU {
+struct DBGMCU {
     static constexpr uint32_t DBGMCU_BASE = 0xE0042000;
 
     // DBGMCU_IDCODE
@@ -19473,7 +18986,7 @@ namespace DBGMCU {
         using REV_ID = Field<_IDCODE, 16, 16>; // Revision identifie
     };
 
-} // namespace DBGMCU
+}; // struct DBGMCU
 
 
 

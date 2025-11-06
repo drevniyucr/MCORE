@@ -109,8 +109,6 @@ inline static void disable() {
 
 inline static void enable() {
 	MPU::_MPU_CTRL::bitSet<MPU::_MPU_CTRL::ENABLE, MPU::_MPU_CTRL::PRIVDEFENA>();
-	MPU::_MPU_CTRL::ENABLE::set();
-	MPU::_MPU_CTRL::PRIVDEFENA::set();
 	SCB::_SHCSR::MEMFAULTENA::set();
 	__DSB();
 	__ISB();

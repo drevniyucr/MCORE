@@ -67,7 +67,10 @@ file(GLOB SRC
     Core/Src/main.cpp
     Core/Src/mcore_mpu.cpp
     Core/Src/mcore_rcc.cpp
+    Core/Src/mcore_eth.cpp
+    #Core/Src/mcore_gpio.cpp
     Core/Src/stm32f7xx_it.c
+    Core/Src/syscalls.c
 )
 
 add_executable(${PROJECT_NAME} ${SRC})

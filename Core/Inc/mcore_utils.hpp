@@ -371,6 +371,25 @@ requires(ValueValid<Val, BitMskNoShft> && WriteValReq<access,Val>)
     }
 }
 
+template<typename T, typename Mode = access_mode<false>>
+[[gnu::always_inline]]
+inline static void write(T Val) noexcept
+requires(!std::is_same_v<access, ReadOnly>)
+{
+    uint32_t value = static_cast<uint32_t>(Val);
+    assert((value & BitMskNoShft) != 0);
+    if constexpr (Mode::value)
+    {
+      //  write_atomic_impl(value);
+    }
+    else
+    {
+        uint32_t regv = Reg::read();
+        regv = (regv & ~mask) | ((value << pos) & mask);
+        Reg::overwrite(regv);
+    }
+}
+
     // ---------- MODIFY ----------
     template<typename T, typename Mode = access_mode<false>>
     [[gnu::always_inline]]

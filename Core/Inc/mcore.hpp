@@ -6,11 +6,11 @@
  */
 
 #pragma once
-// #include "mcore_eth.hpp"
-// #include "mcore_gpio.hpp"
+#include "mcore_eth.hpp"
+#include "mcore_gpio.hpp"
 #include "mcore_rcc.hpp"
-// #include "mcore_system.hpp"
-// #include "mcore_conf.hpp"
+#include "mcore_system.hpp"
+#include "mcore_conf.hpp"
 #include "mcore_mpu.hpp"
 #include "mcore_nvic.hpp"
 // #include "mcore_net.hpp"

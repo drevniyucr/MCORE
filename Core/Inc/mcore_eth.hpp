@@ -81,8 +81,7 @@
 #define ETH_DMAPTPRXDESC_PTPV                            0x00002000U  /* PTP Version */
 #define ETH_DMAPTPRXDESC_PTPFT                           0x00001000U  /* PTP Frame Type */
 #define ETH_DMAPTPRXDESC_PTPMT                           0x00000F00U  /* PTP Message Type */
-#define ETH_DMAPTPRXDESC_PTPMT_SYNC                      0x00000100U  /* SYNC message
-                                                                                   (all clock types) */
+#define ETH_DMAPTPRXDESC_PTPMT_SYNC                      0x00000100U  /* SYNC message                                                                                 (all clock types) */
 #define ETH_DMAPTPRXDESC_PTPMT_FOLLOWUP                  0x00000200U  /* FollowUp message
                                                                                    (all clock types) */
 #define ETH_DMAPTPRXDESC_PTPMT_DELAYREQ                  0x00000300U  /* DelayReq message
@@ -124,6 +123,29 @@
 #define PHY_AUTONEG_EN  (1U << 12)
 #define PHY_AUTONEG_DONE (1U << 5)
 
+enum class MACMIIAR_CR:uint8_t {
+	Div42  = 0b000, /* HCLK:60-100 MHz; MDC clock= HCLK/42 */
+	Div62  = 0b001, /* HCLK:100-150 MHz; MDC clock= HCLK/62 */
+	Div16  = 0b010, /* HCLK:20-35 MHz; MDC clock= HCLK/16 */
+	Div26  = 0b011, /* HCLK:35-60 MHz; MDC clock= HCLK/26 */
+	Div102 = 0b100  /* HCLK:150-168 MHz; MDC clock= HCLK/102 */
+};
+
+enum class DMABMR_PBL:uint16_t {
+	_1Beat   = 0x01,
+	_2Beats  = 0x02,
+	_4Beats  = 0x04,
+	_8Beats  = 0x08,
+	_16Beats = 0x10,
+	_32Beats = 0x20
+};
+
+enum class MACFCR_PLT:uint8_t {
+	Minus4   = 0b00,  /* Pause time minus 4 slot times */
+	Minus28   = 0b01, /* Pause time minus 28 slot times */
+	Minus144  = 0b10, /* Pause time minus 144 slot times */
+	Minus246  = 0b11  /* Pause time minus 246 slot times */
+};
 
 struct ETH_DMADescStruct{
 	volatile uint32_t DESC0; /* Status */

@@ -1,7 +1,3 @@
-/*
- * Copyright (c) 2025 YourName
- * Licensed under MIT License
- */
 #pragma once
 
 #include "mcore_def.hpp"
@@ -84,15 +80,23 @@ enum class FLASH_Latency : uint8_t {
 };
 
 enum class VoltageScale : uint32_t {
-	 Scale1 = 0x03,
-	 Scale2 = 0x02, 
-	 Scale3 = 0x01
+	 Scale1 = 0b11,
+	 Scale2 = 0b10, 
+	 Scale3 = 0b00
+};
+
+enum class SysClkStatus : uint32_t {
+	 HSISrc = 0b00,
+	 HSESrc = 0b01, 
+	 PLLSrc = 0b10
 };
 
 enum class RCCStatus {
 	OK, 
 	HSE_FAILED, 
-	PLL_FAILED, 
+	PLL_FAILED,
+	SW_FAILED,
+	OVERDRIVE_FAILED, 
 	PLL_CONFIG_INVALID
 };
 
@@ -109,10 +113,24 @@ struct ClockConfig {
 	bool useSysTick = true;
 };
 // Основная инициализация тактирования
-RCCStatus RCCInit(const ClockConfig* cfg);
-// Расчёт итоговой частоты PLL
-uint32_t CalculatePLLCLK(uint32_t inputFreq, uint8_t pllm, uint16_t plln,
-		uint8_t pllp);
+
+RCCStatus RCC_ClockInit(const ClockConfig* cfg);
+RCCStatus OSCInit(const ClockConfig* cfg);
+RCCStatus OverDriveInit();
+
+void SetVoltageScale(VoltageScale scale);
 void enablePowerInterface(void);
 void enableEthInterface(void);
 
+// Расчёт итоговой частоты PLL
+uint32_t CalculatePLLCLK(uint32_t inputFreq, uint8_t pllm, uint16_t plln,
+		uint8_t pllp);
+// Wait with timeout
+template <typename Predicate>
+bool waitUntil(Predicate condition, uint32_t timeout) {
+    uint32_t i = 0;
+    while (!static_cast<uint32_t>(condition)) {
+        if (++i > timeout) return true;
+    }
+    return false;
+}
