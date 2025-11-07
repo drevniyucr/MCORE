@@ -41,8 +41,7 @@ int main(void)
     MPU_Config();
     SCB_EnableICache();
     // SCB_EnableDCache(); может быть не стоит
-    NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group3>();
-    NVIC_API::enable_irq();
+    NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
     RCC_Init();
     enableEthInterface();
     GPIO_Init();
@@ -50,7 +49,8 @@ int main(void)
     // TIM2_Init();
     // TIM3_Init();
     // NET_TCP_Init();
-    // uint32_t tickstart = get_tick(); 
+    // uint32_t tickstart = get_tick();
+    NVIC_API::enable_irq(); 
     while (true)
     {
         // ETH_RxWorker();

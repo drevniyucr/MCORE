@@ -5,10 +5,6 @@
 
 #pragma once
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 #if !defined  (HSE_VALUE)
   #define HSE_VALUE    static_cast<uint32_t>(8000000U) /*!< Value of the External oscillator in Hz */
 #endif /* HSE_VALUE */

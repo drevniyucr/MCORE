@@ -1,30 +1,5 @@
-#pragma once
-
-#include <mcore_utils.hpp>
-
-enum class NVIC_PriorityGroup : uint32_t
-{
-    Group0 = 0b111,    // 0 bits for pre-emption priority, 4 bits for subpriority
-    Group1 = 0b110,
-    Group2 = 0b101,
-    Group3 = 0b100,
-    Group4 = 0b011
-};
-struct SYS_IRQn
-{
-    using MemoryManagement_IRQn = SCB::_SHPR1::PRI_4; // < Memory Management Interrupt
-    using BusFault_IRQn = SCB::_SHPR1::PRI_5; // < Bus Fault Interrupt
-    using UsageFault_IRQn = SCB::_SHPR1::PRI_6; // < Usage Fault Interrupt
-    using SVCall_IRQn = SCB::_SHPR2::PRI_11; // < SV Call Interrupt
-    using DebugMonitor_IRQn = SCB::_SHPR3::PRI_12; // < Debug Monitor Interrupt
-    using PendSV_IRQn = SCB::_SHPR3::PRI_14; // < Pend SV Interrupt
-    using SysTick_IRQn = SCB::_SHPR3::PRI_15; // < SysTick Interrupt
-//   NonMaskableInt_IRQn         = -14,    /*!< 2 Non Maskable Interrupt*/
-};
-
-
 // Auto-generated NVIC IRQ mapping
-struct IRQn_Type {
+struct mcore_nvic {
     using WWDG_IRQn = NVIC::_NVIC_IPR0::PRI_N0; // < Window WatchDog Interrupt
     using PVD_IRQn = NVIC::_NVIC_IPR0::PRI_N1; // < PVD through EXTI Line detection Interrupt
     using TAMP_STAMP_IRQn = NVIC::_NVIC_IPR0::PRI_N2; // < Tamper and TimeStamp interrupts through the EXTI line
@@ -132,51 +107,4 @@ struct IRQn_Type {
     using CAN3_RX1_IRQn = NVIC::_NVIC_IPR26::PRI_N2; // < CAN3 RX1 Interrupt
     using CAN3_SCE_IRQn = NVIC::_NVIC_IPR26::PRI_N3; // < CAN3 SCE Interrupt
     using JPEG_IRQn = NVIC::_NVIC_IPR27::PRI_N0; // < JPEG global Interrupt
-};
-
-
-
-struct NVIC_API
-{
-    static constexpr uint32_t VECTKEY        = 0x5FAUL;
-    static constexpr uint32_t VECTKEY_SHIFT  = SCB::_AIRCR::VECTKEY::pos;
-    static constexpr uint32_t PRIGROUP_SHIFT = SCB::_AIRCR::PRIGROUP::pos;
-
-    template<NVIC_PriorityGroup Group>
-    [[gnu::always_inline]]
-    static constexpr void SetPriorityGrouping() noexcept
-    {
-        constexpr uint32_t group_value = static_cast<uint32_t>(Group) & 0x07UL;
-
-        // compile-time calculation
-        constexpr uint32_t new_value_mask =
-            (VECTKEY << VECTKEY_SHIFT) | (group_value << PRIGROUP_SHIFT);
-
-        uint32_t reg = SCB::_AIRCR::read();
-        reg &= ~(SCB::_AIRCR::VECTKEY::BitMsk | SCB::_AIRCR::PRIGROUP::BitMsk);
-        reg |= new_value_mask;
-        SCB::_AIRCR::overwrite(reg);
-    }
-
-    template<typename IRQ, uint32_t priority>
-    [[gnu::always_inline]] 
-    static void SetPriority()
-    requires(priority < 16)
-    {
-        IRQ::write(priority << 4U);
-    }
-
-
-
-    [[gnu::always_inline]] 
-    static void enable_irq(void)
-    {
-        asm volatile("cpsie i" : : : "memory");
-    }
-
-    [[gnu::always_inline]] 
-    static void disable_irq(void)
-    {
-        asm volatile("cpsid i" : : : "memory");
-    }
 };

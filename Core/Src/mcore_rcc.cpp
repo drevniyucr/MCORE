@@ -4,6 +4,7 @@
  */
 
 #include "mcore_rcc.hpp"
+#include "mcore_system.hpp"
 
 constexpr uint32_t OVERDRIVE_TIMEOUT = 0x5000;
 constexpr uint32_t CLOCK_SW_TIMEOUT = 0x5000;
@@ -105,11 +106,11 @@ RCCStatus RCC_ClockInit(const ClockConfig* cfg){
         (static_cast<uint32_t>(cfg->APB2Div) << RCC::_CFGR::PPRE2::pos));
 
 	// 8. Обновление SystemCoreClock
-	// SystemCoreClockUpdate();
+	SystemCoreClockUpdate();
 
 	// 9. Настройка SysTick
 	if (cfg->useSysTick) {
-		//SysTick_Config(SystemCoreClock / MS_DIV);
+		SysTick_Config(SystemCoreClock / MS_DIV);
 	}
 	return RCCStatus::OK;
 }

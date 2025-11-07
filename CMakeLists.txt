@@ -68,7 +68,9 @@ file(GLOB SRC
     Core/Src/mcore_mpu.cpp
     Core/Src/mcore_rcc.cpp
     Core/Src/mcore_eth.cpp
-    #Core/Src/mcore_gpio.cpp
+    Core/Src/mcore_nvic.cpp
+    Core/Src/mcore_system.cpp
+    Core/Src/mcore_gpio.cpp
     Core/Src/stm32f7xx_it.c
     Core/Src/syscalls.c
 )

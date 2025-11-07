@@ -5,7 +5,7 @@
             "intelliSenseMode": "windows-gcc-arm",
             "includePath": [
                 "${workspaceFolder}/Core/Inc",
-                "${workspaceFolder}/Core/Scr"
+                "${workspaceFolder}/Core/Src"
             ],
             "defines": [
                 "STM32F767xx"

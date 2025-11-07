@@ -1,0 +1,479 @@
+ // NVIC_IPR0: Sets or reads interrupt priorities
+    struct _NVIC_IPR0 : Register <0xE000E400, ReadWrite, _NVIC_IPR0> {
+        using PRI_N3 = Field <_NVIC_IPR0, 24, 8>; // Bits [31:24] : Priority of interrupt 3
+        using PRI_N2 = Field <_NVIC_IPR0, 16, 8>; // Bits [23:16] : Priority of interrupt 2
+        using PRI_N1 = Field <_NVIC_IPR0, 8, 8>; // Bits [15:8] : Priority of interrupt 1
+        using PRI_N0 = Field <_NVIC_IPR0, 0, 8>; // Bits [7:0] : Priority of interrupt 0
+    };
+
+    // NVIC_IPR1: Sets or reads interrupt priorities
+    struct _NVIC_IPR1 : Register <0xE000E404, ReadWrite, _NVIC_IPR1> {
+        using PRI_N3 = Field <_NVIC_IPR1, 24, 8>; // Bits [31:24] : Priority of interrupt 7
+        using PRI_N2 = Field <_NVIC_IPR1, 16, 8>; // Bits [23:16] : Priority of interrupt 6
+        using PRI_N1 = Field <_NVIC_IPR1, 8, 8>; // Bits [15:8] : Priority of interrupt 5
+        using PRI_N0 = Field <_NVIC_IPR1, 0, 8>; // Bits [7:0] : Priority of interrupt 4
+    };
+
+    // NVIC_IPR2: Sets or reads interrupt priorities
+    struct _NVIC_IPR2 : Register <0xE000E408, ReadWrite, _NVIC_IPR2> {
+        using PRI_N3 = Field <_NVIC_IPR2, 24, 8>; // Bits [31:24] : Priority of interrupt 11
+        using PRI_N2 = Field <_NVIC_IPR2, 16, 8>; // Bits [23:16] : Priority of interrupt 10
+        using PRI_N1 = Field <_NVIC_IPR2, 8, 8>; // Bits [15:8] : Priority of interrupt 9
+        using PRI_N0 = Field <_NVIC_IPR2, 0, 8>; // Bits [7:0] : Priority of interrupt 8
+    };
+
+    // NVIC_IPR3: Sets or reads interrupt priorities
+    struct _NVIC_IPR3 : Register <0xE000E40C, ReadWrite, _NVIC_IPR3> {
+        using PRI_N3 = Field <_NVIC_IPR3, 24, 8>; // Bits [31:24] : Priority of interrupt 15
+        using PRI_N2 = Field <_NVIC_IPR3, 16, 8>; // Bits [23:16] : Priority of interrupt 14
+        using PRI_N1 = Field <_NVIC_IPR3, 8, 8>; // Bits [15:8] : Priority of interrupt 13
+        using PRI_N0 = Field <_NVIC_IPR3, 0, 8>; // Bits [7:0] : Priority of interrupt 12
+    };
+
+    // NVIC_IPR4: Sets or reads interrupt priorities
+    struct _NVIC_IPR4 : Register <0xE000E410, ReadWrite, _NVIC_IPR4> {
+        using PRI_N3 = Field <_NVIC_IPR4, 24, 8>; // Bits [31:24] : Priority of interrupt 19
+        using PRI_N2 = Field <_NVIC_IPR4, 16, 8>; // Bits [23:16] : Priority of interrupt 18
+        using PRI_N1 = Field <_NVIC_IPR4, 8, 8>; // Bits [15:8] : Priority of interrupt 17
+        using PRI_N0 = Field <_NVIC_IPR4, 0, 8>; // Bits [7:0] : Priority of interrupt 16
+    };
+
+    // NVIC_IPR5: Sets or reads interrupt priorities
+    struct _NVIC_IPR5 : Register <0xE000E414, ReadWrite, _NVIC_IPR5> {
+        using PRI_N3 = Field <_NVIC_IPR5, 24, 8>; // Bits [31:24] : Priority of interrupt 23
+        using PRI_N2 = Field <_NVIC_IPR5, 16, 8>; // Bits [23:16] : Priority of interrupt 22
+        using PRI_N1 = Field <_NVIC_IPR5, 8, 8>; // Bits [15:8] : Priority of interrupt 21
+        using PRI_N0 = Field <_NVIC_IPR5, 0, 8>; // Bits [7:0] : Priority of interrupt 20
+    };
+
+    // NVIC_IPR6: Sets or reads interrupt priorities
+    struct _NVIC_IPR6 : Register <0xE000E418, ReadWrite, _NVIC_IPR6> {
+        using PRI_N3 = Field <_NVIC_IPR6, 24, 8>; // Bits [31:24] : Priority of interrupt 27
+        using PRI_N2 = Field <_NVIC_IPR6, 16, 8>; // Bits [23:16] : Priority of interrupt 26
+        using PRI_N1 = Field <_NVIC_IPR6, 8, 8>; // Bits [15:8] : Priority of interrupt 25
+        using PRI_N0 = Field <_NVIC_IPR6, 0, 8>; // Bits [7:0] : Priority of interrupt 24
+    };
+
+    // NVIC_IPR7: Sets or reads interrupt priorities
+    struct _NVIC_IPR7 : Register <0xE000E41C, ReadWrite, _NVIC_IPR7> {
+        using PRI_N3 = Field <_NVIC_IPR7, 24, 8>; // Bits [31:24] : Priority of interrupt 31
+        using PRI_N2 = Field <_NVIC_IPR7, 16, 8>; // Bits [23:16] : Priority of interrupt 30
+        using PRI_N1 = Field <_NVIC_IPR7, 8, 8>; // Bits [15:8] : Priority of interrupt 29
+        using PRI_N0 = Field <_NVIC_IPR7, 0, 8>; // Bits [7:0] : Priority of interrupt 28
+    };
+
+    // NVIC_IPR8: Sets or reads interrupt priorities
+    struct _NVIC_IPR8 : Register <0xE000E420, ReadWrite, _NVIC_IPR8> {
+        using PRI_N3 = Field <_NVIC_IPR8, 24, 8>; // Bits [31:24] : Priority of interrupt 35
+        using PRI_N2 = Field <_NVIC_IPR8, 16, 8>; // Bits [23:16] : Priority of interrupt 34
+        using PRI_N1 = Field <_NVIC_IPR8, 8, 8>; // Bits [15:8] : Priority of interrupt 33
+        using PRI_N0 = Field <_NVIC_IPR8, 0, 8>; // Bits [7:0] : Priority of interrupt 32
+    };
+
+    // NVIC_IPR9: Sets or reads interrupt priorities
+    struct _NVIC_IPR9 : Register <0xE000E424, ReadWrite, _NVIC_IPR9> {
+        using PRI_N3 = Field <_NVIC_IPR9, 24, 8>; // Bits [31:24] : Priority of interrupt 39
+        using PRI_N2 = Field <_NVIC_IPR9, 16, 8>; // Bits [23:16] : Priority of interrupt 38
+        using PRI_N1 = Field <_NVIC_IPR9, 8, 8>; // Bits [15:8] : Priority of interrupt 37
+        using PRI_N0 = Field <_NVIC_IPR9, 0, 8>; // Bits [7:0] : Priority of interrupt 36
+    };
+
+    // NVIC_IPR10: Sets or reads interrupt priorities
+    struct _NVIC_IPR10 : Register <0xE000E428, ReadWrite, _NVIC_IPR10> {
+        using PRI_N3 = Field <_NVIC_IPR10, 24, 8>; // Bits [31:24] : Priority of interrupt 43
+        using PRI_N2 = Field <_NVIC_IPR10, 16, 8>; // Bits [23:16] : Priority of interrupt 42
+        using PRI_N1 = Field <_NVIC_IPR10, 8, 8>; // Bits [15:8] : Priority of interrupt 41
+        using PRI_N0 = Field <_NVIC_IPR10, 0, 8>; // Bits [7:0] : Priority of interrupt 40
+    };
+
+    // NVIC_IPR11: Sets or reads interrupt priorities
+    struct _NVIC_IPR11 : Register <0xE000E42C, ReadWrite, _NVIC_IPR11> {
+        using PRI_N3 = Field <_NVIC_IPR11, 24, 8>; // Bits [31:24] : Priority of interrupt 47
+        using PRI_N2 = Field <_NVIC_IPR11, 16, 8>; // Bits [23:16] : Priority of interrupt 46
+        using PRI_N1 = Field <_NVIC_IPR11, 8, 8>; // Bits [15:8] : Priority of interrupt 45
+        using PRI_N0 = Field <_NVIC_IPR11, 0, 8>; // Bits [7:0] : Priority of interrupt 44
+    };
+
+    // NVIC_IPR12: Sets or reads interrupt priorities
+    struct _NVIC_IPR12 : Register <0xE000E430, ReadWrite, _NVIC_IPR12> {
+        using PRI_N3 = Field <_NVIC_IPR12, 24, 8>; // Bits [31:24] : Priority of interrupt 51
+        using PRI_N2 = Field <_NVIC_IPR12, 16, 8>; // Bits [23:16] : Priority of interrupt 50
+        using PRI_N1 = Field <_NVIC_IPR12, 8, 8>; // Bits [15:8] : Priority of interrupt 49
+        using PRI_N0 = Field <_NVIC_IPR12, 0, 8>; // Bits [7:0] : Priority of interrupt 48
+    };
+
+    // NVIC_IPR13: Sets or reads interrupt priorities
+    struct _NVIC_IPR13 : Register <0xE000E434, ReadWrite, _NVIC_IPR13> {
+        using PRI_N3 = Field <_NVIC_IPR13, 24, 8>; // Bits [31:24] : Priority of interrupt 55
+        using PRI_N2 = Field <_NVIC_IPR13, 16, 8>; // Bits [23:16] : Priority of interrupt 54
+        using PRI_N1 = Field <_NVIC_IPR13, 8, 8>; // Bits [15:8] : Priority of interrupt 53
+        using PRI_N0 = Field <_NVIC_IPR13, 0, 8>; // Bits [7:0] : Priority of interrupt 52
+    };
+
+    // NVIC_IPR14: Sets or reads interrupt priorities
+    struct _NVIC_IPR14 : Register <0xE000E438, ReadWrite, _NVIC_IPR14> {
+        using PRI_N3 = Field <_NVIC_IPR14, 24, 8>; // Bits [31:24] : Priority of interrupt 59
+        using PRI_N2 = Field <_NVIC_IPR14, 16, 8>; // Bits [23:16] : Priority of interrupt 58
+        using PRI_N1 = Field <_NVIC_IPR14, 8, 8>; // Bits [15:8] : Priority of interrupt 57
+        using PRI_N0 = Field <_NVIC_IPR14, 0, 8>; // Bits [7:0] : Priority of interrupt 56
+    };
+
+    // NVIC_IPR15: Sets or reads interrupt priorities
+    struct _NVIC_IPR15 : Register <0xE000E43C, ReadWrite, _NVIC_IPR15> {
+        using PRI_N3 = Field <_NVIC_IPR15, 24, 8>; // Bits [31:24] : Priority of interrupt 63
+        using PRI_N2 = Field <_NVIC_IPR15, 16, 8>; // Bits [23:16] : Priority of interrupt 62
+        using PRI_N1 = Field <_NVIC_IPR15, 8, 8>; // Bits [15:8] : Priority of interrupt 61
+        using PRI_N0 = Field <_NVIC_IPR15, 0, 8>; // Bits [7:0] : Priority of interrupt 60
+    };
+
+    // NVIC_IPR16: Sets or reads interrupt priorities
+    struct _NVIC_IPR16 : Register <0xE000E440, ReadWrite, _NVIC_IPR16> {
+        using PRI_N3 = Field <_NVIC_IPR16, 24, 8>; // Bits [31:24] : Priority of interrupt 67
+        using PRI_N2 = Field <_NVIC_IPR16, 16, 8>; // Bits [23:16] : Priority of interrupt 66
+        using PRI_N1 = Field <_NVIC_IPR16, 8, 8>; // Bits [15:8] : Priority of interrupt 65
+        using PRI_N0 = Field <_NVIC_IPR16, 0, 8>; // Bits [7:0] : Priority of interrupt 64
+    };
+
+    // NVIC_IPR17: Sets or reads interrupt priorities
+    struct _NVIC_IPR17 : Register <0xE000E444, ReadWrite, _NVIC_IPR17> {
+        using PRI_N3 = Field <_NVIC_IPR17, 24, 8>; // Bits [31:24] : Priority of interrupt 71
+        using PRI_N2 = Field <_NVIC_IPR17, 16, 8>; // Bits [23:16] : Priority of interrupt 70
+        using PRI_N1 = Field <_NVIC_IPR17, 8, 8>; // Bits [15:8] : Priority of interrupt 69
+        using PRI_N0 = Field <_NVIC_IPR17, 0, 8>; // Bits [7:0] : Priority of interrupt 68
+    };
+
+    // NVIC_IPR18: Sets or reads interrupt priorities
+    struct _NVIC_IPR18 : Register <0xE000E448, ReadWrite, _NVIC_IPR18> {
+        using PRI_N3 = Field <_NVIC_IPR18, 24, 8>; // Bits [31:24] : Priority of interrupt 75
+        using PRI_N2 = Field <_NVIC_IPR18, 16, 8>; // Bits [23:16] : Priority of interrupt 74
+        using PRI_N1 = Field <_NVIC_IPR18, 8, 8>; // Bits [15:8] : Priority of interrupt 73
+        using PRI_N0 = Field <_NVIC_IPR18, 0, 8>; // Bits [7:0] : Priority of interrupt 72
+    };
+
+    // NVIC_IPR19: Sets or reads interrupt priorities
+    struct _NVIC_IPR19 : Register <0xE000E44C, ReadWrite, _NVIC_IPR19> {
+        using PRI_N3 = Field <_NVIC_IPR19, 24, 8>; // Bits [31:24] : Priority of interrupt 79
+        using PRI_N2 = Field <_NVIC_IPR19, 16, 8>; // Bits [23:16] : Priority of interrupt 78
+        using PRI_N1 = Field <_NVIC_IPR19, 8, 8>; // Bits [15:8] : Priority of interrupt 77
+        using PRI_N0 = Field <_NVIC_IPR19, 0, 8>; // Bits [7:0] : Priority of interrupt 76
+    };
+
+    // NVIC_IPR20: Sets or reads interrupt priorities
+    struct _NVIC_IPR20 : Register <0xE000E450, ReadWrite, _NVIC_IPR20> {
+        using PRI_N3 = Field <_NVIC_IPR20, 24, 8>; // Bits [31:24] : Priority of interrupt 83
+        using PRI_N2 = Field <_NVIC_IPR20, 16, 8>; // Bits [23:16] : Priority of interrupt 82
+        using PRI_N1 = Field <_NVIC_IPR20, 8, 8>; // Bits [15:8] : Priority of interrupt 81
+        using PRI_N0 = Field <_NVIC_IPR20, 0, 8>; // Bits [7:0] : Priority of interrupt 80
+    };
+
+    // NVIC_IPR21: Sets or reads interrupt priorities
+    struct _NVIC_IPR21 : Register <0xE000E454, ReadWrite, _NVIC_IPR21> {
+        using PRI_N3 = Field <_NVIC_IPR21, 24, 8>; // Bits [31:24] : Priority of interrupt 87
+        using PRI_N2 = Field <_NVIC_IPR21, 16, 8>; // Bits [23:16] : Priority of interrupt 86
+        using PRI_N1 = Field <_NVIC_IPR21, 8, 8>; // Bits [15:8] : Priority of interrupt 85
+        using PRI_N0 = Field <_NVIC_IPR21, 0, 8>; // Bits [7:0] : Priority of interrupt 84
+    };
+
+    // NVIC_IPR22: Sets or reads interrupt priorities
+    struct _NVIC_IPR22 : Register <0xE000E458, ReadWrite, _NVIC_IPR22> {
+        using PRI_N3 = Field <_NVIC_IPR22, 24, 8>; // Bits [31:24] : Priority of interrupt 91
+        using PRI_N2 = Field <_NVIC_IPR22, 16, 8>; // Bits [23:16] : Priority of interrupt 90
+        using PRI_N1 = Field <_NVIC_IPR22, 8, 8>; // Bits [15:8] : Priority of interrupt 89
+        using PRI_N0 = Field <_NVIC_IPR22, 0, 8>; // Bits [7:0] : Priority of interrupt 88
+    };
+
+    // NVIC_IPR23: Sets or reads interrupt priorities
+    struct _NVIC_IPR23 : Register <0xE000E45C, ReadWrite, _NVIC_IPR23> {
+        using PRI_N3 = Field <_NVIC_IPR23, 24, 8>; // Bits [31:24] : Priority of interrupt 95
+        using PRI_N2 = Field <_NVIC_IPR23, 16, 8>; // Bits [23:16] : Priority of interrupt 94
+        using PRI_N1 = Field <_NVIC_IPR23, 8, 8>; // Bits [15:8] : Priority of interrupt 93
+        using PRI_N0 = Field <_NVIC_IPR23, 0, 8>; // Bits [7:0] : Priority of interrupt 92
+    };
+
+    // NVIC_IPR24: Sets or reads interrupt priorities
+    struct _NVIC_IPR24 : Register <0xE000E460, ReadWrite, _NVIC_IPR24> {
+        using PRI_N3 = Field <_NVIC_IPR24, 24, 8>; // Bits [31:24] : Priority of interrupt 99
+        using PRI_N2 = Field <_NVIC_IPR24, 16, 8>; // Bits [23:16] : Priority of interrupt 98
+        using PRI_N1 = Field <_NVIC_IPR24, 8, 8>; // Bits [15:8] : Priority of interrupt 97
+        using PRI_N0 = Field <_NVIC_IPR24, 0, 8>; // Bits [7:0] : Priority of interrupt 96
+    };
+
+    // NVIC_IPR25: Sets or reads interrupt priorities
+    struct _NVIC_IPR25 : Register <0xE000E464, ReadWrite, _NVIC_IPR25> {
+        using PRI_N3 = Field <_NVIC_IPR25, 24, 8>; // Bits [31:24] : Priority of interrupt 103
+        using PRI_N2 = Field <_NVIC_IPR25, 16, 8>; // Bits [23:16] : Priority of interrupt 102
+        using PRI_N1 = Field <_NVIC_IPR25, 8, 8>; // Bits [15:8] : Priority of interrupt 101
+        using PRI_N0 = Field <_NVIC_IPR25, 0, 8>; // Bits [7:0] : Priority of interrupt 100
+    };
+
+    // NVIC_IPR26: Sets or reads interrupt priorities
+    struct _NVIC_IPR26 : Register <0xE000E468, ReadWrite, _NVIC_IPR26> {
+        using PRI_N3 = Field <_NVIC_IPR26, 24, 8>; // Bits [31:24] : Priority of interrupt 107
+        using PRI_N2 = Field <_NVIC_IPR26, 16, 8>; // Bits [23:16] : Priority of interrupt 106
+        using PRI_N1 = Field <_NVIC_IPR26, 8, 8>; // Bits [15:8] : Priority of interrupt 105
+        using PRI_N0 = Field <_NVIC_IPR26, 0, 8>; // Bits [7:0] : Priority of interrupt 104
+    };
+
+    // NVIC_IPR27: Sets or reads interrupt priorities
+    struct _NVIC_IPR27 : Register <0xE000E46C, ReadWrite, _NVIC_IPR27> {
+        using PRI_N3 = Field <_NVIC_IPR27, 24, 8>; // Bits [31:24] : Priority of interrupt 111
+        using PRI_N2 = Field <_NVIC_IPR27, 16, 8>; // Bits [23:16] : Priority of interrupt 110
+        using PRI_N1 = Field <_NVIC_IPR27, 8, 8>; // Bits [15:8] : Priority of interrupt 109
+        using PRI_N0 = Field <_NVIC_IPR27, 0, 8>; // Bits [7:0] : Priority of interrupt 108
+    };
+
+    // NVIC_IPR28: Sets or reads interrupt priorities
+    struct _NVIC_IPR28 : Register <0xE000E470, ReadWrite, _NVIC_IPR28> {
+        using PRI_N3 = Field <_NVIC_IPR28, 24, 8>; // Bits [31:24] : Priority of interrupt 115
+        using PRI_N2 = Field <_NVIC_IPR28, 16, 8>; // Bits [23:16] : Priority of interrupt 114
+        using PRI_N1 = Field <_NVIC_IPR28, 8, 8>; // Bits [15:8] : Priority of interrupt 113
+        using PRI_N0 = Field <_NVIC_IPR28, 0, 8>; // Bits [7:0] : Priority of interrupt 112
+    };
+
+    // NVIC_IPR29: Sets or reads interrupt priorities
+    struct _NVIC_IPR29 : Register <0xE000E474, ReadWrite, _NVIC_IPR29> {
+        using PRI_N3 = Field <_NVIC_IPR29, 24, 8>; // Bits [31:24] : Priority of interrupt 119
+        using PRI_N2 = Field <_NVIC_IPR29, 16, 8>; // Bits [23:16] : Priority of interrupt 118
+        using PRI_N1 = Field <_NVIC_IPR29, 8, 8>; // Bits [15:8] : Priority of interrupt 117
+        using PRI_N0 = Field <_NVIC_IPR29, 0, 8>; // Bits [7:0] : Priority of interrupt 116
+    };
+
+    // NVIC_IPR30: Sets or reads interrupt priorities
+    struct _NVIC_IPR30 : Register <0xE000E478, ReadWrite, _NVIC_IPR30> {
+        using PRI_N3 = Field <_NVIC_IPR30, 24, 8>; // Bits [31:24] : Priority of interrupt 123
+        using PRI_N2 = Field <_NVIC_IPR30, 16, 8>; // Bits [23:16] : Priority of interrupt 122
+        using PRI_N1 = Field <_NVIC_IPR30, 8, 8>; // Bits [15:8] : Priority of interrupt 121
+        using PRI_N0 = Field <_NVIC_IPR30, 0, 8>; // Bits [7:0] : Priority of interrupt 120
+    };
+
+    // NVIC_IPR31: Sets or reads interrupt priorities
+    struct _NVIC_IPR31 : Register <0xE000E47C, ReadWrite, _NVIC_IPR31> {
+        using PRI_N3 = Field <_NVIC_IPR31, 24, 8>; // Bits [31:24] : Priority of interrupt 127
+        using PRI_N2 = Field <_NVIC_IPR31, 16, 8>; // Bits [23:16] : Priority of interrupt 126
+        using PRI_N1 = Field <_NVIC_IPR31, 8, 8>; // Bits [15:8] : Priority of interrupt 125
+        using PRI_N0 = Field <_NVIC_IPR31, 0, 8>; // Bits [7:0] : Priority of interrupt 124
+    };
+
+    // NVIC_IPR32: Sets or reads interrupt priorities
+    struct _NVIC_IPR32 : Register <0xE000E480, ReadWrite, _NVIC_IPR32> {
+        using PRI_N3 = Field <_NVIC_IPR32, 24, 8>; // Bits [31:24] : Priority of interrupt 131
+        using PRI_N2 = Field <_NVIC_IPR32, 16, 8>; // Bits [23:16] : Priority of interrupt 130
+        using PRI_N1 = Field <_NVIC_IPR32, 8, 8>; // Bits [15:8] : Priority of interrupt 129
+        using PRI_N0 = Field <_NVIC_IPR32, 0, 8>; // Bits [7:0] : Priority of interrupt 128
+    };
+
+    // NVIC_IPR33: Sets or reads interrupt priorities
+    struct _NVIC_IPR33 : Register <0xE000E484, ReadWrite, _NVIC_IPR33> {
+        using PRI_N3 = Field <_NVIC_IPR33, 24, 8>; // Bits [31:24] : Priority of interrupt 135
+        using PRI_N2 = Field <_NVIC_IPR33, 16, 8>; // Bits [23:16] : Priority of interrupt 134
+        using PRI_N1 = Field <_NVIC_IPR33, 8, 8>; // Bits [15:8] : Priority of interrupt 133
+        using PRI_N0 = Field <_NVIC_IPR33, 0, 8>; // Bits [7:0] : Priority of interrupt 132
+    };
+
+    // NVIC_IPR34: Sets or reads interrupt priorities
+    struct _NVIC_IPR34 : Register <0xE000E488, ReadWrite, _NVIC_IPR34> {
+        using PRI_N3 = Field <_NVIC_IPR34, 24, 8>; // Bits [31:24] : Priority of interrupt 139
+        using PRI_N2 = Field <_NVIC_IPR34, 16, 8>; // Bits [23:16] : Priority of interrupt 138
+        using PRI_N1 = Field <_NVIC_IPR34, 8, 8>; // Bits [15:8] : Priority of interrupt 137
+        using PRI_N0 = Field <_NVIC_IPR34, 0, 8>; // Bits [7:0] : Priority of interrupt 136
+    };
+
+    // NVIC_IPR35: Sets or reads interrupt priorities
+    struct _NVIC_IPR35 : Register <0xE000E48C, ReadWrite, _NVIC_IPR35> {
+        using PRI_N3 = Field <_NVIC_IPR35, 24, 8>; // Bits [31:24] : Priority of interrupt 143
+        using PRI_N2 = Field <_NVIC_IPR35, 16, 8>; // Bits [23:16] : Priority of interrupt 142
+        using PRI_N1 = Field <_NVIC_IPR35, 8, 8>; // Bits [15:8] : Priority of interrupt 141
+        using PRI_N0 = Field <_NVIC_IPR35, 0, 8>; // Bits [7:0] : Priority of interrupt 140
+    };
+
+    // NVIC_IPR36: Sets or reads interrupt priorities
+    struct _NVIC_IPR36 : Register <0xE000E490, ReadWrite, _NVIC_IPR36> {
+        using PRI_N3 = Field <_NVIC_IPR36, 24, 8>; // Bits [31:24] : Priority of interrupt 147
+        using PRI_N2 = Field <_NVIC_IPR36, 16, 8>; // Bits [23:16] : Priority of interrupt 146
+        using PRI_N1 = Field <_NVIC_IPR36, 8, 8>; // Bits [15:8] : Priority of interrupt 145
+        using PRI_N0 = Field <_NVIC_IPR36, 0, 8>; // Bits [7:0] : Priority of interrupt 144
+    };
+
+    // NVIC_IPR37: Sets or reads interrupt priorities
+    struct _NVIC_IPR37 : Register <0xE000E494, ReadWrite, _NVIC_IPR37> {
+        using PRI_N3 = Field <_NVIC_IPR37, 24, 8>; // Bits [31:24] : Priority of interrupt 151
+        using PRI_N2 = Field <_NVIC_IPR37, 16, 8>; // Bits [23:16] : Priority of interrupt 150
+        using PRI_N1 = Field <_NVIC_IPR37, 8, 8>; // Bits [15:8] : Priority of interrupt 149
+        using PRI_N0 = Field <_NVIC_IPR37, 0, 8>; // Bits [7:0] : Priority of interrupt 148
+    };
+
+    // NVIC_IPR38: Sets or reads interrupt priorities
+    struct _NVIC_IPR38 : Register <0xE000E498, ReadWrite, _NVIC_IPR38> {
+        using PRI_N3 = Field <_NVIC_IPR38, 24, 8>; // Bits [31:24] : Priority of interrupt 155
+        using PRI_N2 = Field <_NVIC_IPR38, 16, 8>; // Bits [23:16] : Priority of interrupt 154
+        using PRI_N1 = Field <_NVIC_IPR38, 8, 8>; // Bits [15:8] : Priority of interrupt 153
+        using PRI_N0 = Field <_NVIC_IPR38, 0, 8>; // Bits [7:0] : Priority of interrupt 152
+    };
+
+    // NVIC_IPR39: Sets or reads interrupt priorities
+    struct _NVIC_IPR39 : Register <0xE000E49C, ReadWrite, _NVIC_IPR39> {
+        using PRI_N3 = Field <_NVIC_IPR39, 24, 8>; // Bits [31:24] : Priority of interrupt 159
+        using PRI_N2 = Field <_NVIC_IPR39, 16, 8>; // Bits [23:16] : Priority of interrupt 158
+        using PRI_N1 = Field <_NVIC_IPR39, 8, 8>; // Bits [15:8] : Priority of interrupt 157
+        using PRI_N0 = Field <_NVIC_IPR39, 0, 8>; // Bits [7:0] : Priority of interrupt 156
+    };
+
+    // NVIC_IPR40: Sets or reads interrupt priorities
+    struct _NVIC_IPR40 : Register <0xE000E4A0, ReadWrite, _NVIC_IPR40> {
+        using PRI_N3 = Field <_NVIC_IPR40, 24, 8>; // Bits [31:24] : Priority of interrupt 163
+        using PRI_N2 = Field <_NVIC_IPR40, 16, 8>; // Bits [23:16] : Priority of interrupt 162
+        using PRI_N1 = Field <_NVIC_IPR40, 8, 8>; // Bits [15:8] : Priority of interrupt 161
+        using PRI_N0 = Field <_NVIC_IPR40, 0, 8>; // Bits [7:0] : Priority of interrupt 160
+    };
+
+    // NVIC_IPR41: Sets or reads interrupt priorities
+    struct _NVIC_IPR41 : Register <0xE000E4A4, ReadWrite, _NVIC_IPR41> {
+        using PRI_N3 = Field <_NVIC_IPR41, 24, 8>; // Bits [31:24] : Priority of interrupt 167
+        using PRI_N2 = Field <_NVIC_IPR41, 16, 8>; // Bits [23:16] : Priority of interrupt 166
+        using PRI_N1 = Field <_NVIC_IPR41, 8, 8>; // Bits [15:8] : Priority of interrupt 165
+        using PRI_N0 = Field <_NVIC_IPR41, 0, 8>; // Bits [7:0] : Priority of interrupt 164
+    };
+
+    // NVIC_IPR42: Sets or reads interrupt priorities
+    struct _NVIC_IPR42 : Register <0xE000E4A8, ReadWrite, _NVIC_IPR42> {
+        using PRI_N3 = Field <_NVIC_IPR42, 24, 8>; // Bits [31:24] : Priority of interrupt 171
+        using PRI_N2 = Field <_NVIC_IPR42, 16, 8>; // Bits [23:16] : Priority of interrupt 170
+        using PRI_N1 = Field <_NVIC_IPR42, 8, 8>; // Bits [15:8] : Priority of interrupt 169
+        using PRI_N0 = Field <_NVIC_IPR42, 0, 8>; // Bits [7:0] : Priority of interrupt 168
+    };
+
+    // NVIC_IPR43: Sets or reads interrupt priorities
+    struct _NVIC_IPR43 : Register <0xE000E4AC, ReadWrite, _NVIC_IPR43> {
+        using PRI_N3 = Field <_NVIC_IPR43, 24, 8>; // Bits [31:24] : Priority of interrupt 175
+        using PRI_N2 = Field <_NVIC_IPR43, 16, 8>; // Bits [23:16] : Priority of interrupt 174
+        using PRI_N1 = Field <_NVIC_IPR43, 8, 8>; // Bits [15:8] : Priority of interrupt 173
+        using PRI_N0 = Field <_NVIC_IPR43, 0, 8>; // Bits [7:0] : Priority of interrupt 172
+    };
+
+    // NVIC_IPR44: Sets or reads interrupt priorities
+    struct _NVIC_IPR44 : Register <0xE000E4B0, ReadWrite, _NVIC_IPR44> {
+        using PRI_N3 = Field <_NVIC_IPR44, 24, 8>; // Bits [31:24] : Priority of interrupt 179
+        using PRI_N2 = Field <_NVIC_IPR44, 16, 8>; // Bits [23:16] : Priority of interrupt 178
+        using PRI_N1 = Field <_NVIC_IPR44, 8, 8>; // Bits [15:8] : Priority of interrupt 177
+        using PRI_N0 = Field <_NVIC_IPR44, 0, 8>; // Bits [7:0] : Priority of interrupt 176
+    };
+
+    // NVIC_IPR45: Sets or reads interrupt priorities
+    struct _NVIC_IPR45 : Register <0xE000E4B4, ReadWrite, _NVIC_IPR45> {
+        using PRI_N3 = Field <_NVIC_IPR45, 24, 8>; // Bits [31:24] : Priority of interrupt 183
+        using PRI_N2 = Field <_NVIC_IPR45, 16, 8>; // Bits [23:16] : Priority of interrupt 182
+        using PRI_N1 = Field <_NVIC_IPR45, 8, 8>; // Bits [15:8] : Priority of interrupt 181
+        using PRI_N0 = Field <_NVIC_IPR45, 0, 8>; // Bits [7:0] : Priority of interrupt 180
+    };
+
+    // NVIC_IPR46: Sets or reads interrupt priorities
+    struct _NVIC_IPR46 : Register <0xE000E4B8, ReadWrite, _NVIC_IPR46> {
+        using PRI_N3 = Field <_NVIC_IPR46, 24, 8>; // Bits [31:24] : Priority of interrupt 187
+        using PRI_N2 = Field <_NVIC_IPR46, 16, 8>; // Bits [23:16] : Priority of interrupt 186
+        using PRI_N1 = Field <_NVIC_IPR46, 8, 8>; // Bits [15:8] : Priority of interrupt 185
+        using PRI_N0 = Field <_NVIC_IPR46, 0, 8>; // Bits [7:0] : Priority of interrupt 184
+    };
+
+    // NVIC_IPR47: Sets or reads interrupt priorities
+    struct _NVIC_IPR47 : Register <0xE000E4BC, ReadWrite, _NVIC_IPR47> {
+        using PRI_N3 = Field <_NVIC_IPR47, 24, 8>; // Bits [31:24] : Priority of interrupt 191
+        using PRI_N2 = Field <_NVIC_IPR47, 16, 8>; // Bits [23:16] : Priority of interrupt 190
+        using PRI_N1 = Field <_NVIC_IPR47, 8, 8>; // Bits [15:8] : Priority of interrupt 189
+        using PRI_N0 = Field <_NVIC_IPR47, 0, 8>; // Bits [7:0] : Priority of interrupt 188
+    };
+
+    // NVIC_IPR48: Sets or reads interrupt priorities
+    struct _NVIC_IPR48 : Register <0xE000E4C0, ReadWrite, _NVIC_IPR48> {
+        using PRI_N3 = Field <_NVIC_IPR48, 24, 8>; // Bits [31:24] : Priority of interrupt 195
+        using PRI_N2 = Field <_NVIC_IPR48, 16, 8>; // Bits [23:16] : Priority of interrupt 194
+        using PRI_N1 = Field <_NVIC_IPR48, 8, 8>; // Bits [15:8] : Priority of interrupt 193
+        using PRI_N0 = Field <_NVIC_IPR48, 0, 8>; // Bits [7:0] : Priority of interrupt 192
+    };
+
+    // NVIC_IPR49: Sets or reads interrupt priorities
+    struct _NVIC_IPR49 : Register <0xE000E4C4, ReadWrite, _NVIC_IPR49> {
+        using PRI_N3 = Field <_NVIC_IPR49, 24, 8>; // Bits [31:24] : Priority of interrupt 199
+        using PRI_N2 = Field <_NVIC_IPR49, 16, 8>; // Bits [23:16] : Priority of interrupt 198
+        using PRI_N1 = Field <_NVIC_IPR49, 8, 8>; // Bits [15:8] : Priority of interrupt 197
+        using PRI_N0 = Field <_NVIC_IPR49, 0, 8>; // Bits [7:0] : Priority of interrupt 196
+    };
+
+    // NVIC_IPR50: Sets or reads interrupt priorities
+    struct _NVIC_IPR50 : Register <0xE000E4C8, ReadWrite, _NVIC_IPR50> {
+        using PRI_N3 = Field <_NVIC_IPR50, 24, 8>; // Bits [31:24] : Priority of interrupt 203
+        using PRI_N2 = Field <_NVIC_IPR50, 16, 8>; // Bits [23:16] : Priority of interrupt 202
+        using PRI_N1 = Field <_NVIC_IPR50, 8, 8>; // Bits [15:8] : Priority of interrupt 201
+        using PRI_N0 = Field <_NVIC_IPR50, 0, 8>; // Bits [7:0] : Priority of interrupt 200
+    };
+
+    // NVIC_IPR51: Sets or reads interrupt priorities
+    struct _NVIC_IPR51 : Register <0xE000E4CC, ReadWrite, _NVIC_IPR51> {
+        using PRI_N3 = Field <_NVIC_IPR51, 24, 8>; // Bits [31:24] : Priority of interrupt 207
+        using PRI_N2 = Field <_NVIC_IPR51, 16, 8>; // Bits [23:16] : Priority of interrupt 206
+        using PRI_N1 = Field <_NVIC_IPR51, 8, 8>; // Bits [15:8] : Priority of interrupt 205
+        using PRI_N0 = Field <_NVIC_IPR51, 0, 8>; // Bits [7:0] : Priority of interrupt 204
+    };
+
+    // NVIC_IPR52: Sets or reads interrupt priorities
+    struct _NVIC_IPR52 : Register <0xE000E4D0, ReadWrite, _NVIC_IPR52> {
+        using PRI_N3 = Field <_NVIC_IPR52, 24, 8>; // Bits [31:24] : Priority of interrupt 211
+        using PRI_N2 = Field <_NVIC_IPR52, 16, 8>; // Bits [23:16] : Priority of interrupt 210
+        using PRI_N1 = Field <_NVIC_IPR52, 8, 8>; // Bits [15:8] : Priority of interrupt 209
+        using PRI_N0 = Field <_NVIC_IPR52, 0, 8>; // Bits [7:0] : Priority of interrupt 208
+    };
+
+    // NVIC_IPR53: Sets or reads interrupt priorities
+    struct _NVIC_IPR53 : Register <0xE000E4D4, ReadWrite, _NVIC_IPR53> {
+        using PRI_N3 = Field <_NVIC_IPR53, 24, 8>; // Bits [31:24] : Priority of interrupt 215
+        using PRI_N2 = Field <_NVIC_IPR53, 16, 8>; // Bits [23:16] : Priority of interrupt 214
+        using PRI_N1 = Field <_NVIC_IPR53, 8, 8>; // Bits [15:8] : Priority of interrupt 213
+        using PRI_N0 = Field <_NVIC_IPR53, 0, 8>; // Bits [7:0] : Priority of interrupt 212
+    };
+
+    // NVIC_IPR54: Sets or reads interrupt priorities
+    struct _NVIC_IPR54 : Register <0xE000E4D8, ReadWrite, _NVIC_IPR54> {
+        using PRI_N3 = Field <_NVIC_IPR54, 24, 8>; // Bits [31:24] : Priority of interrupt 219
+        using PRI_N2 = Field <_NVIC_IPR54, 16, 8>; // Bits [23:16] : Priority of interrupt 218
+        using PRI_N1 = Field <_NVIC_IPR54, 8, 8>; // Bits [15:8] : Priority of interrupt 217
+        using PRI_N0 = Field <_NVIC_IPR54, 0, 8>; // Bits [7:0] : Priority of interrupt 216
+    };
+
+    // NVIC_IPR55: Sets or reads interrupt priorities
+    struct _NVIC_IPR55 : Register <0xE000E4DC, ReadWrite, _NVIC_IPR55> {
+        using PRI_N3 = Field <_NVIC_IPR55, 24, 8>; // Bits [31:24] : Priority of interrupt 223
+        using PRI_N2 = Field <_NVIC_IPR55, 16, 8>; // Bits [23:16] : Priority of interrupt 222
+        using PRI_N1 = Field <_NVIC_IPR55, 8, 8>; // Bits [15:8] : Priority of interrupt 221
+        using PRI_N0 = Field <_NVIC_IPR55, 0, 8>; // Bits [7:0] : Priority of interrupt 220
+    };
+
+    // NVIC_IPR56: Sets or reads interrupt priorities
+    struct _NVIC_IPR56 : Register <0xE000E4E0, ReadWrite, _NVIC_IPR56> {
+        using PRI_N3 = Field <_NVIC_IPR56, 24, 8>; // Bits [31:24] : Priority of interrupt 227
+        using PRI_N2 = Field <_NVIC_IPR56, 16, 8>; // Bits [23:16] : Priority of interrupt 226
+        using PRI_N1 = Field <_NVIC_IPR56, 8, 8>; // Bits [15:8] : Priority of interrupt 225
+        using PRI_N0 = Field <_NVIC_IPR56, 0, 8>; // Bits [7:0] : Priority of interrupt 224
+    };
+
+    // NVIC_IPR57: Sets or reads interrupt priorities
+    struct _NVIC_IPR57 : Register <0xE000E4E4, ReadWrite, _NVIC_IPR57> {
+        using PRI_N3 = Field <_NVIC_IPR57, 24, 8>; // Bits [31:24] : Priority of interrupt 231
+        using PRI_N2 = Field <_NVIC_IPR57, 16, 8>; // Bits [23:16] : Priority of interrupt 230
+        using PRI_N1 = Field <_NVIC_IPR57, 8, 8>; // Bits [15:8] : Priority of interrupt 229
+        using PRI_N0 = Field <_NVIC_IPR57, 0, 8>; // Bits [7:0] : Priority of interrupt 228
+    };
+
+    // NVIC_IPR58: Sets or reads interrupt priorities
+    struct _NVIC_IPR58 : Register <0xE000E4E8, ReadWrite, _NVIC_IPR58> {
+        using PRI_N3 = Field <_NVIC_IPR58, 24, 8>; // Bits [31:24] : Priority of interrupt 235
+        using PRI_N2 = Field <_NVIC_IPR58, 16, 8>; // Bits [23:16] : Priority of interrupt 234
+        using PRI_N1 = Field <_NVIC_IPR58, 8, 8>; // Bits [15:8] : Priority of interrupt 233
+        using PRI_N0 = Field <_NVIC_IPR58, 0, 8>; // Bits [7:0] : Priority of interrupt 232
+    };
+
+    // NVIC_IPR59: Sets or reads interrupt priorities
+    struct _NVIC_IPR59 : Register <0xE000E4EC, ReadWrite, _NVIC_IPR59> {
+        using PRI_N3 = Field <_NVIC_IPR59, 24, 8>; // Bits [31:24] : Priority of interrupt 239
+        using PRI_N2 = Field <_NVIC_IPR59, 16, 8>; // Bits [23:16] : Priority of interrupt 238
+        using PRI_N1 = Field <_NVIC_IPR59, 8, 8>; // Bits [15:8] : Priority of interrupt 237
+        using PRI_N0 = Field <_NVIC_IPR59, 0, 8>; // Bits [7:0] : Priority of interrupt 236
+    };
