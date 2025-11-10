@@ -6,10 +6,10 @@
 #include "mcore_rcc.hpp"
 #include "mcore_system.hpp"
 
-constexpr uint32_t OVERDRIVE_TIMEOUT = 0x5000;
-constexpr uint32_t CLOCK_SW_TIMEOUT = 0x5000;
-constexpr uint32_t HSE_TIMEOUT = 0x1000;
-constexpr uint32_t PLL_TIMEOUT = 0x1000;
+constexpr uint32_t OVERDRIVE_TIMEOUT = 0xFFFFAAAA;
+constexpr uint32_t CLOCK_SW_TIMEOUT = 0xFFFFAAAA;
+constexpr uint32_t HSE_TIMEOUT = 0xFFFFAAAA;
+constexpr uint32_t PLL_TIMEOUT = 0xFFFFAAAA;
 constexpr uint32_t MS_DIV = 1000U;
 
 
@@ -27,7 +27,8 @@ RCCStatus OSCInit(const ClockConfig* cfg) {
 		}
 		RCC::_CR::HSEON::set();
 
-		if(waitUntil(RCC::_CR::HSERDY::read(),HSE_TIMEOUT)){
+		if(waitUntil([]{return RCC::_CR::HSERDY::read();},HSE_TIMEOUT)){
+
 			RCC::_CR::HSEON::clear();
 			return RCCStatus::HSE_FAILED;
 		}
@@ -35,7 +36,7 @@ RCCStatus OSCInit(const ClockConfig* cfg) {
 
 	// 3. Настройка PLL
     RCC::_CR::PLLON::clear();
-	if(waitUntil(!(RCC::_CR::PLLRDY::read()), PLL_TIMEOUT)){
+	if(waitUntil(([]{return ! RCC::_CR::PLLRDY::read();}), PLL_TIMEOUT)){
 		RCC::_CR::bitReset<RCC::_CR::HSEON, RCC::_CR::PLLON>();
 		return RCCStatus::PLL_FAILED;
 	}
@@ -56,7 +57,7 @@ RCCStatus OSCInit(const ClockConfig* cfg) {
 
 	// 4. Включение PLL и ожидание готовности
 	RCC::_CR::PLLON::set();
-	if(waitUntil(!(RCC::_CR::PLLRDY::read()), PLL_TIMEOUT)){
+	if(waitUntil([]{return RCC::_CR::PLLRDY::read();}, PLL_TIMEOUT)){
 		RCC::_CR::bitReset<RCC::_CR::HSEON, RCC::_CR::PLLON>();
 		return RCCStatus::PLL_FAILED;
 	}
@@ -92,9 +93,8 @@ RCCStatus RCC_ClockInit(const ClockConfig* cfg){
         (static_cast<uint32_t>(cfg->AHBDiv) << RCC::_CFGR::HPRE::pos);
 	// 7. Переключение SYSCLK на PLL
 	RCC::_CFGR::SW::write<SysClkStatus::PLLSrc>();
-	while (RCC::_CFGR::SWS::read() != static_cast<uint32_t>(SysClkStatus::PLLSrc)) {
-        __NOP();
-    };
+	if (waitUntil([]{return RCC::_CFGR::SWS::read();}, OVERDRIVE_TIMEOUT))
+			return RCCStatus::OVERDRIVE_FAILED;
 
 	RCC::_CFGR::clearMask<(
 		RCC::_CFGR::PPRE1::BitMsk | 
@@ -120,12 +120,12 @@ RCCStatus OverDriveInit()
 	enablePowerInterface();
 
 	PWR::_CR1::ODEN::set();
-	if (!waitUntil(PWR::_CSR1::ODRDY::read(), OVERDRIVE_TIMEOUT))
+	if (waitUntil([]{return PWR::_CSR1::ODRDY::read();}, OVERDRIVE_TIMEOUT))
 		return RCCStatus::OVERDRIVE_FAILED;
 	
 
 	PWR::_CR1::ODSWEN::set();
-	if (!waitUntil(PWR::_CSR1::ODSWRDY::read(), OVERDRIVE_TIMEOUT))
+	if (waitUntil([]{return PWR::_CSR1::ODSWRDY::read();}, OVERDRIVE_TIMEOUT))
 		return RCCStatus::OVERDRIVE_FAILED;
 	
 	return RCCStatus::OK;

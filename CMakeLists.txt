@@ -61,18 +61,18 @@ set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/STM32F767ZITX_FLASH.ld)
 
 # Исходники
 file(GLOB SRC
-   # Core/Src/*.c
-   # Core/Src/*.cpp
+    Core/Src/*.c
+    Core/Src/*.cpp
     Core/Startup/startup_stm32f767zitx.s
-    Core/Src/main.cpp
-    Core/Src/mcore_mpu.cpp
-    Core/Src/mcore_rcc.cpp
-    Core/Src/mcore_eth.cpp
-    Core/Src/mcore_nvic.cpp
-    Core/Src/mcore_system.cpp
-    Core/Src/mcore_gpio.cpp
-    Core/Src/stm32f7xx_it.c
-    Core/Src/syscalls.c
+    # Core/Src/main.cpp
+    # Core/Src/mcore_mpu.cpp
+    # Core/Src/mcore_rcc.cpp
+    # Core/Src/mcore_eth.cpp
+    # Core/Src/mcore_nvic.cpp
+    # Core/Src/mcore_system.cpp
+    # Core/Src/mcore_gpio.cpp
+    # Core/Src/stm32f7xx_it.c
+    # Core/Src/syscalls.c
 )
 
 add_executable(${PROJECT_NAME} ${SRC})

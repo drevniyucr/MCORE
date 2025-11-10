@@ -20,14 +20,5 @@
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #pragma once
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Includes ------------------------------------------------------------------*/
-
-
-#ifdef __cplusplus
-}
-#endif
+void Error_Handler(void);
 

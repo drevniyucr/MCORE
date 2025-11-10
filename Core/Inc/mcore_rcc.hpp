@@ -128,9 +128,11 @@ uint32_t CalculatePLLCLK(uint32_t inputFreq, uint8_t pllm, uint16_t plln,
 // Wait with timeout
 template <typename Predicate>
 bool waitUntil(Predicate condition, uint32_t timeout) {
-    uint32_t i = 0;
-    while (!static_cast<uint32_t>(condition)) {
-        if (++i > timeout) return true;
+    volatile uint32_t i = 0;
+    while (!condition()) {
+    	i += 1;
+        if (i > timeout)
+        	return true;
     }
     return false;
 }

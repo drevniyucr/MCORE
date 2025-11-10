@@ -15,7 +15,7 @@
                 "-mcpu=cortex-m7",
                 "-std=c++20"
             ],
-            "compilerPath": "C:\\Users\\AkimovMA\\scoop\\apps\\gcc-arm-none-eabi\\14.3.rel1\\bin\\arm-none-eabi-g++.exe",
+            "compilerPath": "c:/Users/doomt/scoop/apps/gcc-arm-none-eabi/current/bin/arm-none-eabi-gcc.exe",
             "cStandard": "c17",
             "cppStandard": "c++20"
         },

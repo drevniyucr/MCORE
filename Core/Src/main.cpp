@@ -18,75 +18,77 @@
 
 #include "mcore.hpp"
 
-
 void GPIO_Init(void);
 void RCC_Init(void);
 // void TIM2_Init(void);
 // void TIM3_Init(void);
 void Error_Handler(void);
 
-// uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
-// uint8_t dst_ip[] = { 192, 168, 0, 10 };
-// uint8_t dst_mac[] = { 0xD8, 0x43, 0xAE, 0x7D, 0x7B, 0x40 };
+uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
+uint8_t dst_ip[] = { 192, 168, 0, 10 };
+uint8_t dst_mac[] = { 0xD8, 0x43, 0xAE, 0x7D, 0x7B, 0x40 };
 
-// uint32_t t_rise[6] = { };
-// uint32_t high_time[6] = { };
-// uint8_t waiting_fall[6] = { };
+uint32_t t_rise[6] = { };
+uint32_t high_time[6] = { };
+uint8_t waiting_fall[6] = { };
 
-// UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, // @suppress("Invalid arguments")
-// 		reinterpret_cast<uint8_t*>(high_time), sizeof(high_time) };
+UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, (udp_data),
+		sizeof(udp_data) };
 
-int main(void)
-{   
-    MPU_Config();
-    SCB_EnableICache();
-    // SCB_EnableDCache(); может быть не стоит
-    NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
-    RCC_Init();
-    enableEthInterface();
-    GPIO_Init();
-    ETH_Init();
-    // TIM2_Init();
-    // TIM3_Init();
-    // NET_TCP_Init();
-    // uint32_t tickstart = get_tick();
-    NVIC_API::enable_irq(); 
-    while (true)
-    {
-        // ETH_RxWorker();
-        // if ((get_tick() - tickstart) > 5000) {
-        // 	tickstart = get_tick();
-        // 	if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
-        // 	NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
-        //NET_SendUDP(UDPframe);
-        // 	}
-        // }
-    }
+int main(void) {
+	SystemInit();
+	MPU_Config();
+	SCB_EnableICache();
+	// SCB_EnableDCache(); может быть не стоит
+	NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
+	RCC_Init();
+	enableEthInterface();
+	GPIO_Init();
+	ETH_Init();
+	// TIM2_Init();
+	// TIM3_Init();
+	NET_TCP_Init();
+	uint32_t tickstart = get_tick();
+	NVIC_API::enable_irq();
+	while (true) {
+		ETH_RxWorker();
+		if ((get_tick() - tickstart) > 5000) {
+			tickstart = get_tick();
+			if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED) {
+				NET_TCP_SendUser(&tcp_clients[9], udp_data, sizeof(udp_data));
+				NET_SendUDP(UDPframe);
+			}
+		}
+	}
 }
-void RCC_Init(void)
-{
-    constexpr ClockConfig cfg = {
-        .PLLM    = 4,              // MCO(8Mhz)/8=2
-        .PLLN    = 216,            // 2*216 = 432
-        .PLLP    = PLL_P::Div2,    // 432/2=216MHz SYSCKL MAX
-        .AHBDiv  = AHBPrescaler::Div1,    // 216MHz HCKL MAX
-        .APB1Div = APBPrescaler::Div4,    //216/4=54 MHz APB1 MAX
-        .APB2Div = APBPrescaler::Div2,    //216/2=108 MHz APB2 MAX
-        .FLASHLatency = FLASH_Latency::WS7,
-        .useHSE       = true,
-        .useHSEBypass = true,
-        .useSysTick   = true
-    };
 
-    enablePowerInterface();
-    SetVoltageScale(VoltageScale::Scale1);
+void RCC_Init(void) {
+	constexpr const ClockConfig cfg = {
+			.PLLM = 4,              // MCO(8Mhz)/8=2
+			.PLLN = 216,            // 2*216 = 432
+			.PLLP = PLL_P::Div2,    // 432/2=216MHz SYSCKL MAX
+			.AHBDiv = AHBPrescaler::Div1,    // 216MHz HCKL MAX
+			.APB1Div = APBPrescaler::Div4,    //216/4=54 MHz APB1 MAX
+			.APB2Div = APBPrescaler::Div2,    //216/2=108 MHz APB2 MAX
+			.FLASHLatency = FLASH_Latency::WS7,
+			.useHSE = true,
+			.useHSEBypass =true,
+			.useSysTick = true
+};
 
-    if (OSCInit(&cfg) != RCCStatus::OK ||
-        OverDriveInit() != RCCStatus::OK ||
-        RCC_ClockInit(&cfg) != RCCStatus::OK)
-    {
-        Error_Handler();
-    }
+	enablePowerInterface();
+	SetVoltageScale(VoltageScale::Scale1);
+	RCCStatus osc = OSCInit(&cfg);
+	RCCStatus OverDrive = OverDriveInit();
+	RCCStatus clock = RCC_ClockInit(&cfg);
+
+	if (
+			osc != RCCStatus::OK ||
+			OverDrive != RCCStatus::OK||
+			clock != RCCStatus::OK)
+	{
+		Error_Handler();
+	}
 
 };
 
@@ -352,7 +354,7 @@ void GPIO_Init(void) {
 
 	RCC_GPIO_ALLEN();
 
-	GPIO_Config GPIO_ConfigStruct = {};
+	GPIO_Config GPIO_ConfigStruct = { };
 	uint32_t pin_mask;
 
 	/**ETH GPIO Configuration
@@ -396,7 +398,6 @@ void GPIO_Init(void) {
 	GPIO_ConfigStruct.af = AF::AF1; // TIM2
 	GPIO_ConfigPin<GPIOB>(GPIO_ConfigStruct, 10); // PB10
 
-
 	GPIO_ConfigPin<GPIOA>(GPIO_ConfigStruct, 3); // PA3
 
 	GPIO_ConfigStruct.af = AF::AF2; // TIM3
@@ -409,9 +410,8 @@ void GPIO_Init(void) {
 
 }
 
-void Error_Handler(void)
-{
-    while (1)
-    {
-    }
+void Error_Handler(void) {
+	while (1) {
+
+	}
 }
