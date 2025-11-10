@@ -1,41 +1,61 @@
 import re
+from pathlib import Path
 
-# === 1. Читаем CMSIS IRQ-определения ===
-with open("irqs.txt", "r", encoding="utf-8") as f:
-    cmsis_data = f.read()
+# === Настройки ===
+CMSIS_FILE = Path("stm32f767xx.h")   # путь к CMSIS-заголовку
+OUTPUT_FILE = Path("irqn_type_autogen.hpp")
 
-# Пример строки: WWDG_IRQn = 0, /*!< Window WatchDog Interrupt */
-cmsis_irqs = re.findall(r"(\w+_IRQn)\s*=\s*(\d+),\s*/\*!\s*(.*?)\s*\*/", cmsis_data)
+# === Регистры NVIC (по 4 IRQ на 1 IPR, по 32 IRQ на ISER) ===
+def ipr_struct(irq):
+    reg_index = irq // 4
+    field_index = irq % 4
+    return f"NVIC::_NVIC_IPR{reg_index}::PRI_N{field_index}"
 
-# === 2. Читаем NVIC IPR структуры ===
-with open("nvic_ipr.txt", "r", encoding="utf-8") as f:
-    nvic_data = f.read()
+def iser_struct(irq):
+    reg_index = irq // 32
+    field_index = irq % 32
+    return f"NVIC::_NVIC_ISER{reg_index}"
 
-# Пример строки: using PRI_N3 = Field <_NVIC_IPR8, 24, 8>; // Bits [31:24] : Priority of interrupt 35
-nvic_fields = re.findall(
-    r"using\s+(PRI_N\d)\s*=\s*Field\s*<(_NVIC_IPR\d+),.*?Priority of interrupt\s+(\d+)",
-    nvic_data
-)
+def icer_struct(irq):
+    reg_index = irq // 32
+    field_index = irq % 32
+    return f"NVIC::_NVIC_ICER{reg_index}"
 
-# === 3. Создаём словарь { interrupt_number: (register, field) } ===
-nvic_map = {int(num): (reg, field) for field, reg, num in nvic_fields}
+def ispr_struct(irq):
+    reg_index = irq // 32
+    field_index = irq % 32
+    return f"NVIC::_NVIC_ISPR{reg_index}"
 
-# === 4. Генерация итогового кода ===
-output = []
-for name, num, desc in cmsis_irqs:
-    irq_num = int(num)
-    if irq_num in nvic_map:
-        reg, field = nvic_map[irq_num]
-        output.append(f"using {name} = NVIC::{reg}::{field}; // {desc}")
-    else:
-        output.append(f"// {name} (IRQ {irq_num}) not found in NVIC_IPR map")
+def icpr_struct(irq):
+    reg_index = irq // 32
+    field_index = irq % 32
+    return f"NVIC::_NVIC_ICPR{reg_index}"
 
-# === 5. Запись результата ===
-with open("nvic_irq_map.hpp", "w", encoding="utf-8") as f:
-    f.write("// Auto-generated NVIC IRQ mapping\n\n")
-    f.write("struct mcore_nvic {\n")
-    for line in output:
-        f.write(f"    {line}\n")
-    f.write("};\n")
+# === Парсинг CMSIS ===
+pattern = re.compile(r"^\s*(\w+_IRQn)\s*=\s*(\d+),\s*/\*\!<\s*(.*?)\s*\*/")
+matches = []
 
-print("✅ Файл nvic_irq_map.hpp создан.")
+with CMSIS_FILE.open(encoding="utf-8", errors="ignore") as f:
+    for line in f:
+        m = pattern.match(line)
+        if m:
+            matches.append((m.group(1), int(m.group(2)), m.group(3)))
+
+# === Генерация кода ===
+out = []
+out.append("// Auto-generated NVIC IRQ mapping")
+out.append("struct IRQn_Type {")
+for name, num, comment in matches:
+    out.append(f"    struct {name} {{ // < {comment}")
+    out.append(f"        static constexpr uint32_t irq_number = {num};")
+    out.append(f"        using Priority = {ipr_struct(num)};")
+    out.append(f"        using Enable   = {iser_struct(num)};")
+    out.append(f"        using Disable  = {icer_struct(num)};")
+    out.append(f"        using SetPend  = {ispr_struct(num)};")
+    out.append(f"        using ClrPend  = {icpr_struct(num)};")
+    out.append("    };")
+out.append("};")
+
+# === Сохранение ===
+OUTPUT_FILE.write_text("\n".join(out), encoding="utf-8")
+print(f"✅ Generated {OUTPUT_FILE} with {len(matches)} IRQ entries.")

@@ -11,6 +11,7 @@
 #include "mcore_net.hpp"
 #include "mcore_nvic.hpp"
 
+
 __attribute__((section(".RxDecripSection"))) ETH_DMADescStruct DMARxDscrTab[ETH_RX_DESC_CNT];
 
 __attribute__((section(".TxDecripSection"))) ETH_DMADescStruct DMATxDscrTab[ETH_TX_DESC_CNT];
@@ -172,8 +173,8 @@ void ETH_Init(void) {
 	/* Enable the DMA reception */
 	Ethernet_DMA::_DMAOMR::SR::set();
 
-	NVIC_API::EnableIRQ(IRQn_Type::ETH_IRQn);
-	NVIC_API::SetPriority(IRQn_Type::ETH_IRQn, 0);
+	NVIC_API::SetPriority<IRQn_Type::ETH_IRQn,0>();
+    NVIC_API::enable_irq<IRQn_Type::ETH_IRQn>();
 }
 
 void ETH_RxDescInit(void) {

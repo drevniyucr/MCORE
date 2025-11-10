@@ -265,7 +265,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 			conn->rcv_next = client_seq + 1;		//syn +1 my_seq
 			conn->client_window = client_window;
 			conn->window_size = SOCKET_RX_BUFF_LEN;
-			conn->tcp_my_seq = SysTick::_STCVR::read(); // @suppress("Field cannot be resolved")
+            conn->tcp_my_seq = SysTick::_STCVR::read();
 			conn->snd_unack = conn->tcp_my_seq;
 			conn->state = tcp_state_t::TCP_SYN_RCVD;
 			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,

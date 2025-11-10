@@ -61,8 +61,8 @@ set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/STM32F767ZITX_FLASH.ld)
 
 # Исходники
 file(GLOB SRC
-    Core/Src/*.c
-    Core/Src/*.cpp
+   Core/Src/*.c
+   Core/Src/*.cpp
     Core/Startup/startup_stm32f767zitx.s
     # Core/Src/main.cpp
     # Core/Src/mcore_mpu.cpp
