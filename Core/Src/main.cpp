@@ -352,7 +352,7 @@ void GPIO_Init(void) {
 
 	RCC_GPIO_ALLEN();
 
-	GPIO_Config GPIO_ConfigStruct = { };
+	GPIO_Config GPIO_ConfigStruct = {};
 	uint32_t pin_mask;
 
 	/**ETH GPIO Configuration
@@ -378,7 +378,7 @@ void GPIO_Init(void) {
 	GPIO_ConfigPin<GPIOB>(GPIO_ConfigStruct, 13); //PB13
 
 	pin_mask = (1U << 1) | (1U << 4) | (1U << 5); //PC1,4,5
-//	GPIO_ConfigGroupPin<GPIOC>(GPIO_ConfigStruct, pin_mask);
+	GPIO_ConfigGroupPin<GPIOC>(GPIO_ConfigStruct, pin_mask);
 
 	pin_mask = (1U << 11) | (1U << 13); //PG11,13
 	GPIO_ConfigGroupPin<GPIOG>(GPIO_ConfigStruct, pin_mask);

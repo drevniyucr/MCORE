@@ -64,21 +64,12 @@ struct NVIC_API
 
     template<typename IRQ, uint32_t priority>
     [[gnu::always_inline]] 
-    static inline void SetPriority()
+    static void SetPriority()
     requires(priority < 16)
-    {
-        IRQ::Priority::write(priority << 4U);
+    {   
+        IRQ::Priority::template write(priority << 4U);
     }
 
-    template<typename IRQ>
-    [[gnu::always_inline]]
-	 static inline void __NVIC_EnableIRQ(IRQn_Type IRQn)
-    {
-      if ((int32_t)(IRQn) >= 0)
-      {
-        NVIC->ISER[(((uint32_t)IRQn) >> 5UL)] = (uint32_t)(1UL << (((uint32_t)IRQn) & 0x1FUL));
-      }
-    }
 
     template<typename IRQ>
     [[gnu::always_inline]] 

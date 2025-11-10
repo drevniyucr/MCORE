@@ -31,7 +31,7 @@ constexpr  _MPU::RegionConfig region1_eth_rx = {
     .cacheable = false,
     .bufferable = false,
     .subregionDisable = 0,
-    .size = _MPU::regionSize::REGION_SIZE_32KB,
+    .size = _MPU::regionSize::REGION_SIZE_16KB,
     .enable = true
 };
 

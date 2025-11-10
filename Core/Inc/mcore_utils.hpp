@@ -377,7 +377,7 @@ inline static void write(T Val) noexcept
 requires(!std::is_same_v<access, ReadOnly>)
 {
     uint32_t value = static_cast<uint32_t>(Val);
-    assert((value & BitMskNoShft) != 0);
+    assert((value & !BitMskNoShft) == 0U);
     if constexpr (Mode::value)
     {
       //  write_atomic_impl(value);

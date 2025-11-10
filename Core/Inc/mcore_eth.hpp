@@ -82,8 +82,7 @@
 #define ETH_DMAPTPRXDESC_PTPFT                           0x00001000U  /* PTP Frame Type */
 #define ETH_DMAPTPRXDESC_PTPMT                           0x00000F00U  /* PTP Message Type */
 #define ETH_DMAPTPRXDESC_PTPMT_SYNC                      0x00000100U  /* SYNC message                                                                                 (all clock types) */
-#define ETH_DMAPTPRXDESC_PTPMT_FOLLOWUP                  0x00000200U  /* FollowUp message
-                                                                                   (all clock types) */
+#define ETH_DMAPTPRXDESC_PTPMT_FOLLOWUP                  0x00000200U  /* FollowUp message (all clock types) */
 #define ETH_DMAPTPRXDESC_PTPMT_DELAYREQ                  0x00000300U  /* DelayReq message
                                                                                    (all clock types) */
 #define ETH_DMAPTPRXDESC_PTPMT_DELAYRESP                 0x00000400U  /* DelayResp message
