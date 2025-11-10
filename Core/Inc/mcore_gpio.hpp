@@ -58,7 +58,6 @@ enum class AF : uint8_t {
     AF15 = 15  // Eventout
 };
 
-
 struct GPIO_Config {
     Mode  mode;        // Режим работы
     OType otype;      // Тип выхода

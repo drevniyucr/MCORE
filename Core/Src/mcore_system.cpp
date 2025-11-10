@@ -144,3 +144,43 @@ uint32_t SysTick_Config(uint32_t ticks)
 
   return (0UL); /* Function successful */
 }
+
+extern "C" void NMI_Handler(void)
+{
+   while (1){}
+}
+
+extern "C" void HardFault_Handler(void)
+{
+  while (1){}
+}
+
+extern "C" void MemManage_Handler(void)
+{
+  while (1){}
+}
+
+extern "C" void BusFault_Handler(void)
+{
+  while (1){}
+}
+
+extern "C" void UsageFault_Handler(void)
+{
+  while (1){}
+}
+
+extern "C" void SVC_Handler(void)
+{
+ 
+}
+
+extern "C" void DebugMon_Handler(void)
+{
+ 
+}
+
+extern "C" void PendSV_Handler(void)
+{
+ 
+}

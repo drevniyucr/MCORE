@@ -25,16 +25,13 @@ void RCC_Init(void);
 // void TIM3_Init(void);
 void Error_Handler(void);
 
-// uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
-// uint8_t dst_ip[] = { 192, 168, 0, 10 };
-// uint8_t dst_mac[] = { 0xD8, 0x43, 0xAE, 0x7D, 0x7B, 0x40 };
+uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
+uint8_t dst_ip[] = { 192, 168, 0, 10 };
+uint8_t dst_mac[] = { 0xD8, 0x43, 0xAE, 0x7D, 0x7B, 0x40 };
 
-// uint32_t t_rise[6] = { };
-// uint32_t high_time[6] = { };
-// uint8_t waiting_fall[6] = { };
 
-// UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, // @suppress("Invalid arguments")
-// 		reinterpret_cast<uint8_t*>(high_time), sizeof(high_time) };
+UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, // @suppress("Invalid arguments")
+		udp_data, sizeof(udp_data) };
 
 int main(void)
 {   
@@ -48,19 +45,19 @@ int main(void)
     ETH_Init();
     // TIM2_Init();
     // TIM3_Init();
-    // NET_TCP_Init();
-    // uint32_t tickstart = get_tick();
-    NVIC_API::enable_irq(); 
+    NET_TCP_Init();
+    uint32_t tickstart = get_tick();
+    NVIC_API::enable_irq_global();
     while (true)
     {
-        // ETH_RxWorker();
-        // if ((get_tick() - tickstart) > 5000) {
-        // 	tickstart = get_tick();
-        // 	if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
-        // 	NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
-        //NET_SendUDP(UDPframe);
-        // 	}
-        // }
+        ETH_RxWorker();
+        if ((get_tick() - tickstart) > 5000) {
+        	tickstart = get_tick();
+        	if (tcp_clients[9].state == tcp_state_t::TCP_ESTABLISHED){
+        	NET_TCP_SendUser(&tcp_clients[9], udp_data,sizeof(udp_data));
+        NET_SendUDP(UDPframe);
+        	}
+        }
     }
 }
 void RCC_Init(void)
