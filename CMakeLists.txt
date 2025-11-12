@@ -52,7 +52,7 @@ project(STM32F767 LANGUAGES C CXX ASM)
 # CPU / компилятор
 set(CPU_FLAGS -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard)
 # C flags
-set(C_FLAGS ${CPU_FLAGS} -Os -ffunction-sections -fdata-sections -Wall -Wextra)
+set(C_FLAGS ${CPU_FLAGS} -O1 -ffunction-sections -fdata-sections -Wall -Wextra)
 # C++ flags
 set(CXX_FLAGS ${C_FLAGS} -fno-rtti -fno-exceptions -std=c++20)
 
@@ -64,15 +64,6 @@ file(GLOB SRC
    Core/Src/*.c
    Core/Src/*.cpp
     Core/Startup/startup_stm32f767zitx.s
-    # Core/Src/main.cpp
-    # Core/Src/mcore_mpu.cpp
-    # Core/Src/mcore_rcc.cpp
-    # Core/Src/mcore_eth.cpp
-    # Core/Src/mcore_nvic.cpp
-    # Core/Src/mcore_system.cpp
-    # Core/Src/mcore_gpio.cpp
-    # Core/Src/stm32f7xx_it.c
-    # Core/Src/syscalls.c
 )
 
 add_executable(${PROJECT_NAME} ${SRC})
@@ -83,11 +74,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE STM32F767xx
    # Drivers/CMSIS/Include
 )
 
+set(LINKER_MAP_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")
+
 
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:C>:${C_FLAGS}>)
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${CXX_FLAGS}>)
 
-set(LINKER_MAP_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")
 
 target_link_options(${PROJECT_NAME} PRIVATE
     ${CPU_FLAGS}

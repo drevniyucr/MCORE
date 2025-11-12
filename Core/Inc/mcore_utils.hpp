@@ -55,83 +55,6 @@ concept WriteValReq = (!std::is_same_v<Access, ReadOnly> &&
 template<uintptr_t Address, typename Access, typename RegT>
 struct Register
 {
-    private:
-    // ------------------- atomic impl -------------------
-     #if defined(USE_CMSIS_ATOMICS)
-    // Если у вас есть CMSIS-интринсики (проверьте имена в вашей среде)
-    [[gnu::always_inline]] static void write_atomic_impl(uint32_t value) noexcept
-    {
-        volatile uint32_t* addr = Reg::ptr();
-        uint32_t           expected, result;
-        const uint32_t     set_bits   = (value & raw_mask_no_shift) << Offset;
-        const uint32_t     clear_mask = mask;
-
-        do
-        {
-            expected     = __LDREXW(reinterpret_cast<volatile uint32_t*>(addr));
-            uint32_t tmp = (expected & ~clear_mask) | set_bits;
-            result       = __STREXW(tmp, reinterpret_cast<volatile uint32_t*>(addr));
-        } while (result != 0);
-        __DMB();    // memory barrier if needed
-    }
-
-    template<typename F>
-    [[gnu::always_inline]] static void modify_atomic_impl(F&& f) noexcept
-    {
-        volatile uint32_t* addr = Reg::ptr();
-        uint32_t           res;
-        do
-        {
-            uint32_t cur   = __LDREXW(reinterpret_cast<volatile uint32_t*>(addr));
-            uint32_t field = (cur >> Offset) & raw_mask_no_shift;
-            uint32_t next  = static_cast<uint32_t>(f(field)) & raw_mask_no_shift;
-            uint32_t tmp   = (cur & ~mask) | (next << Offset);
-            res            = __STREXW(tmp, reinterpret_cast<volatile uint32_t*>(addr));
-        } while (res != 0);
-        __DMB();
-    }
-#else
-    // Inline ASM fallback (ARMv7-M style LDREX/STREX)
-    [[gnu::always_inline]]
-    inline static void write_atomic_impl(const uint32_t clr_mask, const uint32_t set_mask) noexcept
-    {
-        volatile uint32_t* addr = ptr();
-        uint32_t           tmp, res;
-
-        do{
-            asm volatile("ldrex %0, [%3]\n"
-                         "bic   %0, %0, %4\n"
-                         "orr   %0, %0, %5\n"
-                         "strex %1, %0, [%3]\n"
-                         : "=&r"(tmp), "=&r"(res)
-                         : "0"(tmp), "r"(addr), "r"(clr_mask), "r"(set_mask)
-                         : "memory");
-        } while (res != 0);
-        asm volatile("" ::: "memory");
-    }
-
-    // template<typename F>
-    // [[gnu::always_inline]] static void modify_atomic_impl(F&& f) noexcept
-    // {
-    //     volatile uint32_t* addr = Reg::ptr();
-    //     uint32_t           cur, tmp, res;
-
-    //     do
-    //     {
-    //         asm volatile("ldrex %0, [%3]\n" : "=&r"(cur) : "r"(addr) : "memory");
-
-    //         uint32_t field = (cur >> Offset) & raw_mask_no_shift;
-    //         uint32_t next  = static_cast<uint32_t>(f(field)) & raw_mask_no_shift;
-    //         tmp            = (cur & ~mask) | (next << Offset);
-
-    //         asm volatile("strex %0, %1, [%2]\n"
-    //                      : "=&r"(res)
-    //                      : "r"(tmp), "r"(addr)
-    //                      : "memory");
-    //     } while (res != 0);
-    //     asm volatile("" ::: "memory");
-    // }
-    #endif
     public:
     
     static_assert((Address % 4) == 0, "Register address must be 4-byte aligned");
@@ -249,10 +172,10 @@ private:
 
     // raw mask for width without shift (safe for Width==32)
     constexpr static uint32_t raw_mask_no_shift =
-        (Width == 32) ? 0xFFFFFFFFU : ((1U << Width) - 1U);
+        (Width >= 32) ? 0xFFFFFFFFU : ((1U << Width) - 1U);
     // shifted mask (safe)
     constexpr static uint32_t mask =
-        (Width == 32) ? 0xFFFFFFFFu : (raw_mask_no_shift << Offset);
+        (Width >= 32) ? 0xFFFFFFFFu : (raw_mask_no_shift << Offset);
 
     // ------------------- atomic impl -------------------
 #if defined(USE_CMSIS_ATOMICS)
@@ -273,23 +196,24 @@ private:
         __DMB();    // memory barrier if needed
     }
 
-    template<typename F>
-    [[gnu::always_inline]] static void modify_atomic_impl(F&& f) noexcept
+    [[gnu::always_inline]]
+    inline static void modify_atomic_impl(auto&& f) noexcept
     {
         volatile uint32_t* addr = Reg::ptr();
-        uint32_t           res;
+        uint32_t expected, result;
+        const uint32_t clear_mask = mask;
         do
         {
-            uint32_t cur   = __LDREXW(reinterpret_cast<volatile uint32_t*>(addr));
-            uint32_t field = (cur >> Offset) & raw_mask_no_shift;
+            expected = __LDREXW(addr);
+            uint32_t field = (expected >> pos) & raw_mask_no_shift;
             uint32_t next  = static_cast<uint32_t>(f(field)) & raw_mask_no_shift;
-            uint32_t tmp   = (cur & ~mask) | (next << Offset);
-            res            = __STREXW(tmp, reinterpret_cast<volatile uint32_t*>(addr));
-        } while (res != 0);
+            uint32_t tmp   = (expected & ~clear_mask) | ((next << pos) & clear_mask);
+            result = __STREXW(tmp, addr);
+        } while (result != 0);
         __DMB();
     }
 #else
-    // Inline ASM fallback (ARMv7-M style LDREX/STREX)
+    //Inline ASM fallback (ARMv7-M style LDREX/STREX)
     [[gnu::always_inline]] 
     inline static void write_atomic_impl(uint32_t value) noexcept
     {
@@ -310,28 +234,35 @@ private:
         } while (res != 0);
         asm volatile("" ::: "memory");
     }
-
-    template<typename F>
-    [[gnu::always_inline]] 
-    inline static void modify_atomic_impl(F&& f) noexcept
+    // Inline ASM fallback
+    [[gnu::always_inline]]
+    inline static void modify_atomic_impl(auto&& f) noexcept
     {
         volatile uint32_t* addr = Reg::ptr();
-        uint32_t           cur, tmp, res;
-
+        const uint32_t clear_mask = mask;
+        uint32_t tmp, res;
         do
         {
-            asm volatile("ldrex %0, [%3]\n" : "=&r"(cur) : "r"(addr) : "memory");
+            uint32_t expected;
+            asm volatile(
+                "ldrex %0, [%3]\n"
+                : "=&r"(expected)
+                : "r"(addr)
+                : "memory");
 
-            uint32_t field = (cur >> Offset) & raw_mask_no_shift;
+            uint32_t field = (expected >> pos) & raw_mask_no_shift;
             uint32_t next  = static_cast<uint32_t>(f(field)) & raw_mask_no_shift;
-            tmp            = (cur & ~mask) | (next << Offset);
+            uint32_t set_bits = (next << pos) & clear_mask;
 
-            asm volatile("strex %0, %1, [%2]\n"
-                         : "=&r"(res)
-                         : "r"(tmp), "r"(addr)
-                         : "memory");
+            asm volatile(
+                "bic   %0, %0, %3\n"
+                "orr   %0, %0, %4\n"
+                "strex %1, %0, [%2]\n"
+                : "=&r"(tmp), "=&r"(res)
+                : "r"(addr), "r"(clear_mask), "r"(set_bits)
+                : "memory");
         } while (res != 0);
-        asm volatile("" ::: "memory");
+        asm volatile("dmb sy" ::: "memory");
     }
 #endif
 
@@ -349,19 +280,19 @@ public:
     inline static uint32_t read() noexcept
     requires(!std::is_same_v<access, WriteOnly>)
     {
-        return (Reg::read() >> Offset) & raw_mask_no_shift;
+        return (Reg::read() >> pos) & BitMskNoShft;
     }
 
     // ---------- WRITE ----------
-template<auto Val, typename Mode = access_mode<false>>
-[[gnu::always_inline]]
-inline static void write() noexcept
-requires(ValueValid<Val, BitMskNoShft> && WriteValReq<access,Val>)
-{
+    template<auto Val, typename Mode = access_mode<false>>
+    [[gnu::always_inline]]
+    inline static void write() noexcept
+    requires(ValueValid<Val, BitMskNoShft> && WriteValReq<access,Val>)
+    {
     constexpr uint32_t value = static_cast<uint32_t>(Val);
     if constexpr (Mode::value)
     {
-      //  write_atomic_impl(value);
+      write_atomic_impl(value);
     }
     else
     {
@@ -377,15 +308,15 @@ inline static void write(T Val) noexcept
 requires(!std::is_same_v<access, ReadOnly>)
 {
     uint32_t value = static_cast<uint32_t>(Val);
-    assert((value & !BitMskNoShft) == 0U);
+    assert((value & ~BitMskNoShft) == 0U);
     if constexpr (Mode::value)
     {
-      //  write_atomic_impl(value);
+        write_atomic_impl(value);
     }
     else
     {
         uint32_t regv = Reg::read();
-        regv = (regv & ~mask) | ((value << pos) & mask);
+        regv = (regv & ~mask) | ((value & BitMskNoShft) << pos);
         Reg::overwrite(regv);
     }
 }
@@ -394,17 +325,17 @@ requires(!std::is_same_v<access, ReadOnly>)
     template<typename T, typename Mode = access_mode<false>>
     [[gnu::always_inline]]
     inline static void modify(T&& f) noexcept
-        requires(!std::is_same_v<access, ReadOnly>)
+    requires(!std::is_same_v<access, ReadOnly>)
     {
         if constexpr (Mode::value)
         {
-          //  modify_atomic_impl(std::forward<T>(f));
+          modify_atomic_impl(std::forward<T>(f));
         } else
         {
             uint32_t cur     = Reg::read();
-            uint32_t field   = (cur >> Offset) & raw_mask_no_shift;
-            uint32_t next    = static_cast<uint32_t>(f(field)) & raw_mask_no_shift;
-            uint32_t new_val = (cur & ~mask) | (next << Offset);
+            uint32_t field   = (cur >> pos) & BitMskNoShft;
+            uint32_t next    = static_cast<uint32_t>(f(field)) & BitMskNoShft;
+            uint32_t new_val = (cur & ~mask) | (next << pos);
             Reg::overwrite(new_val);
         }
     }
@@ -417,7 +348,7 @@ requires(!std::is_same_v<access, ReadOnly>)
     {
         if constexpr (Mode::value)
         {
-           // write_atomic_impl(1u);
+            write_atomic_impl(1u);
         } else
         {
             Reg::template setMask<mask>();
@@ -431,7 +362,7 @@ requires(!std::is_same_v<access, ReadOnly>)
     {
         if constexpr (Mode::value)
         {
-           // write_atomic_impl(0u);
+            write_atomic_impl(0u);
         } else
         {
             Reg::template clearMask<mask>();

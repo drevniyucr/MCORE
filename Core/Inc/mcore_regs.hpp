@@ -43,7 +43,8 @@ struct SCB {
     };
 
     // DEMCR: Manages vector catch behaviour and DebugMonitor handling when debugging
-    struct _DEMCR : Register <0xE000EDFC, ReadOnly, _DEMCR> {
+    struct _DEMCR : Register <0xE000EDFC, ReadWrite, _DEMCR> {
+        using TRCENA = Field <_DEMCR, 24, 1>; // Bits [24] : Enable trace and debug block
         using MON_EN = Field <_DEMCR, 16, 1>; // Bits [16] : Enable the DebugMonitor exception
         using MON_PEND = Field <_DEMCR, 17, 1>; // Bits [17] : Sets or clears the pending state of the DebugMonitor exception
     };
@@ -352,6 +353,61 @@ struct FPU {
     };
 
 }; // struct FPU
+// --------------------------------------------
+// DWT: Data Watchpoint and Trace
+// --------------------------------------------
+struct DWT
+{
+    // Базовый адрес блока DWT
+    static constexpr uint32_t DWT_BASE = 0xE0001000;
+
+    // DWT_CTRL: Control register
+    struct _CTRL : Register<DWT_BASE + 0x000, ReadWrite, _CTRL>
+    {
+        using CYCCNTENA = Field <_CTRL, 0, 1>; // Bit 0: Enable CYCCNT
+    };
+
+    // DWT_CYCCNT: Cycle Count Register
+    struct _CYCCNT : Register<DWT_BASE + 0x004, ReadWrite, _CYCCNT>
+    {
+        using VALUE = Field<_CYCCNT, 0, 32>; // Bits [31:0]: Cycle counter
+    };
+};
+
+// --------------------------------------------
+// ITM: Instrumentation Trace Macrocell
+// --------------------------------------------
+struct ITM
+{
+    constexpr static uint32_t ITM_BASE = 0xE0000000UL;
+    // Stimulus Ports (32 каналa)
+
+    struct _PORT0 : Register<ITM_BASE, ReadWrite, _PORT0>
+    {
+        using u8  = Field<_PORT0, 0, 8>;
+        using u16 = Field<_PORT0, 0, 16>;
+        using u32 = Field<_PORT0, 0, 32>;    
+    };
+
+    // Trace Enable Register
+    struct _TER : Register<ITM_BASE + 0xE00, ReadWrite, _TER>
+    {
+        using STIMENA0 = Field<_TER, 0, 1>; // Включение канала 0
+    };
+
+    // Trace Control Register
+    struct _TCR : Register<ITM_BASE + 0xE80, ReadWrite, _TCR>
+    {
+        using ITMENA  = Field<_TCR, 0, 1>;  // Разрешение ITM
+        using TSENA   = Field<_TCR, 1, 1>;  // Включение Timestamp
+        using SWOENA  = Field<_TCR, 4, 1>;  // Разрешение вывода на SWO
+    };
+     // Lock Access Register
+    struct _LAR : Register<ITM_BASE + 0xFB0, ReadWrite, _LAR>
+    {
+    
+    };
+};
 
 // --------------------------------------------
 // SysTick: System Timer registers

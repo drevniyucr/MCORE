@@ -89,6 +89,7 @@ struct RegionConfig {
 };
 
 // Build RASR register value from RegionConfig. Can be evaluated at compile-time
+[[gnu::always_inline]]
 constexpr inline uint32_t buildRASR(const RegionConfig &cfg) noexcept {
 	return (static_cast<uint32_t>(cfg.instructionAccessDisable) << MPU::_MPU_RASR::XN::pos)
 		| (static_cast<uint32_t>(cfg.accessPermission) << MPU::_MPU_RASR::AP::pos)
@@ -100,13 +101,13 @@ constexpr inline uint32_t buildRASR(const RegionConfig &cfg) noexcept {
 		| (static_cast<uint32_t>(cfg.size) << MPU::_MPU_RASR::SIZE::pos)
 		| (static_cast<uint32_t>(cfg.enable) << MPU::_MPU_RASR::ENABLE::pos);
 }
-
+[[gnu::always_inline]]
 inline static void disable() {
 	__DMB();
 	SCB::_SHCSR::MEMFAULTENA::clear();
 	MPU::_MPU_CTRL::clear();
 }
-
+[[gnu::always_inline]]
 inline static void enable() {
 	MPU::_MPU_CTRL::bitSet<MPU::_MPU_CTRL::ENABLE, MPU::_MPU_CTRL::PRIVDEFENA>();
 	SCB::_SHCSR::MEMFAULTENA::set();
@@ -114,6 +115,7 @@ inline static void enable() {
 	__ISB();
 }
 template<RegionConfig cfg>
+[[gnu::always_inline]]
 inline static void configure() {
 	
 	MPU::_MPU_RNR ::REGION::write<cfg.regionNum>();

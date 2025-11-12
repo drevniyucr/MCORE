@@ -17,12 +17,33 @@
  */
 
 #include "mcore.hpp"
+#include <cstdio>
 
 void GPIO_Init(void);
 void RCC_Init(void);
 // void TIM2_Init(void);
 // void TIM3_Init(void);
 void Error_Handler(void);
+
+void print(const char *str){
+ while (*str){
+	 if ((ITM::_TCR::ITMENA::read() != 0UL) && (ITM::_TER::STIMENA0::read() != 0UL))   // проверяем включен ли ITM и порт 0
+    {
+        while (ITM::_PORT0::u32::read() == 0){         
+			__NOP();
+		}
+		ITM::_PORT0::u8::write(*str);
+    }
+	 str++;
+ }
+}
+
+void DWT_Init(void)
+{
+	SCB::_DEMCR::TRCENA::set();
+	DWT::_CYCCNT::VALUE::write(0U);
+	DWT::_CTRL::CYCCNTENA::set(); // Enable the cycle counter
+}
 
 uint8_t udp_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
 uint8_t dst_ip[] = { 192, 168, 0, 10 };
@@ -31,14 +52,25 @@ uint8_t dst_mac[] = { 0xD8, 0x43, 0xAE, 0x7D, 0x7B, 0x40 };
 
 UDP_SendFrameStruct UDPframe = { dst_mac, dst_ip, 64746, 5000, // @suppress("Invalid arguments")
 		udp_data, sizeof(udp_data) };
+char buf[64];
 
 int main(void)
-{   
+{  
+	SCB::_DEMCR::setMask(1U<<24U);
+	DWT::_CYCCNT::overwrite(0U);
+	DWT::_CTRL::setMask(1U); // Enable the cycle counter
+	uint32_t DWTctrl = DWT::_CTRL::read();
+	uint32_t DEMCR = SCB::_DEMCR::read();
+	uint32_t start = DWT::_CYCCNT::read();
+	SystemInit();
+	NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
+	RCC_Init();
     MPU_Config();
     SCB_EnableICache();
+//	ITM::_LAR::overwrite(0xC5ACCE55);
+//	ITM::_TCR::overwrite(0x10009U);    // Enable ITM + Trace Bus
+//	ITM::_TER::overwrite(1U);          // Разрешить порт 0
     // SCB_EnableDCache(); может быть не стоит
-    NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
-    RCC_Init();
     enableEthInterface();
     GPIO_Init();
     ETH_Init();
@@ -47,7 +79,18 @@ int main(void)
     NET_TCP_Init();
     uint32_t tickstart = get_tick();
     NVIC_API::enable_irq_global();
-    while (true)
+    uint32_t end = DWT::_CYCCNT::read();
+	sprintf(buf, "spend %lu cycles\n", end - start);
+	print(buf);
+	sprintf(buf, "DWT CTRL %lu \n", DWTctrl);
+	print(buf);
+	sprintf(buf, "start %lu \n", start);
+	print(buf);
+	sprintf(buf, "end %lu \n", end);
+	print(buf);
+	sprintf(buf, "DEMCR %lu \n", DEMCR);
+	print(buf);
+	while (true)
     {
         ETH_RxWorker();
         if ((get_tick() - tickstart) > 5000) {
