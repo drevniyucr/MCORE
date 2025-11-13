@@ -42,7 +42,8 @@
         ],
         "postLaunchCommands": [
             "monitor reset init",
-            "monitor sleep 100"
+            "monitor sleep 100",
+            "reset"
         ],
             
             // Дополнительные настройки

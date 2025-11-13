@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include"mcore_def.hpp"
+#include "mcore_def.hpp"
 
 
 // Режим работы пина (MODER)
@@ -115,7 +115,7 @@ void GPIO_ConfigPin(GPIO_Config& cfg, uint8_t pin_number) {
 	}
 }
 template <typename Port>
-void GPIO_ConfigGroupPin(GPIO_Config& cfg, uint32_t pin_mask) {
+inline void GPIO_ConfigGroupPin(GPIO_Config& cfg, uint32_t pin_mask) {
 
 	uint32_t pos = 0;
 	uint32_t temp = 0x00;

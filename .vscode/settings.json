@@ -1,37 +1,74 @@
 {
-    "cmake.generator": "Ninja",
+  "cmake.generator": "Ninja",
   "cmake.configureEnvironment": {
     "CMAKE_EXPORT_COMPILE_COMMANDS": "on"
   },
+
+  // ---- C/C++ IntelliSense ----
   "C_Cpp.default.intelliSenseMode": "gcc-arm",
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.default.compilerPath": "arm-none-eabi-gcc",
+  "C_Cpp.default.cppStandard": "gnu++20",
+  "C_Cpp.default.cStandard": "gnu17",
+  "C_Cpp.intelliSenseEngine": "default",
+  "C_Cpp.autocompleteAddParentheses": true,
+  "C_Cpp.errorSquiggles": "enabled",
+  "C_Cpp.intelliSenseUpdateDelay": 2000,
+  "C_Cpp.workspaceParsingPriority": "highest",
+  "C_Cpp.intelliSenseMaxMemory": 6144,
+  "C_Cpp.intelliSenseMaxCachedProcesses": 4,
+  "C_Cpp.default.defines": [
+    "__ARM_ARCH_7EM__=1",
+    "__CORTEX_M7=1",
+    "__THUMBEL__=1",
+    "__ARMEL__=1"
+  ],
+  
+  // Suppress false positive template errors
+  "C_Cpp.errorSquiggles": "enabled",
+  "C_Cpp.dimInactiveRegions": false,
+
+  // ---- Cortex Debug ----
+  "cortex-debug.gdbPath": "arm-none-eabi-gdb",
+  "cortex-debug.liveWatchRefreshRate": 500,
+
+  // ---- IntelliSense / автокомплит ----
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": true,
+    "strings": true
+  },
+  "editor.suggestOnTriggerCharacters": true,
+  "editor.acceptSuggestionOnEnter": "on",
+  "editor.tabCompletion": "on",
+  "editor.parameterHints.enabled": true,
+  "editor.suggestSelection": "first",
+  "editor.wordBasedSuggestions": "off",
+
+  // ---- Автоматическая активация подсказок ----
+  "editor.inlineSuggest.enabled": true,
+  "editor.snippetSuggestions": "inline",
+  "editor.suggest.showSnippets": true,
+  "editor.acceptSuggestionOnCommitCharacter": true,
+
+  // ---- Ассоциации файлов ----
   "files.associations": {
-    "*.hpp": "cpp",
-    "type_traits": "cpp",
-    "cstdint": "cpp",
-    "cassert": "cpp",
-    "array": "cpp",
     "bit": "cpp",
     "cmath": "cpp",
     "compare": "cpp",
     "concepts": "cpp",
     "cstdarg": "cpp",
     "cstddef": "cpp",
+    "cstdint": "cpp",
     "cstdio": "cpp",
     "cstdlib": "cpp",
     "cstring": "cpp",
+    "type_traits": "cpp",
     "utility": "cpp",
     "initializer_list": "cpp",
     "limits": "cpp",
     "new": "cpp",
     "typeinfo": "cpp",
-    "xtr1common": "cpp",
-    "atomic": "cpp"
-  },
-  "C_Cpp.default.cppStandard": "gnu++20",
-  "C_Cpp.default.cStandard": "gnu17",
-  "C_Cpp.default.compilerPath": "./arm-none-eabi-gcc.exe",
-  "cortex-debug.liveWatchRefreshRate": 500,
-
-
+    "*.h": "cpp"
+  }
 }

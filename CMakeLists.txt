@@ -47,6 +47,9 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 
 project(STM32F767 LANGUAGES C CXX ASM)
 
+# Export compile commands for clangd and other tools
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 
 
 # CPU / компилятор

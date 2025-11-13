@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include"mcore_def.hpp"
+#include "mcore_def.hpp"
 
 uint16_t checksum(const uint8_t *data, uint16_t len);
 

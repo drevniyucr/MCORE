@@ -1,0 +1,33 @@
+CompileFlags:
+  CompilationDatabase: build
+  Add:
+    - -mcpu=cortex-m7
+    - -mthumb
+    - -mfpu=fpv5-d16
+    - -mfloat-abi=hard
+    - -std=c++20
+    - -I${workspaceFolder}/Core/Inc
+    - -I${workspaceFolder}/Core/Src
+    - -D__ARM_ARCH_7EM__=1
+    - -D__CORTEX_M7=1
+    - -D__THUMBEL__=1
+    - -D__ARMEL__=1
+    - -D_DEBUG=1
+    - -fno-rtti
+    - -fno-exceptions
+    - -Wno-unknown-attributes
+    - -Wno-unused-template
+    - -Wno-unused-member-function
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
+  Suppress:
+    - unused-includes
+    - missing-includes
+    - unused-template
+    - no-member
+    - incomplete-type
+Index:
+  Background: Build
+InlayHints:
+  Enabled: false

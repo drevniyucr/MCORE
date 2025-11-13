@@ -185,7 +185,8 @@ ETH_Status ETH_Init(void);
 void ETH_RxDescInit(void);
 void ETH_TxDescInit(void);
 void ETH_RxWorker(void);
-void ETH_SendFrame(uint32_t len);
+bool ETH_SendFrame(uint32_t len);
+bool ETH_IsTxBufferAvailable(void);
 
 ETH_Status PHY_Init(void);
 bool PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue);

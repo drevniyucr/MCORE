@@ -18,7 +18,7 @@ void delay_ms(uint32_t ms) {
 	}
 }
 
-uint32_t get_tick(void) {
+uint32_t get_tick() {
 	return myTick;
 }
 
@@ -43,7 +43,7 @@ void print(const char *fmt, ...)
     }
 }
 
-inline static void DWT_Init(void)
+inline static void DWT_Init()
 {
 	SCB::_DEMCR::TRCENA::set();
 	DWT::_LAR::overwrite(0xC5ACCE55);// unlock access DWT
@@ -52,7 +52,7 @@ inline static void DWT_Init(void)
 }
 
 
-void SystemInit(void) {
+void SystemInit() {
 	/* FPU settings ------------------------------------------------------------*/
 	SCB::_CPACR::setMask(SCB::_CPACR::CP10::BitMsk | SCB::_CPACR::CP11::BitMsk); /* set CP10 and CP11 Full Access */
 	NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
@@ -60,7 +60,7 @@ void SystemInit(void) {
 
 }
 
-void SystemCoreClockUpdate(void) {
+void SystemCoreClockUpdate() {
 	uint32_t tmp, pllvco, pllp, pllsource, pllm;
 
 	/* Get SYSCLK source -------------------------------------------------------*/

@@ -1,5 +1,5 @@
 /*
- * mcore_tcp.cpp
+ * mcore_tcp.hpp
  *
  *  Created on: Sep 29, 2025
  *      Author: AkimovMA
@@ -8,14 +8,11 @@
 #include "mcore_def.hpp"
 #include "mcore_net.hpp"
 
-
-
 #define TCP_MAX_CONNECTIONS 10
 
 #define TCP_KEEPALIVE_TIMEOUT 20000
 #define TCP_KEEPALIVE_MAX_COUNT 3
 #define TCP_KEEPALIVE_INTERVAL 1000
-
 
 #define TCP_RETRANSMIT_MAX_BUFF_SIZE 512
 #define TCP_RETRANSMISSION_MAX_COUNT 3
@@ -25,13 +22,10 @@
 #define NOT_SAVE_FOR_RETRANSMIT 0
 #define TCP_TEMPLATE_FRAME_LEN 54  // 14 (ETH) + 20 (IP) + 20 (TCP)
 
-//#define TCP_RX_BUFFER_SIZE 1500
-
 #define TCP_LAST_ACK_WAIT_TO_CLOSE 5000
 
 #define SOCKET_RX_BUFF_LEN 5120
 #define SOCKET_TX_BUFF_LEN 1200
-
 
 #define TCP_FIN 0x01
 #define TCP_SYN 0x02
@@ -50,40 +44,45 @@ enum class tcp_state_t : uint8_t {
 	TCP_TIME_WAIT
 };
 
-struct tcp_retransmit_t {
-	uint32_t timestamp;
-	uint32_t seq;
-	uint16_t len;
-	uint8_t is_active;
-	uint8_t attempts;
-	uint8_t payload[TCP_RETRANSMIT_MAX_BUFF_SIZE]; // или указатель на данные
-
-};
-
+/**
+ * @brief TCP connection structure
+ * 
+ * Optimized memory layout:
+ * - 32-bit fields grouped together (minimizes padding)
+ * - 16-bit fields grouped together
+ * - 8-bit fields grouped together
+ * - Large buffers at the end
+ * - Frequently accessed fields at the beginning
+ */
 struct tcp_conn_t {
-	uint32_t time_wait_start;  // для TIME_WAIT
-	uint32_t last_activity;
-	uint32_t last_keepalive;  // для TIME_WAIT// для TIME_WAIT
-	uint32_t tcp_client_seq;
-	uint32_t retransmit_timer;
-	uint32_t tcp_my_seq;
-	uint32_t snd_next;
-	uint32_t client_ip;
-	uint32_t snd_unack;    // Отправлено, но не подтверждено
-	uint32_t rcv_next;    // Ожидаемый номер последовательности
-	uint16_t window_size;
-	uint16_t client_window;// Размер окна
-	uint16_t client_port;
-	uint16_t server_port;
-	uint16_t soc_rx_buff_pos;
-	uint16_t soc_tx_buff_pos;
-	uint8_t retransmit_count;
-	uint8_t socket_tag;
-	uint8_t keep_alive_count;  // для TIME_WAIT
-	uint8_t client_mac[MAC_ADDR_LEN];
-	tcp_state_t state;
-	uint8_t socket_rx_buff[SOCKET_RX_BUFF_LEN];
-	uint8_t socket_tx_buff[SOCKET_TX_BUFF_LEN];
+	// === 32-bit fields (sequence numbers, timers, IP) ===
+	uint32_t client_ip;           // Client IP address (network byte order)
+	uint32_t tcp_my_seq;          // Our sequence number
+	uint32_t tcp_client_seq;      // Client's sequence number
+	uint32_t rcv_next;            // Expected next receive sequence number
+	uint32_t snd_unack;           // Sent but not acknowledged sequence number
+	uint32_t last_activity;       // Last packet activity timestamp
+	uint32_t retransmit_timer;    // Retransmission timer timestamp
+	uint32_t last_keepalive;      // Last keepalive sent timestamp
+	
+	// === 16-bit fields (ports, windows, buffer positions) ===
+	uint16_t client_port;         // Client port number
+	uint16_t server_port;         // Server port number
+	uint16_t window_size;         // Our receive window size
+	uint16_t client_window;       // Client's advertised window size
+	uint16_t soc_rx_buff_pos;     // RX buffer write position
+	uint16_t soc_tx_buff_pos;     // TX buffer position (for retransmission)
+	
+	// === 8-bit fields and small arrays ===
+	uint8_t socket_tag;           // Connection identifier/index
+	uint8_t retransmit_count;     // Number of retransmission attempts
+	uint8_t keep_alive_count;     // Keepalive probe count
+	uint8_t client_mac[MAC_ADDR_LEN];  // Client MAC address
+	tcp_state_t state;            // Current TCP state
+	
+	// === Large buffers (at end to minimize struct size impact) ===
+	uint8_t socket_rx_buff[SOCKET_RX_BUFF_LEN];  // Receive buffer
+	uint8_t socket_tx_buff[SOCKET_TX_BUFF_LEN];  // Retransmission buffer
 };
 
 #pragma pack(push,1)
@@ -121,12 +120,10 @@ struct tcp_hdr_t {
 
 #pragma pack(pop)
 
-
 extern tcp_conn_t tcp_clients[TCP_MAX_CONNECTIONS];
 
 void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags, uint8_t retransmit,
 		const uint8_t *data, uint16_t data_len);
-
 
 void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 		uint32_t seq, uint32_t ack, uint8_t flags);
@@ -142,4 +139,3 @@ int  NET_TCP_ClientAdd(void);
 void NET_TCP_ClientRemove(uint8_t idx);
 
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
-

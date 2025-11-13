@@ -1,36 +1,46 @@
 {
     "configurations": [
         {
-            "name": "STM32F767",
-            "intelliSenseMode": "windows-gcc-arm",
+            "name": "Win32",
             "includePath": [
+                "${workspaceFolder}/**",
                 "${workspaceFolder}/Core/Inc",
                 "${workspaceFolder}/Core/Src"
             ],
             "defines": [
-                "STM32F767xx"
-            ],
-            "compilerArgs": [
-                "-mthumb",
-                "-mcpu=cortex-m7",
-                "-std=c++20"
-            ],
-            "compilerPath": "arm-none-eabi-gcc",
-            "cStandard": "c17",
-            "cppStandard": "c++20"
-        },
-        {
-            "name": "ff",
-            "includePath": [
-                "${workspaceFolder}/**"
-            ],
-            "defines": [
                 "_DEBUG",
-                "UNICODE",
-                "_UNICODE"
+                "__ARM_ARCH_7EM__=1",
+                "__CORTEX_M7=1",
+                "__THUMBEL__=1",
+                "__ARMEL__=1",
+                "__GNUC__",
+                "__GNUC_MINOR__",
+                "__GNUC_PATCHLEVEL__"
             ],
             "windowsSdkVersion": "10.0.22621.0",
-            "compilerPath": "cl.exe"
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "compilerPath": "C:/Users/doomt/scoop/apps/gcc-arm-none-eabi/current/bin/arm-none-eabi-gcc.exe",
+            "intelliSenseMode": "gcc-arm",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++20",
+            "compilerArgs": [
+                "-mcpu=cortex-m7",
+                "-mthumb",
+                "-mfpu=fpv5-d16",
+                "-mfloat-abi=hard",
+                "-fno-rtti",
+                "-fno-exceptions",
+                "-std=c++20",
+                "-Wno-unknown-attributes",
+                "-Wno-unused-template"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}"
+                ],
+                "limitSymbolsToIncludedHeaders": false,
+                "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db"
+            }
         }
     ],
     "version": 4

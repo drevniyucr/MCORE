@@ -8,10 +8,10 @@
             "problemMatcher": [],
             "args": [
                 "--build",
-                 "${workspaceFolder}/build",
+                "${workspaceFolder}/build",
                 "--target",
                 "clean"
-            ],
+            ]
         },
         {
             "args": [
@@ -20,7 +20,7 @@
                 "-S",
                 "${workspaceFolder}",
                 "-B",
-                "${workspaceFolder}\\build",
+                "${workspaceFolder}/build",
                 "-DCMAKE_BUILD_TYPE=Debug"
             ],
             "command": "cmake",
@@ -50,10 +50,10 @@
             "args": [
                 "-O",
                 "binary",
-                "${workspaceFolder}\\build\\STM32F767.elf",
+                "${workspaceFolder}\\build\\STM32F767",
                 "${workspaceFolder}\\build\\STM32F767.bin"
             ],
-            "command": "${OBJCOPY}",
+            "command": "arm-none-eabi-objcopy.exe",
             "dependsOn": "CMake Build",
             "label": "Generate BIN",
             "problemMatcher": [],
@@ -61,9 +61,9 @@
         },
         {
             "args": [
-                "${workspaceFolder}\\build\\STM32F767.elf"
+                "${workspaceFolder}\\build\\STM32F767"
             ],
-            "command": "${SIZE}",
+            "command": "arm-none-eabi-size.exe",
             "dependsOn": "Generate BIN",
             "label": "View Firmware Size",
             "problemMatcher": [],
@@ -90,7 +90,7 @@
                 "-f",
                 "target/stm32f7x.cfg",
                 "-c",
-                "program C:/Users/AkimovMA/Documents/GitHub/MCORE/build/STM32F767.bin 0x08000000 verify reset exit"
+                "program C:/Users/doomt/Documents/GitHub/MCORE/build/STM32F767.bin 0x08000000 verify reset exit"
             ],
             "command": "openocd",
             "label": "Flash MCU",
@@ -110,6 +110,30 @@
             "label": "Build + Flash + Size",
             "problemMatcher": [],
             "type": "shell"
+        },
+        {
+            "type": "cppbuild",
+            "label": "C/C++: clang++.exe сборка активного файла",
+            "command": "C:\\Users\\doomt\\scoop\\apps\\llvm\\current\\bin\\clang++.exe",
+            "args": [
+                "-fcolor-diagnostics",
+                "-fansi-escape-codes",
+                "-g",
+                "${file}",
+                "-o",
+                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+            ],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Задача создана отладчиком."
         }
     ],
     "version": "2.0.0"
