@@ -30,7 +30,7 @@
   },
   "C_Cpp.default.cppStandard": "gnu++20",
   "C_Cpp.default.cStandard": "gnu17",
-  "C_Cpp.default.compilerPath": "c:/Users/doomt/scoop/apps/gcc-arm-none-eabi/current/bin/arm-none-eabi-gcc.exe",
+  "C_Cpp.default.compilerPath": "./arm-none-eabi-gcc.exe",
   "cortex-debug.liveWatchRefreshRate": 500,
 
 

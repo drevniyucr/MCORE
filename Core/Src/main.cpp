@@ -27,9 +27,9 @@ void Error_Handler(void);
 
 void print(const char *str){
  while (*str){
-	 if ((ITM::_TCR::ITMENA::read() != 0UL) && (ITM::_TER::STIMENA0::read() != 0UL))   // проверяем включен ли ITM и порт 0
+	 if ((ITM::_TCR::ITMENA::read() != 0U) && (ITM::_TER::STIMENA0::read() != 0U))   // проверяем включен ли ITM и порт 0
     {
-        while (ITM::_PORT0::u32::read() == 0){         
+        while (ITM::_PORT0::u32::read() == 0U){
 			__NOP();
 		}
 		ITM::_PORT0::u8::write(*str);
@@ -57,8 +57,11 @@ char buf[64];
 int main(void)
 {  
 	SCB::_DEMCR::setMask(1U<<24U);
+	ITM::_LAR::overwrite(0xC5ACCE55);
+	ITM::_TCR::overwrite(0x10009U);    // Enable ITM + Trace Bus
+	ITM::_TER::overwrite(1U);          // Разрешить порт 0
+	DWT::_CTRL::CYCCNTENA::set(); // Enable the cycle counter
 	DWT::_CYCCNT::overwrite(0U);
-	DWT::_CTRL::setMask(1U); // Enable the cycle counter
 	uint32_t DWTctrl = DWT::_CTRL::read();
 	uint32_t DEMCR = SCB::_DEMCR::read();
 	uint32_t start = DWT::_CYCCNT::read();
@@ -67,9 +70,6 @@ int main(void)
 	RCC_Init();
     MPU_Config();
     SCB_EnableICache();
-//	ITM::_LAR::overwrite(0xC5ACCE55);
-//	ITM::_TCR::overwrite(0x10009U);    // Enable ITM + Trace Bus
-//	ITM::_TER::overwrite(1U);          // Разрешить порт 0
     // SCB_EnableDCache(); может быть не стоит
     enableEthInterface();
     GPIO_Init();

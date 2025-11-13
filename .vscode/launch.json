@@ -4,64 +4,66 @@
         {
             "name": "Cortex Debug with SWO ITM",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/firmware.elf",
-            "request": "launch",
+            "executable": "${workspaceFolder}/build/STM32F767",
+           "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",
-            "device": "STM32F407VG",
-            
+         //   "device": "STM32F767ZI",
+          //  "showDevDebugOutput": "both",
+        
             // Конфигурационные файлы OpenOCD
-            "configFiles": [
-                "interface/stlink.cfg",
-                "target/stm32f4x.cfg"
-            ],
+             "configFiles": [
+                "${workspaceFolder}/MCORE_Debug.cfg",
+           //  "board/st_nucleo_f7.cfg"
+             ],
+             "searchDir": [
+                 "${workspaceFolder}/OpenOCD"
+             ],
             
-            // Настройки SWO
+           // Настройки SWO
             "swoConfig": {
                 "enabled": true,
-                "cpuFrequency": 168000000,    // Частота CPU МК
+                "cpuFrequency": 216000000,    // Частота CPU МК
                 "swoFrequency": 2000000,      // Частота SWO (обычно 2 МГц)
-                "source": "probe",            // или "socket", "file"
-                "swoPortMask": 0xFFFFFFFF,    // Маска включенных портов
-                "swoPorts": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+                "source": "socket",            // или "socket", "file"
                 "decoders": [
                     {
                         "type": "console",
                         "label": "ITM Output",
                         "port": 0,           // Стандартный порт для printf
                         "encoding": "ascii"
-                    },
-                    {
-                        "type": "console",
-                        "label": "Debug Port 1",
-                        "port": 1,
-                        "encoding": "ascii"
-                    },
-                    {
-                        "type": "binary",
-                        "label": "Binary Data",
-                        "port": 2
-                    },
-                    {
-                        "type": "hex",
-                        "label": "Hex Data", 
-                        "port": 3
                     }
                 ]
             },
+        //      "rttConfig": {
+        //     "enabled": true,
+        //     "address": "auto",
+        //     "clearSearch": false,
+        //     "polling_interval": 20,
+        //     "rtt_start_retry": 20000,
+        //     "decoders": [
+        //         {
+        //             "label": "RTT channel 0",
+        //             "port": 0,
+        //             "timestamp": true,
+        //             "type": "console"
+        //         }
+        //     ]
+        // },
             
             // Команды инициализации OpenOCD
-            "openOCDLaunchCommands": [
-                "init",
-                "reset init",
-                "arm tpiu config internal :3333 uart off 168000000 2000000",
-                "arm itm port 0 on",
-            ],
+           "preLaunchCommands": [
+            "set mem inaccessible-by-default off",
+            "monitor reset"
+        ],
+        "postLaunchCommands": [
+            "monitor reset init",
+            "monitor sleep 100"
+        ],
             
             // Дополнительные настройки
-            "runToMain": true,
-            "svdFile": "${workspaceFolder}/STM32F407.svd",
-            "postDebugSession": "monitor reset halt"
+            "runToEntryPoint": "main",
+            "svdFile": "${workspaceFolder}/STM32F767.svd"
         }
     ]
 }
