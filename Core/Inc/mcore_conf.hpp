@@ -105,6 +105,9 @@
 
 #define PHY_BCR                         ((uint16_t)0x0000U)    /*!< Transceiver Basic Control Register   */
 #define PHY_BSR                         ((uint16_t)0x0001U)    /*!< Transceiver Basic Status Register    */
+#define PHY_ID1							((uint16_t)0x0002U)
+#define PHY_ID2							((uint16_t)0x0003U)
+
 
 #define PHY_RESET                       ((uint16_t)0x8000U)  /*!< PHY Reset */
 #define PHY_LOOPBACK                    ((uint16_t)0x4000U)  /*!< Select loop-back mode */

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "mcore_def.hpp"
+#include "mcore_system.hpp"
 // Replace old macros with inline accessor functions to enable type safety and easier debugging
+
 static inline void RCC_GPIOAEN() { RCC::_AHB1ENR::GPIOAEN::set(); }
 static inline void RCC_GPIOBEN() { RCC::_AHB1ENR::GPIOBEN::set(); }
 static inline void RCC_GPIOCEN() { RCC::_AHB1ENR::GPIOCEN::set(); }
@@ -112,19 +114,7 @@ struct ClockConfig {
 	bool useHSEBypass;
 	bool useSysTick = true;
 };
-// Основная инициализация тактирования
 
-RCCStatus RCC_ClockInit(const ClockConfig* cfg);
-RCCStatus OSCInit(const ClockConfig* cfg);
-RCCStatus OverDriveInit();
-
-void SetVoltageScale(VoltageScale scale);
-void enablePowerInterface(void);
-void enableEthInterface(void);
-
-// Расчёт итоговой частоты PLL
-uint32_t CalculatePLLCLK(uint32_t inputFreq, uint8_t pllm, uint16_t plln,
-		uint8_t pllp);
 // Wait with timeout
 template <typename Predicate>
 bool waitUntil(Predicate condition, uint32_t timeout) {
@@ -135,4 +125,153 @@ bool waitUntil(Predicate condition, uint32_t timeout) {
         	return true;
     }
     return false;
+}
+
+constexpr uint32_t OVERDRIVE_TIMEOUT = 0xFFFFAAAA;
+constexpr uint32_t CLOCK_SW_TIMEOUT = 0xFFFFAAAA;
+constexpr uint32_t HSE_TIMEOUT = 0xFFFFAAAA;
+constexpr uint32_t PLL_TIMEOUT = 0xFFFFAAAA;
+constexpr uint32_t MS_DIV = 1000U;
+
+static inline void enablePowerInterface(void) {
+	uint32_t tmpreg;
+	RCC::_APB1ENR::PWREN::set();
+	tmpreg = RCC::_AHB1ENR::read();
+	(void) tmpreg;
+}
+
+static inline RCCStatus OverDriveInit()
+{
+	enablePowerInterface();
+
+	PWR::_CR1::ODEN::set();
+	if (waitUntil([]{return PWR::_CSR1::ODRDY::read();}, OVERDRIVE_TIMEOUT))
+		return RCCStatus::OVERDRIVE_FAILED;
+	
+
+	PWR::_CR1::ODSWEN::set();
+	if (waitUntil([]{return PWR::_CSR1::ODSWRDY::read();}, OVERDRIVE_TIMEOUT))
+		return RCCStatus::OVERDRIVE_FAILED;
+	
+	return RCCStatus::OK;
+}
+	
+
+template<VoltageScale scale>	
+static inline void SetVoltageScale() {
+	uint32_t tmpreg;
+	PWR::_CR1::VOS::write(static_cast<uint32_t>(scale));
+	tmpreg = PWR::_CR1::read();
+	(void) tmpreg;
+}
+	
+static inline void enableEthInterface(void) {
+	uint32_t tmpreg;
+	RCC::_AHB1ENR::setMask
+		  < RCC::_AHB1ENR::ETHMACEN::BitMsk
+		  | RCC::_AHB1ENR::ETHMACTXEN::BitMsk
+		  | RCC::_AHB1ENR::ETHMACRXEN::BitMsk>();
+	tmpreg = RCC::_AHB1ENR::read();
+	(void) tmpreg;
+}
+
+template<ClockConfig cfg>
+static inline RCCStatus OSCInit() {	
+
+	// 1. Проверка PLL параметров (валидные диапазоны по Reference Manual)
+	static_assert(cfg.PLLM >= 2 && cfg.PLLM <= 63 && cfg.PLLN >= 50 && cfg.PLLN <= 432, "PLL configuration is out of valid range");
+
+	// 2. Включение HSE (если нужно)
+	if constexpr (cfg.useHSE) {
+		if constexpr (cfg.useHSEBypass) {
+			RCC::_CR::HSEBYP::set();
+		}
+		RCC::_CR::HSEON::set();
+
+		if(waitUntil([]{return RCC::_CR::HSERDY::read();},HSE_TIMEOUT)){
+			RCC::_CR::HSEON::clear();
+			return RCCStatus::HSE_FAILED;
+		}
+	}
+
+	// 3. Настройка PLL
+    RCC::_CR::PLLON::clear();
+	if(waitUntil(([]{return ! RCC::_CR::PLLRDY::read();}), PLL_TIMEOUT)){
+		RCC::_CR::bitReset<RCC::_CR::HSEON, RCC::_CR::PLLON>();
+		return RCCStatus::PLL_FAILED;
+	}
+
+    RCC::_PLLCFGR::clearMask(
+		  (RCC::_PLLCFGR::PLLM::BitMsk)
+		| (RCC::_PLLCFGR::PLLN::BitMsk)
+		| (RCC::_PLLCFGR::PLLP::BitMsk)
+		| (RCC::_PLLCFGR::PLLSRC::BitMsk)
+		);
+
+	RCC::_PLLCFGR::setMask(
+		  (static_cast<uint32_t>(cfg.PLLM) << RCC::_PLLCFGR::PLLM::pos)
+		| (static_cast<uint32_t>(cfg.PLLN) << RCC::_PLLCFGR::PLLN::pos)
+		| (static_cast<uint32_t>(cfg.PLLP) << RCC::_PLLCFGR::PLLP::pos)
+		| (cfg.useHSE ? RCC::_PLLCFGR::PLLSRC::BitMsk : 0U)
+		);
+
+	// 4. Включение PLL и ожидание готовности
+	RCC::_CR::PLLON::set();
+	if(waitUntil([]{return RCC::_CR::PLLRDY::read();}, PLL_TIMEOUT)){
+		RCC::_CR::bitReset<RCC::_CR::HSEON, RCC::_CR::PLLON>();
+		return RCCStatus::PLL_FAILED;
+	}
+	
+	uint32_t tempreg =  RCC::_PLLCFGR::read();
+	constexpr uint32_t pll_p = static_cast<uint32_t>(cfg.PLLP);
+
+	if ( 
+		(((tempreg & RCC::_PLLCFGR::PLLM::BitMsk)
+		>> RCC::_PLLCFGR::PLLM::pos)   != cfg.PLLM) ||
+		(((tempreg & RCC::_PLLCFGR::PLLN::BitMsk)
+		>> RCC::_PLLCFGR::PLLN::pos)  != cfg.PLLN)  ||
+		(((tempreg & RCC::_PLLCFGR::PLLP::BitMsk)
+		>> RCC::_PLLCFGR::PLLP::pos)  != pll_p)       ||
+		(((tempreg & RCC::_PLLCFGR::PLLSRC::BitMsk)
+		>> RCC::_PLLCFGR::PLLSRC::pos) != cfg.useHSE))
+	{
+		return RCCStatus::PLL_FAILED;
+	}
+	else
+	{
+		return RCCStatus::OK;
+	}
+}
+
+template<ClockConfig cfg>
+static inline RCCStatus RCC_ClockInit(){
+	// 5. Настройка Flash latency
+	Flash::_ACR::overwrite(cfg.FLASHLatency);
+	// 6. Настройка делителей шин (обновляем только нужные биты)
+	RCC::_CFGR::clearMask<(RCC::_CFGR::HPRE::BitMsk)>();
+
+	RCC::_CFGR::setMask
+        (static_cast<uint32_t>(cfg.AHBDiv) << RCC::_CFGR::HPRE::pos);
+	// 7. Переключение SYSCLK на PLL
+	RCC::_CFGR::SW::write<SysClkStatus::PLLSrc>();
+	if (waitUntil([]{return RCC::_CFGR::SWS::read();}, OVERDRIVE_TIMEOUT))
+			return RCCStatus::OVERDRIVE_FAILED;
+
+	RCC::_CFGR::clearMask<(
+		RCC::_CFGR::PPRE1::BitMsk | 
+        RCC::_CFGR::PPRE2::BitMsk
+	)>();
+
+	RCC::_CFGR::setMask(
+		(static_cast<uint32_t>(cfg.APB1Div) << RCC::_CFGR::PPRE1::pos) | 
+        (static_cast<uint32_t>(cfg.APB2Div) << RCC::_CFGR::PPRE2::pos));
+
+	// 8. Обновление SystemCoreClock
+	SystemCoreClockUpdate();
+
+	// 9. Настройка SysTick
+	if constexpr (cfg.useSysTick) {
+		SysTick_Config(SystemCoreClock / MS_DIV);
+	}
+	return RCCStatus::OK;
 }

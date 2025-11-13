@@ -45,3 +45,26 @@ inline static void SCB_EnableICache (void)
     __ISB();
 }
 
+[[gnu::always_inline]] 
+inline static void SCB_EnableDCache (void)
+{
+    uint32_t sets,ways;
+ 
+    Cache::_CSSELR::clear();
+    __DSB();
+    sets = Cache::_CCSIDR::NS::read();
+    do {
+        ways = Cache::_CCSIDR::A::read();
+        do{
+            Cache::_DCISW::overwrite(
+                ((sets << Cache::_DCISW::SET::pos) & Cache::_DCISW::SET::BitMsk)|
+                ((ways << Cache::_DCISW::WAY::pos) & Cache::_DCISW::WAY::BitMsk)
+            );
+    }while (ways-- != 0U);
+}while (sets-- != 0U);
+   __DSB();
+   SCB::_CCR::DC::set();
+   __DSB();
+   __ISB();
+}
+

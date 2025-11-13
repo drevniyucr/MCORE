@@ -1,9 +1,3 @@
-/*
- * mcore_eth.hpp
- *
- *  Created on: Sep 18, 2025
- *      Author: AkimovMA
- */
 #pragma once
 
 #include"mcore_def.hpp"
@@ -81,38 +75,23 @@
 #define ETH_DMAPTPRXDESC_PTPV                            0x00002000U  /* PTP Version */
 #define ETH_DMAPTPRXDESC_PTPFT                           0x00001000U  /* PTP Frame Type */
 #define ETH_DMAPTPRXDESC_PTPMT                           0x00000F00U  /* PTP Message Type */
-#define ETH_DMAPTPRXDESC_PTPMT_SYNC                      0x00000100U  /* SYNC message                                                                                 (all clock types) */
+#define ETH_DMAPTPRXDESC_PTPMT_SYNC                      0x00000100U  /* SYNC message(all clock types) */
 #define ETH_DMAPTPRXDESC_PTPMT_FOLLOWUP                  0x00000200U  /* FollowUp message (all clock types) */
-#define ETH_DMAPTPRXDESC_PTPMT_DELAYREQ                  0x00000300U  /* DelayReq message
-                                                                                   (all clock types) */
-#define ETH_DMAPTPRXDESC_PTPMT_DELAYRESP                 0x00000400U  /* DelayResp message
-                                                                                   (all clock types) */
-#define ETH_DMAPTPRXDESC_PTPMT_PDELAYREQ_ANNOUNCE        0x00000500U  /* PdelayReq message
-                                                                                   (peer-to-peer transparent clock)
-                                                                                    or Announce message (Ordinary
-                                                                                    or Boundary clock) */
-#define ETH_DMAPTPRXDESC_PTPMT_PDELAYRESP_MANAG          0x00000600U  /* PdelayResp message
-                                                                                   (peer-to-peer transparent clock)
-                                                                                    or Management message (Ordinary
-                                                                                    or Boundary clock)  */
-#define ETH_DMAPTPRXDESC_PTPMT_PDELAYRESPFOLLOWUP_SIGNAL 0x00000700U  /* PdelayRespFollowUp message
-                                                                                  (peer-to-peer transparent clock)
-                                                                                   or Signaling message (Ordinary
-                                                                                   or Boundary clock) */
+#define ETH_DMAPTPRXDESC_PTPMT_DELAYREQ                  0x00000300U  /* DelayReq message(all clock types) */
+#define ETH_DMAPTPRXDESC_PTPMT_DELAYRESP                 0x00000400U  /* DelayResp message(all clock types) */
+#define ETH_DMAPTPRXDESC_PTPMT_PDELAYREQ_ANNOUNCE        0x00000500U  /* PdelayReq message(peer-to-peer transparent clock)or Announce message (Ordinaryor Boundary clock) */
+#define ETH_DMAPTPRXDESC_PTPMT_PDELAYRESP_MANAG          0x00000600U  /* PdelayResp message(peer-to-peer transparent clock)or Management message (Ordinaryor Boundary clock)  */
+#define ETH_DMAPTPRXDESC_PTPMT_PDELAYRESPFOLLOWUP_SIGNAL 0x00000700U  /* PdelayRespFollowUp message (peer-to-peer transparent clock)or Signaling message (Ordinaryor Boundary clock) or Boundary clock) */
 #define ETH_DMAPTPRXDESC_IPV6PR                          0x00000080U  /* IPv6 Packet Received */
 #define ETH_DMAPTPRXDESC_IPV4PR                          0x00000040U  /* IPv4 Packet Received */
 #define ETH_DMAPTPRXDESC_IPCB                            0x00000020U  /* IP Checksum Bypassed */
 #define ETH_DMAPTPRXDESC_IPPE                            0x00000010U  /* IP Payload Error */
 #define ETH_DMAPTPRXDESC_IPHE                            0x00000008U  /* IP Header Error */
 #define ETH_DMAPTPRXDESC_IPPT                            0x00000007U  /* IP Payload Type */
-#define ETH_DMAPTPRXDESC_IPPT_UDP                        0x00000001U  /* UDP payload encapsulated in
-                                                                                   the IP datagram */
-#define ETH_DMAPTPRXDESC_IPPT_TCP                        0x00000002U  /* TCP payload encapsulated in
-                                                                                   the IP datagram */
-#define ETH_DMAPTPRXDESC_IPPT_ICMP                       0x00000003U  /* ICMP payload encapsulated in
-                                                                                     the IP datagram */
-
-#define ETH_DMATXDESC_CHECKSUMTCPUDPICMPFULL     0x00C00000U
+#define ETH_DMAPTPRXDESC_IPPT_UDP                        0x00000001U  /* UDP payload encapsulated in the IP datagram */
+#define ETH_DMAPTPRXDESC_IPPT_TCP                        0x00000002U  /* TCP payload encapsulated in the IP datagram */
+#define ETH_DMAPTPRXDESC_IPPT_ICMP                       0x00000003U  /* ICMP payload encapsulated in the IP datagram */
+#define ETH_DMATXDESC_CHECKSUMTCPUDPICMPFULL    		 0x00C00000U
 
 
 #define HEAP_POINTER 0x20078000
@@ -120,9 +99,10 @@
 
 #define PHY_ADDR        0x00U
 #define PHY_AUTONEG_EN  (1U << 12)
+#define PHY_RESTART_AUTONEG (1U << 9)
 #define PHY_AUTONEG_DONE (1U << 5)
 
-enum class MACMIIAR_CR:uint8_t {
+enum class MACMIIAR_CR : uint8_t {
 	Div42  = 0b000, /* HCLK:60-100 MHz; MDC clock= HCLK/42 */
 	Div62  = 0b001, /* HCLK:100-150 MHz; MDC clock= HCLK/62 */
 	Div16  = 0b010, /* HCLK:20-35 MHz; MDC clock= HCLK/16 */
@@ -130,7 +110,7 @@ enum class MACMIIAR_CR:uint8_t {
 	Div102 = 0b100  /* HCLK:150-168 MHz; MDC clock= HCLK/102 */
 };
 
-enum class DMABMR_PBL:uint16_t {
+enum class DMABMR_PBL : uint16_t {
 	_1Beat   = 0x01,
 	_2Beats  = 0x02,
 	_4Beats  = 0x04,
@@ -139,11 +119,30 @@ enum class DMABMR_PBL:uint16_t {
 	_32Beats = 0x20
 };
 
-enum class MACFCR_PLT:uint8_t {
-	Minus4   = 0b00,  /* Pause time minus 4 slot times */
-	Minus28   = 0b01, /* Pause time minus 28 slot times */
-	Minus144  = 0b10, /* Pause time minus 144 slot times */
-	Minus246  = 0b11  /* Pause time minus 246 slot times */
+enum class MACFCR_PLT : uint8_t {
+	Minus4   = 0b00, /* Pause time minus 4 slot times */
+	Minus28  = 0b01, /* Pause time minus 28 slot times */
+	Minus144 = 0b10, /* Pause time minus 144 slot times */
+	Minus246 = 0b11  /* Pause time minus 246 slot times */
+};
+enum class MACCR_IFG : uint8_t {
+	_96bit = 0b000,/* interframe gap 96 bit times */
+	_88bit = 0b001,/* interframe gap 88 bit times */
+	_80bit = 0b010,/* interframe gap 80 bit times */
+	_72bit = 0b011,/* interframe gap 72 bit times */
+	_64bit = 0b100,/* interframe gap 64 bit times */
+	_56bit = 0b101,/* interframe gap 56 bit times */
+	_48bit = 0b110,/* interframe gap 48 bit times */
+	_40bit = 0b111 /* interframe gap 40 bit times */
+};
+
+enum class ETH_Status:uint8_t {
+	OK = 0,
+	RESET_FAULT = 1,
+	PHY_RESET_FAULT = 2,
+	PHY_AUTONEG_FAULT = 3,
+	PHY_LINK_DOWN = 4,
+	PHY_ID_FAULT = 5
 };
 
 struct ETH_DMADescStruct{
@@ -182,15 +181,15 @@ extern ETH_TxDescListStruct TxDescList;
 
 
 /* Глобальные Rx/Tx дескрипторы */
-void ETH_Init(void);
+ETH_Status ETH_Init(void);
 void ETH_RxDescInit(void);
 void ETH_TxDescInit(void);
 void ETH_RxWorker(void);
 void ETH_SendFrame(uint32_t len);
 
-void PHY_Init(void);
-void PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue);
-void PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue);
+ETH_Status PHY_Init(void);
+bool PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue);
+bool PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue);
 void PHY_SetMDIOClock(void);
 
 

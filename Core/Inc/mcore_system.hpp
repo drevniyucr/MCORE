@@ -18,3 +18,4 @@ void delay_ms(uint32_t ms);
 uint32_t get_tick(void);
 void SystemInit(void);
 uint32_t SysTick_Config(uint32_t ticks);
+void print(const char *fmt, ...);

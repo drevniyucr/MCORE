@@ -372,6 +372,12 @@ struct DWT
     {
         using VALUE = Field<_CYCCNT, 0, 32>; // Bits [31:0]: Cycle counter
     };
+
+         // Lock Access Register
+    struct _LAR : Register<DWT_BASE + 0xFB0, WriteOnly, _LAR>
+    {
+    
+    };
 };
 
 // --------------------------------------------
@@ -403,7 +409,7 @@ struct ITM
         using SWOENA  = Field<_TCR, 4, 1>;  // Разрешение вывода на SWO
     };
      // Lock Access Register
-    struct _LAR : Register<ITM_BASE + 0xFB0, ReadWrite, _LAR>
+    struct _LAR : Register<ITM_BASE + 0xFB0, WriteOnly, _LAR>
     {
     
     };
@@ -1209,6 +1215,8 @@ struct Cache {
 
     // DCISW: Data cache invalidate by set and way
     struct _DCISW : Register <0xE000EF60, WriteOnly, _DCISW> {
+        using SET = Field <_DCISW, 5, 9>; // Bits [19:5] : Set
+        using WAY = Field <_DCISW, 30, 2>; // Bits [31:30] : Way
     };
 
     // DCCMVAU: Data cache clean by MVA to PoU

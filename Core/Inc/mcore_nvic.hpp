@@ -12,34 +12,6 @@ enum class NVIC_PriorityGroup : uint32_t
     Group4 = 0b011
 };
 
-
-struct SYS_IRQn
-{
-    struct MemoryManagement_IRQn { // < Window WatchDog Interrupt
-        using Priority = SCB::_SHPR1::PRI_4;
-    };
-    struct BusFault_IRQn {// < Bus Fault Interrupt
-        using Priority = SCB::_SHPR1::PRI_5;
-    };
-    struct UsageFault_IRQn {// < Usage Fault Interrupt
-        using Priority = SCB::_SHPR1::PRI_6;
-    };
-    struct SVCall_IRQn {// < SV Call Interrupt
-        using Priority = SCB::_SHPR2::PRI_11;
-    };
-    struct DebugMonitor_IRQn {// < Debug Monitor Interrupt
-        using Priority = SCB::_SHPR3::PRI_12;
-    };
-    struct PendSV_IRQn {// < Pend SV Interrupt
-        using Priority = SCB::_SHPR3::PRI_14;
-    };
-    struct SysTick_IRQn {// < SysTick Interrupt
-        using Priority = SCB::_SHPR3::PRI_15;
-    };
-//   NonMaskableInt_IRQn         = -14,    /*!< 2 Non Maskable Interrupt*/
-};
-
-
 struct NVIC_API
 {
     static constexpr uint32_t VECTKEY        = 0x5FAUL;
@@ -70,22 +42,21 @@ struct NVIC_API
         IRQ::Priority::template write(priority << 4U);
     }
 
-
     template<typename IRQ>
     [[gnu::always_inline]] 
-    static inline void enable_irq()
+    static inline void EnableIRQ()
     {
         IRQ::Enable::setMask(static_cast<uint32_t>(1<<(IRQ::irq_number % 32)));
     }
 
     [[gnu::always_inline]] 
-    static void enable_irq_global(void)
+    static void EnableIRQGlobal(void)
     {
         asm volatile("cpsie i" : : : "memory");
     }
 
     [[gnu::always_inline]] 
-    static void disable_irq(void)
+    static void DisableIRQGlobal(void)
     {
         asm volatile("cpsid i" : : : "memory");
     }

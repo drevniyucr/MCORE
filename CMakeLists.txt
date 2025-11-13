@@ -52,7 +52,7 @@ project(STM32F767 LANGUAGES C CXX ASM)
 # CPU / компилятор
 set(CPU_FLAGS -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard)
 # C flags
-set(C_FLAGS ${CPU_FLAGS} -O1 -ffunction-sections -fdata-sections -Wall -Wextra)
+set(C_FLAGS ${CPU_FLAGS} -Os -ffunction-sections -fdata-sections -Wall -Wextra)
 # C++ flags
 set(CXX_FLAGS ${C_FLAGS} -fno-rtti -fno-exceptions -std=c++20)
 

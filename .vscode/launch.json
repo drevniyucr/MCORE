@@ -8,13 +8,12 @@
            "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",
-         //   "device": "STM32F767ZI",
-          //  "showDevDebugOutput": "both",
+           "device": "STM32F767ZI",
+           "showDevDebugOutput": "both",
         
             // Конфигурационные файлы OpenOCD
              "configFiles": [
                 "${workspaceFolder}/MCORE_Debug.cfg",
-           //  "board/st_nucleo_f7.cfg"
              ],
              "searchDir": [
                  "${workspaceFolder}/OpenOCD"
@@ -25,7 +24,7 @@
                 "enabled": true,
                 "cpuFrequency": 216000000,    // Частота CPU МК
                 "swoFrequency": 2000000,      // Частота SWO (обычно 2 МГц)
-                "source": "socket",            // или "socket", "file"
+                "source": "probe",            // или "socket", "file"
                 "decoders": [
                     {
                         "type": "console",
@@ -35,25 +34,10 @@
                     }
                 ]
             },
-        //      "rttConfig": {
-        //     "enabled": true,
-        //     "address": "auto",
-        //     "clearSearch": false,
-        //     "polling_interval": 20,
-        //     "rtt_start_retry": 20000,
-        //     "decoders": [
-        //         {
-        //             "label": "RTT channel 0",
-        //             "port": 0,
-        //             "timestamp": true,
-        //             "type": "console"
-        //         }
-        //     ]
-        // },
-            
+        
             // Команды инициализации OpenOCD
            "preLaunchCommands": [
-            "set mem inaccessible-by-default off",
+         //   "set mem inaccessible-by-default off",
             "monitor reset"
         ],
         "postLaunchCommands": [

@@ -1,13 +1,8 @@
-/*
- * mcore_system.cpp
- *
- *  Created on: Jul 13, 2025
- *      Author: doomt
- */
-
 #include "mcore_system.hpp"
 #include "mcore_nvic.hpp"
 #include "mcore_conf.hpp"
+#include <cstdarg>
+#include <cstdio>
 
 volatile uint32_t myTick = 0;   // счетчик миллисекунд
 uint32_t SystemCoreClock = 16000000;
@@ -27,9 +22,42 @@ uint32_t get_tick(void) {
 	return myTick;
 }
 
+void print(const char *fmt, ...)
+{
+    char buf[256];  // буфер для форматированной строки
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+
+    const char *str = buf;
+
+    while (*str) {
+        if ((ITM::_TCR::ITMENA::read() != 0U) && (ITM::_TER::STIMENA0::read() != 0U)) {
+            while (ITM::_PORT0::u32::read() == 0U) {
+                __NOP(); // ждём готовности
+            }
+            ITM::_PORT0::u8::write(*str);
+        }
+        str++;
+    }
+}
+
+inline static void DWT_Init(void)
+{
+	SCB::_DEMCR::TRCENA::set();
+	DWT::_LAR::overwrite(0xC5ACCE55);// unlock access DWT
+	DWT::_CYCCNT::VALUE::write(0U);//clear cycle counter
+	DWT::_CTRL::CYCCNTENA::set(); // Enable the cycle counter
+}
+
+
 void SystemInit(void) {
 	/* FPU settings ------------------------------------------------------------*/
 	SCB::_CPACR::setMask(SCB::_CPACR::CP10::BitMsk | SCB::_CPACR::CP11::BitMsk); /* set CP10 and CP11 Full Access */
+	NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
+	DWT_Init();
+
 }
 
 void SystemCoreClockUpdate(void) {
@@ -75,7 +103,7 @@ uint32_t SysTick_Config(uint32_t ticks) {
 	}
 	SysTick::_STRVR::overwrite(ticks - 1U); /* set reload register */
 
-	NVIC_API::SetPriority<SYS_IRQn::SysTick_IRQn, 15>(); /* set Priority for Systick Interrupt */
+	NVIC_API::SetPriority<IRQn_Type::SysTick_IRQn, 15>(); /* set Priority for Systick Interrupt */
 
 	SysTick::_STCVR::overwrite(0U); /* Load the SysTick Counter Value */
 

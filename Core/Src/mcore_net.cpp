@@ -220,19 +220,19 @@ void NET_ProcessICMP(ipv4_frame* frame) {
 	uint8_t* ip = &txBuf[IP_HDR_POS];
 	ip[10] = 0;
 	ip[11] = 0;
-	uint16_t ip_csum = checksum(ip, frame->ip_hdr_len);
-	ip[10] = (uint8_t) (ip_csum >> 8);
-	ip[11] = (uint8_t) (ip_csum & 0xFF);
+	// uint16_t ip_csum = checksum(ip, frame->ip_hdr_len);
+	// ip[10] = (uint8_t) (ip_csum >> 8);
+	// ip[11] = (uint8_t) (ip_csum & 0xFF);
 
 	// ICMP: Echo reply
 	icmp = &ip[frame->ip_hdr_len];
 	icmp[0] = 0; // Echo Reply
 	icmp[2] = 0;
 	icmp[3] = 0;
-	uint16_t icmp_len = frame->ip_len - frame->ip_hdr_len;
-	uint16_t icmp_csum = checksum(icmp, icmp_len);
-	icmp[2] = (uint8_t)(icmp_csum >> 8);
-	icmp[3] = (uint8_t)(icmp_csum & 0xFF);
+	//uint16_t icmp_len = frame->ip_len - frame->ip_hdr_len;
+	// uint16_t icmp_csum = checksum(icmp, icmp_len);
+	// icmp[2] = (uint8_t)(icmp_csum >> 8);
+	// icmp[3] = (uint8_t)(icmp_csum & 0xFF);
 	// Отправляем
 	ETH_SendFrame(frame->ip_len+ETH_HDR_LEN);
 }

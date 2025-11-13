@@ -2,6 +2,31 @@
 #pragma once
 #include "mcore_regs.hpp"
 struct IRQn_Type {
+    //SYSTEM EXCEPTIONS
+    struct NonMaskableInt_IRQn{
+        static constexpr uint32_t irq_number = -14;
+    };
+    struct MemoryManagement_IRQn { // < Window WatchDog Interrupt
+        using Priority = SCB::_SHPR1::PRI_4;
+    };
+    struct BusFault_IRQn {// < Bus Fault Interrupt
+        using Priority = SCB::_SHPR1::PRI_5;
+    };
+    struct UsageFault_IRQn {// < Usage Fault Interrupt
+        using Priority = SCB::_SHPR1::PRI_6;
+    };
+    struct SVCall_IRQn {// < SV Call Interrupt
+        using Priority = SCB::_SHPR2::PRI_11;
+    };
+    struct DebugMonitor_IRQn {// < Debug Monitor Interrupt
+        using Priority = SCB::_SHPR3::PRI_12;
+    };
+    struct PendSV_IRQn {// < Pend SV Interrupt
+        using Priority = SCB::_SHPR3::PRI_14;
+    };
+    struct SysTick_IRQn {// < SysTick Interrupt
+        using Priority = SCB::_SHPR3::PRI_15;
+    };
     struct WWDG_IRQn { // < Window WatchDog Interrupt
         static constexpr uint32_t irq_number = 0;
         using Priority = NVIC::_NVIC_IPR0::PRI_N0;

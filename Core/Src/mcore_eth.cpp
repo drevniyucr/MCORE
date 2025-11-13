@@ -10,15 +10,16 @@
 #include "mcore_tcp.hpp"
 #include "mcore_net.hpp"
 #include "mcore_nvic.hpp"
+#include "mcore_rcc.hpp"
 
 
-__attribute__((section(".RxDecripSection"))) ETH_DMADescStruct DMARxDscrTab[ETH_RX_DESC_CNT];
+static ETH_DMADescStruct DMARxDscrTab[ETH_RX_DESC_CNT] __attribute__((section(".RxDecripSection")));
 
-__attribute__((section(".TxDecripSection"))) ETH_DMADescStruct DMATxDscrTab[ETH_TX_DESC_CNT];
+static ETH_DMADescStruct DMATxDscrTab[ETH_TX_DESC_CNT] __attribute__((section(".TxDecripSection")));
 
-__attribute__((section(".RxPoolSection"))) uint8_t Rx_Buff[ETH_RX_DESC_CNT][ETH_MAX_PACKET_SIZE];
+static uint8_t Rx_Buff[ETH_RX_DESC_CNT][ETH_MAX_PACKET_SIZE] __attribute__((section(".RxPoolSection")));
 
-__attribute__((aligned(32))) uint8_t Tx_Buff[ETH_TX_DESC_CNT][ETH_MAX_PACKET_SIZE] __attribute__((aligned(32)));
+static uint8_t Tx_Buff[ETH_TX_DESC_CNT][ETH_MAX_PACKET_SIZE] __attribute__((aligned(4)));
 
 ETH_RxDescListStruct RxDescList;
 ETH_TxDescListStruct TxDescList;
@@ -26,10 +27,11 @@ ETH_TxDescListStruct TxDescList;
 volatile uint32_t eth_rx_event = 0;
 volatile uint32_t eth_tx_event = 0;
 
-void ETH_Init(void) {
+ETH_Status ETH_Init(void) {
 
-	uint32_t tmpreg;
 	uint32_t tickstart;
+	enableEthInterface();
+	delay_ms(1);
 
 	RCC::_APB2ENR::SYSCFGEN::set();
 	RCC::_APB2ENR::SYSCFGEN::read();
@@ -44,27 +46,31 @@ void ETH_Init(void) {
 
 	while (Ethernet_DMA::_DMABMR::SR::read()) {
 		if (((get_tick() - tickstart) > 10)) {
-			return; // get status
+			return ETH_Status::RESET_FAULT; // get status
 		}
 	}
 	
 
-	/*MACCR cofig */
-	Ethernet_MAC::_MACCR::bitSet<
-	Ethernet_MAC::_MACCR::CSTF,// Удалять CRC у Type-фреймов (удобно для TCP/IP стека)
-	//Ethernet_MAC::_MACCR::IFG,  // GAP = 96 бит → стандарт Ethernet (12 байт между кадрами)
-	Ethernet_MAC::_MACCR::FES,// Fast Ethernet 100 Мбит/с (RMII не поддерживает 1 Гбит)
-	Ethernet_MAC::_MACCR::DM,  // Full-duplex (обязательно для TCP/IP)
-	Ethernet_MAC::_MACCR::IPCO,// Аппаратная проверка IPv4 checksum (ускоряет TCP/UDP/IP стек)
-	Ethernet_MAC::_MACCR::RD,// Retry disable (актуально только для half-duplex, тут безопасно)
-	//Ethernet_MAC::_MACCR::BL,// Back-off limit = 10 (стандарт Ethernet, в full-duplex неважно)
-	Ethernet_MAC::_MACCR::TE, // Включаем Transmitter
-	Ethernet_MAC::_MACCR::RE  // Включаем Receiver
-	>();
+	PHY_SetMDIOClock();
 
-	tmpreg = Ethernet_MAC::_MACCR::read();
+	ETH_Status status = PHY_Init();
+	if (status != ETH_Status::OK) {
+		return status;
+	}
+
+	/*MACCR cofig */
+	Ethernet_MAC::_MACCR::overwrite(
+	Ethernet_MAC::_MACCR::CSTF::BitMsk|// Удалять CRC у Type-фреймов (удобно для TCP/IP стека)
+	(static_cast<uint32_t>(MACCR_IFG::_96bit)
+	 << Ethernet_MAC::_MACCR::IFG::pos)|  // GAP = 96 бит → стандарт Ethernet (12 байт между кадрами)
+	Ethernet_MAC::_MACCR::FES::BitMsk  |  // Fast Ethernet 100 Мбит/с (RMII не поддерживает 1 Гбит)
+	Ethernet_MAC::_MACCR::DM::BitMsk   |  // Full-duplex (обязательно для TCP/IP)
+	Ethernet_MAC::_MACCR::IPCO::BitMsk |  // Аппаратная проверка IPv4 checksum (ускоряет TCP/UDP/IP стек)
+	Ethernet_MAC::_MACCR::RD::BitMsk// Retry disable (актуально только для half-duplex, тут безопасно)
+	//Ethernet_MAC::_MACCR::BL,// Back-off limit = 10 (стандарт Ethernet, в full-duplex неважно)
+	);
+
 	delay_ms(1);
-	Ethernet_MAC::_MACCR::overwrite(tmpreg);
 
 	/*MACFCR cofig */
 	Ethernet_MAC::_MACFCR::overwrite(
@@ -73,9 +79,7 @@ void ETH_Init(void) {
 	<< Ethernet_MAC::_MACFCR::PLT::pos) // PLT = pause time / 4 → порог возобновления передачи
 	);
 	
-	tmpreg = Ethernet_MAC::_MACFCR::read();
 	delay_ms(1);
-	Ethernet_MAC::_MACFCR::overwrite(tmpreg);
 
 	/*DMAOMR cofig */
 	Ethernet_DMA::_DMAOMR::bitSet<
@@ -85,22 +89,16 @@ void ETH_Init(void) {
 	Ethernet_DMA::_DMAOMR::OSF  // Bit 2: Operate on second frame
 	>();
 	
-	tmpreg = Ethernet_DMA::_DMAOMR::read();
 	delay_ms(1);
-	Ethernet_DMA::_DMAOMR::overwrite(tmpreg);
 
 	/*MAC addr cofig */
 	// Пример MAC: 02:12:34:56:78:9A
-	uint8_t MAC_addr[6];
-	MAC_addr[0] = 0x02U;
-	MAC_addr[1] = 0x12U;
-	MAC_addr[2] = 0x34U;
-	MAC_addr[3] = 0x56U;
-	MAC_addr[4] = 0x78U;
-	MAC_addr[5] = 0x9AU;
-	uint32_t MAC_ADDR_HR = (MAC_addr[5] << 8) | MAC_addr[4];
-	uint32_t MAC_ADDR_LR = (MAC_addr[3] << 24) | (MAC_addr[2] << 16) |
-		(MAC_addr[1] << 8)  | MAC_addr[0];
+	uint8_t MAC_addr[6] = {0x02, 0x12, 0x34, 0x56, 0x78, 0x9A};
+	uint32_t MAC_ADDR_HR = (MAC_addr[5] << 8)  | MAC_addr[4];
+
+	uint32_t MAC_ADDR_LR = (MAC_addr[3] << 24) |(MAC_addr[2] << 16) |
+						   (MAC_addr[1] << 8)  | MAC_addr[0];
+
 	Ethernet_MAC::_MACA0HR::MACA0H::write(MAC_ADDR_HR);
 	Ethernet_MAC::_MACA0LR::MACA0L::write(MAC_ADDR_LR);
 
@@ -117,9 +115,7 @@ void ETH_Init(void) {
 	Ethernet_DMA::_DMABMR::USP::BitMsk
 );
 
-	tmpreg = Ethernet_DMA::_DMABMR::read();
 	delay_ms(1);
-	Ethernet_DMA::_DMABMR::overwrite(tmpreg);
 
 	/*ETH_Init cofig */
 	ETH_RxDescInit();
@@ -149,18 +145,14 @@ void ETH_Init(void) {
 	Ethernet_DMA::_DMAIER::TIE
 	>();
 
-	tmpreg = Ethernet_DMA::_DMAIER::read();
-	PHY_Init();
-
-	Ethernet_MAC::_MACCR::TE::set();
-	tmpreg = Ethernet_MAC::_MACCR::read();
 	delay_ms(1);
-	Ethernet_MAC::_MACCR::overwrite(tmpreg);
+	
+	Ethernet_MAC::_MACCR::bitSet<
+	Ethernet_MAC::_MACCR::TE,
+	Ethernet_MAC::_MACCR::RE
+	>();
 
-	Ethernet_MAC::_MACCR::RE::set();
-	tmpreg = Ethernet_MAC::_MACCR::read();
 	delay_ms(1);
-	Ethernet_MAC::_MACCR::overwrite(tmpreg);
 
 	/* Set the Flush Transmit FIFO bit */
 
@@ -174,7 +166,9 @@ void ETH_Init(void) {
 	Ethernet_DMA::_DMAOMR::SR::set();
 
 	NVIC_API::SetPriority<IRQn_Type::ETH_IRQn,0>();
-    NVIC_API::enable_irq<IRQn_Type::ETH_IRQn>();
+    NVIC_API::EnableIRQ<IRQn_Type::ETH_IRQn>();
+
+    return ETH_Status::OK;
 }
 
 void ETH_RxDescInit(void) {
@@ -229,7 +223,7 @@ extern "C" void ETH_IRQHandler(void) {
 	}
 	/*TX interrupt*/
 	if ((DMASR & TS) && (DMAIER & TIE)) {
-		Ethernet_DMA::_DMASR::setMask(TS | NIS);
+		Ethernet_DMA::_DMASR::setMask(TS|NIS);
 
 		TxDescList.CurrTailNum = (TxDescList.CurrTailNum + 1) % ETH_TX_DESC_CNT;
 //		TxDescList.pBuff = &Tx_Buff[TxDescList.CurrDescNum][0];
@@ -240,12 +234,8 @@ extern "C" void ETH_IRQHandler(void) {
 
 void ETH_RxWorker(void) {
 
-	static uint32_t start_tick = get_tick();
-	if((get_tick()-start_tick) >= 100) {
-		NET_TCP_Timers();
-		start_tick = get_tick();
-	}
 	// начинаем с индекса последнего обработанного дескриптора
+	if(eth_rx_event != 0){
 	eth_rx_event = 0;
 	uint32_t idx = RxDescList.CurrDescNum;
 
@@ -256,7 +246,7 @@ void ETH_RxWorker(void) {
 			break;
 		// проверим, что это полный кадр в одном дескрипторе (FS+LS)
 		if ((desc0 & (ETH_DMARXDESC_FS | ETH_DMARXDESC_LS))
-				== (ETH_DMARXDESC_FS | ETH_DMARXDESC_LS)) {
+				== (ETH_DMARXDESC_FS | ETH_DMARXDESC_LS) && !(desc0 & ETH_DMARXDESC_ES)) {
 
 			RxDescList.BuffLen = (uint16_t) ((desc0 & ETH_DMARXDESC_FL) >> 16);
 			RxDescList.pBuff = (uint8_t*) DMARxDscrTab[idx].DESC2;
@@ -271,11 +261,11 @@ void ETH_RxWorker(void) {
 		// возвращаем дескриптор DMA
 		DMARxDscrTab[idx].DESC0 = ETH_DMARXDESC_OWN;
 		__DSB(); // ensure descriptor written before moving on
-
+		Ethernet_DMA::_DMARPDR::overwrite(0U);
 		idx = (idx + 1) % ETH_RX_DESC_CNT;
-	}
+		}
 	RxDescList.CurrDescNum = idx;
-
+	}
 }
 
 void ETH_SendFrame(uint32_t len) {
@@ -283,7 +273,7 @@ void ETH_SendFrame(uint32_t len) {
 			(len & ETH_DMATXDESC_TBS1); // first address chained
 
 	TxDescList.TxDesc[TxDescList.CurrHeadNum]->DESC0 = ETH_DMATXDESC_OWN
-			| ETH_DMATXDESC_TCH | ETH_DMATXDESC_FS | ETH_DMATXDESC_LS
+			| ETH_DMATXDESC_TCH | ETH_DMATXDESC_FS | ETH_DMATXDESC_LS | ETH_DMATXDESC_CIC_TCPUDPICMP_FULL
 			| ETH_DMATXDESC_IC; // Owned by DMA
 	__DMB();
 	Ethernet_DMA::_DMATPDR::overwrite(0U);
@@ -291,40 +281,47 @@ void ETH_SendFrame(uint32_t len) {
 	TxDescList.pBuff = &Tx_Buff[TxDescList.CurrHeadNum][0];
 }
 
-void PHY_Init(void) {
+ETH_Status PHY_Init(void)
+{
+    uint32_t bcr, bsr, id1, id2, tickstart;
 
-	uint32_t bcr = 0;
-	uint32_t bsr = 0;
-	uint32_t regval = 0;
-	uint32_t tickstart = 0;
-	/* Reset PHY */
-	PHY_Write(PHY_ADDR, PHY_BCR, PHY_RESET);
-	tickstart = get_tick();
+    // --- Проверяем PHY ID ---
+    PHY_Read(PHY_ADDR, PHY_ID1, &id1);
+    PHY_Read(PHY_ADDR, PHY_ID2, &id2);
+    if ((id1 != 0x0007) || ((id2 & 0xFFF0) != 0xC130))
+        return ETH_Status::PHY_ID_FAULT;
 
-	while (bcr & (PHY_RESET)) {
-		if ((get_tick() - tickstart) > 5000) {
-			return;
-		}
-		PHY_Read(PHY_ADDR, PHY_BCR, &bcr);
-	}
-	/* Enable autoneg */
-	PHY_Write(PHY_ADDR, PHY_BCR, PHY_AUTONEG_EN);
-	tickstart = get_tick();
+    // --- Сброс PHY ---
+    PHY_Write(PHY_ADDR, PHY_BCR, PHY_RESET);
+    tickstart = get_tick();
+    do {
+        PHY_Read(PHY_ADDR, PHY_BCR, &bcr);
+        if ((get_tick() - tickstart) > 1000)
+            return ETH_Status::PHY_RESET_FAULT;
+    } while (bcr & PHY_RESET);
 
-	while (!(bsr & (PHY_AUTONEG_DONE))) {
-		if ((get_tick() - tickstart) > 5000) {
-			return;
-		}
-		PHY_Read(PHY_ADDR, PHY_BSR, &bsr);
-	}
-	/* Wait LINK Status */
-	tickstart = get_tick();
-	while ((regval & PHY_LINKED_STATUS) != PHY_LINKED_STATUS) {
-		if ((get_tick() - tickstart) > 5000) {
-			return;
-		}
-		PHY_Read(PHY_ADDR, PHY_BSR, &regval);
-	}
+    delay_ms(40); // время стабилизации LAN8742 после reset
+
+    // --- Запускаем автосогласование ---
+    PHY_Write(PHY_ADDR, PHY_BCR, PHY_AUTONEG_EN | PHY_RESTART_AUTONEG);
+    tickstart = get_tick();
+    do {
+        PHY_Read(PHY_ADDR, PHY_BSR, &bsr);
+        PHY_Read(PHY_ADDR, PHY_BSR, &bsr); // двойное чтение!
+        if ((get_tick() - tickstart) > 5000)
+            return ETH_Status::PHY_AUTONEG_FAULT;
+    } while (!(bsr & PHY_AUTONEG_DONE));
+
+    // --- Ждём LINK ---
+    tickstart = get_tick();
+    do {
+        PHY_Read(PHY_ADDR, PHY_BSR, &bsr);
+        PHY_Read(PHY_ADDR, PHY_BSR, &bsr);
+        if ((get_tick() - tickstart) > 5000)
+            return ETH_Status::PHY_LINK_DOWN;
+    } while (!(bsr & PHY_LINKED_STATUS));
+
+    return ETH_Status::OK;
 }
 
 void PHY_SetMDIOClock(void) {
@@ -351,15 +348,19 @@ void PHY_SetMDIOClock(void) {
 	Ethernet_MAC::_MACMIIAR::overwrite(tmpreg);
 }
 
-void PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue) {
+bool PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue) {
 
 	uint32_t tmpreg;
 	uint32_t tickstart;
 	/* Get the ETHERNET MACMIIAR value */
-	tmpreg = Ethernet_MAC::_MACMIIAR::CR::read();
+	tmpreg = Ethernet_MAC::_MACMIIAR::read();
+	tmpreg &= ~(Ethernet_MAC::_MACMIIAR::PA::BitMsk |
+	            Ethernet_MAC::_MACMIIAR::MR::BitMsk |
+	            Ethernet_MAC::_MACMIIAR::MW::BitMsk |
+	            Ethernet_MAC::_MACMIIAR::MB::BitMsk);
 	/* Prepare the MII address register value */
-	tmpreg |= ((phy_addr << 11U) & Ethernet_MAC::_MACMIIAR::PA::BitMsk);
-	tmpreg |= ((phy_reg << 6U) & Ethernet_MAC::_MACMIIAR::MR::BitMsk);
+	tmpreg |= ((phy_addr << Ethernet_MAC::_MACMIIAR::PA::pos) & Ethernet_MAC::_MACMIIAR::PA::BitMsk);
+	tmpreg |= ((phy_reg << Ethernet_MAC::_MACMIIAR::MR::pos)  & Ethernet_MAC::_MACMIIAR::MR::BitMsk);
 	tmpreg &= ~Ethernet_MAC::_MACMIIAR::MW::BitMsk; /* Set the read mode            */
 	tmpreg |= Ethernet_MAC::_MACMIIAR::MB::BitMsk; /* Set the MII Busy bit         */
 	/* Write the result value into the MII Address register */
@@ -367,21 +368,27 @@ void PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue) {
 	/* Check for the Busy flag */
 	tickstart = get_tick();
 	while (Ethernet_MAC::_MACMIIAR::MB::read()) {
-		if ((get_tick() - tickstart) > 5000)
-			return;
+		if ((get_tick() - tickstart) > 50)
+			return false;
 	}
 	*pRegValue = Ethernet_MAC::_MACMIIDR::TD::read();
+	return true;
 }
 
-void PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue) {
+bool PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue) {
 
 	uint32_t tmpreg;
 	uint32_t tickstart;
 	/* Get the ETHERNET MACMIIAR value */
-	tmpreg = Ethernet_MAC::_MACMIIAR::CR::read();
+	tmpreg = Ethernet_MAC::_MACMIIAR::read();
+	tmpreg &= ~(Ethernet_MAC::_MACMIIAR::PA::BitMsk |
+		        Ethernet_MAC::_MACMIIAR::MR::BitMsk |
+		        Ethernet_MAC::_MACMIIAR::MW::BitMsk |
+		        Ethernet_MAC::_MACMIIAR::MB::BitMsk);
+
 	/* Prepare the MII register address value */
-	tmpreg |= ((phy_addr << 11U) & Ethernet_MAC::_MACMIIAR::PA::BitMsk); /* Set the PHY device address */
-	tmpreg |= (((uint32_t) phy_reg << 6U) & Ethernet_MAC::_MACMIIAR::MR::BitMsk); /* Set the PHY register address */
+	tmpreg |= ((phy_addr << Ethernet_MAC::_MACMIIAR::PA::pos) & Ethernet_MAC::_MACMIIAR::PA::BitMsk); /* Set the PHY device address */
+	tmpreg |= ((phy_reg <<  Ethernet_MAC::_MACMIIAR::MR::pos) & Ethernet_MAC::_MACMIIAR::MR::BitMsk); /* Set the PHY register address */
 	tmpreg |= Ethernet_MAC::_MACMIIAR::MW::BitMsk; /* Set the write mode */
 	tmpreg |= Ethernet_MAC::_MACMIIAR::MB::BitMsk; /* Set the MII Busy bit */
 	/* Give the value to the MII data register */
@@ -391,8 +398,8 @@ void PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue) {
 	/* Check for the Busy flag */
 	tickstart = get_tick();
 	while (Ethernet_MAC::_MACMIIAR::MB::read()) {
-		if ((get_tick() - tickstart) > 5000)
-			return;
+		if ((get_tick() - tickstart) > 50)
+			return false;
 	}
-
+	return true;
 }

@@ -36,6 +36,7 @@ int NET_TCP_ClientAdd(void) {
 	if (free_top != 0 && active_conn < TCP_MAX_CONNECTIONS) {
 		uint8_t i = free_list[--free_top];
 		active_list[active_conn++] = i; // добавляем в список активных
+		print("Added TCP client %d\n", i);
 		return i;
 	}
 	return -1;
@@ -52,6 +53,7 @@ void NET_TCP_ClientRemove(uint8_t idx) {
 			}
 			memset(&tcp_clients[idx], 0, sizeof(tcp_conn_t));
 			free_list[free_top++] = idx;
+			print("Removed TCP client %d\n", idx);
 			break;
 		}
 	}
@@ -72,18 +74,18 @@ void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 	// IP
 	ip->tot_len = bswap16(IP_HDR_LEN + TCP_HDR_LEN);
 	ip->dst_ip = bswap32(BuffU8ToU32(frame->scr_addr));
-	ip->checksum = bswap16(
-			checksum(reinterpret_cast<uint8_t*>(ip), IP_HDR_LEN));
+	// ip->checksum = bswap16(
+	// 		checksum(reinterpret_cast<uint8_t*>(ip), IP_HDR_LEN));
 	// TCP
 	tcp->src_port = bswap16(src_port);
 	tcp->dst_port = bswap16(dst_port);
 	tcp->seq_num = bswap32(seq);
 	tcp->ack_num = bswap32(ack);
 	tcp->flags = flags;
-	tcp->checksum = bswap16(
-			tcp_checksum(IP_ADDR, frame->scr_addr,
-					reinterpret_cast<uint8_t*>(tcp),
-					static_cast<uint16_t>(TCP_HDR_LEN)));
+	// tcp->checksum = bswap16(
+	// 		tcp_checksum(IP_ADDR, frame->scr_addr,
+	// 				reinterpret_cast<uint8_t*>(tcp),
+	// 				static_cast<uint16_t>(TCP_HDR_LEN)));
 
 	ETH_SendFrame(
 	ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN);
@@ -103,8 +105,8 @@ void NET_SendRetransmitTCP(tcp_conn_t *conn) {
 	// IP
 	ip->tot_len = bswap16(IP_HDR_LEN + conn->soc_tx_buff_pos);
 	ip->dst_ip = bswap32(conn->client_ip);
-	ip->checksum = bswap16(
-			checksum(reinterpret_cast<uint8_t*>(ip), IP_HDR_LEN));
+	// ip->checksum = bswap16(
+	// 		checksum(reinterpret_cast<uint8_t*>(ip), IP_HDR_LEN));
 	// TCP
 	memcpy(tcp, conn->socket_tx_buff, conn->soc_tx_buff_pos);
 
@@ -127,8 +129,8 @@ void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 	// IP
 	ip->tot_len = bswap16(IP_HDR_LEN + TCP_HDR_LEN + data_len);
 	ip->dst_ip = bswap32(conn->client_ip);
-	ip->checksum = bswap16(
-			checksum(reinterpret_cast<uint8_t*>(ip), IP_HDR_LEN));
+	// ip->checksum = bswap16(
+	// 		checksum(reinterpret_cast<uint8_t*>(ip), IP_HDR_LEN));
 	// TCP
 	tcp->src_port = bswap16(conn->server_port);
 	tcp->dst_port = bswap16(conn->client_port);
@@ -144,9 +146,9 @@ void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 	uint8_t client_ip[4];
 	U32toBuffU8(client_ip, conn->client_ip);
 
-	tcp->checksum = bswap16(
-			tcp_checksum(IP_ADDR, client_ip, reinterpret_cast<uint8_t*>(tcp),
-					static_cast<uint16_t>(TCP_HDR_LEN + data_len)));
+	// tcp->checksum = bswap16(
+	// 		tcp_checksum(IP_ADDR, client_ip, reinterpret_cast<uint8_t*>(tcp),
+	// 				static_cast<uint16_t>(TCP_HDR_LEN + data_len)));
 
 	if (retransmit == 1) {
 		memcpy(conn->socket_tx_buff, (uint8_t*) tcp, TCP_HDR_LEN + data_len);
