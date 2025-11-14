@@ -5,6 +5,7 @@
  *      Author: AkimovMA
  */
 #include "mcore_eth_utils.hpp"
+#include "mcore_net.hpp"
 
 namespace {
 	// Optimized checksum calculation using 32-bit accumulator

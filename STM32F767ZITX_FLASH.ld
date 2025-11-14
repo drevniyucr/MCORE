@@ -46,9 +46,10 @@ MEMORY
 {
   RAM      (xrw)     : ORIGIN = 0x20000000,   LENGTH = 512K
   FLASH    (rx)      : ORIGIN = 0x08000000,   LENGTH = 2048K
-  Memory_B1(rw)     : ORIGIN =  0x2007C000,   LENGTH = 0x100
-  Memory_B2(rw)     : ORIGIN =  0x2007C100,   LENGTH = 0x80
-  ETH_RX_BUFFER (rw) : ORIGIN = 0x20078000,   LENGTH = 16K
+  ETH_RX_BUFFER (rw) : ORIGIN = 0x2007B200,   LENGTH = 0x3000
+  ETH_TX_BUFFER (rw) : ORIGIN = 0x20078200,   LENGTH = 0x3000
+  Memory_B1(rw)      : ORIGIN = 0x20078100,  LENGTH = 0x100
+  Memory_B2(rw)      : ORIGIN = 0x20078000,  LENGTH = 0x100
 }
 
 /* Sections */
@@ -181,6 +182,7 @@ SECTIONS
   .RxDecripSection   (NOLOAD) : { *(.RxDecripSection) } >Memory_B1
   .TxDescripSection  (NOLOAD) : { *(.TxDecripSection) } >Memory_B2
   .RxPoolSection     (NOLOAD) : { *(.RxPoolSection)   } >ETH_RX_BUFFER
+  .TxPoolSection     (NOLOAD) : { *(.RxPoolSection)   } >ETH_TX_BUFFER
   /* Remove information from the compiler libraries */
   /DISCARD/ :
   {

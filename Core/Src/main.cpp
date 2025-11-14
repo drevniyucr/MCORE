@@ -24,7 +24,7 @@ int main()
 	RCC_Init();
 	MPU_Config();
 	SCB_EnableICache();
-	// SCB_EnableDCache(); 
+	SCB_EnableDCache();
 	GPIO_Init();
 	
 	if (ETH_Init() != ETH_Status::OK) {
