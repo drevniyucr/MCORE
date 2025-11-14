@@ -8,3 +8,5 @@ tools
 /mcore Debug.launch
 /mcore Debug.cfg
 /.mxproject
+/.vscode/browse.vc.db
+/.cache
