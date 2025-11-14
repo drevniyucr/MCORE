@@ -281,19 +281,14 @@ extern "C" void ETH_IRQHandler(void) {
 	if (Ethernet_DMA::_DMASR::RS::is_set()) {
 		Ethernet_DMA::_DMASR::setMask(RS | NIS);  // Clear status bits
 		 // Продвигаем tail безопасно
-		 uint8_t tail = TxDescList.CurrTailNum;
-		        uint8_t head = TxDescList.CurrHeadNum;
-
-		        // Продвигаем tail пока OWN=0 и tail != head
-		        while (tail != head &&
-		               !(TxDescList.TxDesc[tail]->DESC0 & ETH_DMATXDESC_OWN)) {
-		            tail = (tail + 1) % ETH_TX_DESC_CNT;
-		        }
-
-		        TxDescList.CurrTailNum = tail;
-		        eth_tx_event = 1;
-
-		eth_rx_event = 1;  // Signal RX worker
+		uint8_t tail = TxDescList.CurrTailNum;
+		uint8_t head = TxDescList.CurrHeadNum;
+        // Продвигаем tail пока OWN=0 и tail != head
+		while (tail != head && !(TxDescList.TxDesc[tail]->DESC0 & ETH_DMATXDESC_OWN)) {
+			tail = (tail + 1) % ETH_TX_DESC_CNT;
+		}
+		TxDescList.CurrTailNum = tail;
+		eth_tx_event = 1;
 	}
 }
 
@@ -376,7 +371,7 @@ bool ETH_IsTxBufferAvailable() {
 
 bool ETH_SendFrame(uint32_t len) {
 	// Validate frame length
-	if (len > ETH_MAX_FRAME_SIZE) {
+	if (len < ETH_MIN_FRAME_SIZE || len > ETH_MAX_FRAME_SIZE) {
 		return false;  // Invalid frame size
 	}
 	
