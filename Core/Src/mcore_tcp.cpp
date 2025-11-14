@@ -228,10 +228,6 @@ void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 		return;  // Frame too large
 	}
 
-	// Check TX buffer availability
-	if (!ETH_IsTxBufferAvailable()) {
-		return;  // TX queue full
-	}
 
 	uint8_t* tx_buf = *ppTxBuff;
 	eth_hdr_t *eth = reinterpret_cast<eth_hdr_t*>(tx_buf);

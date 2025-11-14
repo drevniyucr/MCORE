@@ -2,7 +2,7 @@
 
 #include"mcore_def.hpp"
 
-#define ETH_TX_DESC_CNT 4U
+#define ETH_TX_DESC_CNT 8U
 #define ETH_RX_DESC_CNT 8U
 #define ETH_MAX_PACKET_SIZE 1536U
 

@@ -27,7 +27,7 @@ namespace {
 	
 	// Ethernet transmit buffers (aligned for DMA)
 	static uint8_t Tx_Buff[ETH_TX_DESC_CNT][ETH_MAX_PACKET_SIZE] 
-		__attribute__((aligned(4)));
+		__attribute__((section(".TxPoolSection")));
 	
 	// Constants
 	constexpr uint32_t ETH_RESET_TIMEOUT_MS = 10;
@@ -261,38 +261,48 @@ void ETH_TxDescInit() {
 }
 
 extern "C" void ETH_IRQHandler(void) {
-	const uint32_t DMASR = Ethernet_DMA::_DMASR::read();
-	const uint32_t DMAIER = Ethernet_DMA::_DMAIER::read();
+	//const uint32_t DMASR = Ethernet_DMA::_DMASR::read();
+	//const uint32_t DMAIER = Ethernet_DMA::_DMAIER::read();
 	
 	// Bit masks for interrupt checking
 	constexpr uint32_t RS = Ethernet_DMA::_DMASR::RS::BitMsk;   // Receive status
-	constexpr uint32_t RIE = Ethernet_DMA::_DMAIER::RIE::BitMsk; // Receive interrupt enable
+	//constexpr uint32_t RIE = Ethernet_DMA::_DMAIER::RIE::BitMsk; // Receive interrupt enable
 	constexpr uint32_t TS = Ethernet_DMA::_DMASR::TS::BitMsk;   // Transmit status
-	constexpr uint32_t TIE = Ethernet_DMA::_DMAIER::TIE::BitMsk; // Transmit interrupt enable
+	//constexpr uint32_t TIE = Ethernet_DMA::_DMAIER::TIE::BitMsk; // Transmit interrupt enable
 	constexpr uint32_t NIS = Ethernet_DMA::_DMASR::NIS::BitMsk; // Normal interrupt summary
 	
-	// RX interrupt handling
-	if ((DMASR & RS) && (DMAIER & RIE)) {
-		Ethernet_DMA::_DMASR::setMask(RS | NIS);  // Clear status bits
-		eth_rx_event = 1;  // Signal RX worker
-	}
-	
 	// TX interrupt handling
-	if ((DMASR & TS) && (DMAIER & TIE)) {
+	if (Ethernet_DMA::_DMASR::TS::is_set()) {
 		Ethernet_DMA::_DMASR::setMask(TS | NIS);  // Clear status bits
-		
-		// Update tail pointer (DMA has completed transmission)
-		TxDescList.CurrTailNum = (TxDescList.CurrTailNum + 1) % ETH_TX_DESC_CNT;
-		TxDescList.CurrTxDesc = TxDescList.TxDesc[TxDescList.CurrTailNum];
+
 		eth_tx_event = 1;  // Signal TX completion
+	}
+	// RX interrupt handling
+	if (Ethernet_DMA::_DMASR::RS::is_set()) {
+		Ethernet_DMA::_DMASR::setMask(RS | NIS);  // Clear status bits
+		 // Продвигаем tail безопасно
+		 uint8_t tail = TxDescList.CurrTailNum;
+		        uint8_t head = TxDescList.CurrHeadNum;
+
+		        // Продвигаем tail пока OWN=0 и tail != head
+		        while (tail != head &&
+		               !(TxDescList.TxDesc[tail]->DESC0 & ETH_DMATXDESC_OWN)) {
+		            tail = (tail + 1) % ETH_TX_DESC_CNT;
+		        }
+
+		        TxDescList.CurrTailNum = tail;
+		        eth_tx_event = 1;
+
+		eth_rx_event = 1;  // Signal RX worker
 	}
 }
 
 void ETH_RxWorker() {
-	if (eth_rx_event == 0) {
-		return;  // No RX event to process
-	}
 	
+	if (eth_rx_event == 0) {
+			return;  // No RX event to process
+		}
+
 	eth_rx_event = 0;  // Clear event flag
 	uint32_t idx = RxDescList.CurrDescNum;
 	uint32_t frames_processed = 0;
@@ -313,7 +323,7 @@ void ETH_RxWorker() {
 		// Validate frame length
 		if (frame_len < ETH_MIN_FRAME_SIZE || frame_len > ETH_MAX_FRAME_SIZE) {
 			// Invalid frame size - drop it
-			rx_frames_dropped++;
+			rx_frames_dropped += 1;
 			DMARxDscrTab[idx].DESC0 = ETH_DMARXDESC_OWN;
 			__DSB();
 			Ethernet_DMA::_DMARPDR::overwrite(0U);
@@ -337,11 +347,11 @@ void ETH_RxWorker() {
 			
 			// Process the received packet
 			NET_ProcessRx(&RxDescList, &TxDescList);
-			rx_frames_processed++;
+			rx_frames_processed += 1;
 		} else {
 			// Multi-segment frames or errors - drop for now
 			// Could be extended to handle fragmented frames if needed
-			rx_frames_dropped++;
+			rx_frames_dropped += 1;
 		}
 		
 		// Return descriptor to DMA
@@ -366,14 +376,14 @@ bool ETH_IsTxBufferAvailable() {
 
 bool ETH_SendFrame(uint32_t len) {
 	// Validate frame length
-	if (len < ETH_MIN_FRAME_SIZE || len > ETH_MAX_FRAME_SIZE) {
+	if (len > ETH_MAX_FRAME_SIZE) {
 		return false;  // Invalid frame size
 	}
 	
 	// Check if TX buffer is available
 	if (!ETH_IsTxBufferAvailable()) {
-		tx_frames_dropped++;
-		return false;  // TX queue full
+		tx_frames_dropped += 1;
+	return false;  // TX queue full
 	}
 	
 	const uint32_t head_idx = TxDescList.CurrHeadNum;
@@ -397,7 +407,7 @@ bool ETH_SendFrame(uint32_t len) {
 	TxDescList.CurrHeadNum = (TxDescList.CurrHeadNum + 1) % ETH_TX_DESC_CNT;
 	TxDescList.pBuff = &Tx_Buff[TxDescList.CurrHeadNum][0];
 	
-	tx_frames_sent++;
+	tx_frames_sent += 1;
 	return true;
 }
 
