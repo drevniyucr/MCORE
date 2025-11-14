@@ -10,3 +10,6 @@ tools
 /.mxproject
 /.vscode/browse.vc.db
 /.cache
+/.vscode/BROWSE.VC.DB-shm
+/.vscode/BROWSE.VC.DB-wal
+/.vscode/BROWSE.VC.DB
