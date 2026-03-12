@@ -28,7 +28,8 @@ namespace {
 	 * @param window_size Receive window size
 	 * @return true if sequence is acceptable, false otherwise
 	 */
-	inline bool is_seq_acceptable(uint32_t seq, uint32_t rcv_next, uint16_t window_size) {
+	inline bool is_seq_acceptable(uint32_t seq, uint32_t rcv_next) {
+	//inline bool is_seq_acceptable(uint32_t seq, uint32_t rcv_next, uint16_t window_size) {
 		// Accept sequence if it's the next expected or within window
 		// For simplicity, only accept in-order packets (rcv_next)
 		// TODO: Implement proper sliding window for out-of-order packets
@@ -430,13 +431,13 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		conn->keep_alive_count = 0;
 
 		// Validate sequence number is acceptable (in-order packets only for now)
-		if (is_seq_acceptable(client_seq, conn->rcv_next, conn->window_size)) {
+		if (is_seq_acceptable(client_seq, conn->rcv_next)) {
 			
 			// Validate ACK number if ACK flag is set
-			if ((client_flags & TCP_ACK) && !is_ack_acceptable(client_ack, conn->snd_unack, conn->tcp_my_seq)) {
-				// Invalid ACK - ignore packet (could be old duplicate)
-				break;
-			}
+//			if ((client_flags & TCP_ACK) && !is_ack_acceptable(client_ack, conn->snd_unack, conn->tcp_my_seq)) {
+//				// Invalid ACK - ignore packet (could be old duplicate)
+//				break;
+//			}
 
 			if (client_flags & TCP_FIN) {
 				// FIN received - start graceful close
@@ -470,9 +471,9 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 					frame->ip_len - frame->ip_hdr_len - tcp_hdr_len);
 				
 				// Validate data length is reasonable (not larger than frame)
-				if (data_len > (frame->ip_len - frame->ip_hdr_len)) {
-					break;  // Invalid data length
-				}
+//				if (data_len > (frame->ip_len - frame->ip_hdr_len)) {
+//					break;  // Invalid data length
+//				}
 
 				// Process payload if present
 				if (data_len > 0) {
@@ -487,14 +488,14 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 						conn->rcv_next += copy_len;
 					}
 					// Note: If copy_len < data_len, data is dropped (buffer full)
+
+					// Send ACK
+					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
+								TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
 				}
 
 				// Always update receive window (even if no data)
 				conn->window_size = SOCKET_RX_BUFF_LEN - conn->soc_rx_buff_pos;
-
-				// Send ACK
-				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
 			}
 		} else {
 			// Out-of-order or duplicate packet - send ACK with current rcv_next

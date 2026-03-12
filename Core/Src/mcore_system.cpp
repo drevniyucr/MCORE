@@ -6,7 +6,10 @@
 
 volatile uint32_t myTick = 0;   // счетчик миллисекунд
 uint32_t SystemCoreClock = 16000000;
-const uint8_t AHBPrescTable[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8,9 };
+uint32_t US_Prescaler = 1;
+uint32_t APB1Clock = 0;
+uint32_t APB2Clock = 0;
+const uint8_t AHBPrescTable[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9 };
 const uint8_t APBPrescTable[8] = { 0, 0, 0, 0, 1, 2, 3, 4 };
 
 // Обработчик прерывания SysTick
@@ -16,6 +19,17 @@ void delay_ms(uint32_t ms) {
 	while ((myTick - start) < ms) {
 		// ждем
 	}
+}
+
+bool delay_us(uint32_t us) {
+	if (US_Prescaler != 1){
+		uint32_t start = us * US_Prescaler;
+		while (start != 0) {
+			start--;
+		}
+		return true;
+	}
+	return false;
 }
 
 uint32_t get_tick() {
@@ -75,7 +89,7 @@ void SystemCoreClockUpdate() {
 	case 0b10: /* PLL used as system clock source */
 
 		pllsource = RCC::_PLLCFGR::PLLSRC::read();
-		pllm = RCC::_PLLCFGR::PLLM::read();
+		pllm      = RCC::_PLLCFGR::PLLM::read();
 
 		if (pllsource != 0) {
 			/* HSE used as PLL clock source */
@@ -95,6 +109,11 @@ void SystemCoreClockUpdate() {
 	tmp = AHBPrescTable[RCC::_CFGR::HPRE::read()];
 	/* HCLK frequency */
 	SystemCoreClock >>= tmp;
+	tmp = APBPrescTable[RCC::_CFGR::PPRE1::read()];
+	APB1Clock = SystemCoreClock >> tmp;// APB1 frequency
+	tmp = APBPrescTable[RCC::_CFGR::PPRE2::read()];
+	APB2Clock = SystemCoreClock >> tmp;// APB2 frequency
+	US_Prescaler = SystemCoreClock / 1000000;
 }
 
 uint32_t SysTick_Config(uint32_t ticks) {

@@ -10,11 +10,14 @@
 #include "mcore_def.hpp"
 
 extern uint32_t SystemCoreClock;
+extern uint32_t APB1Clock;
+extern uint32_t APB2Clock;
 extern const uint8_t AHBPrescTable[16];
 extern const uint8_t APBPrescTable[8];
 
 void SystemCoreClockUpdate(void);
 void delay_ms(uint32_t ms);
+bool delay_us(uint32_t us);
 uint32_t get_tick(void);
 void SystemInit(void);
 uint32_t SysTick_Config(uint32_t ticks);

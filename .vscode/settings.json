@@ -3,7 +3,6 @@
   "cmake.configureEnvironment": {
     "CMAKE_EXPORT_COMPILE_COMMANDS": "on"
   },
-
   // ---- C/C++ IntelliSense ----
   "C_Cpp.default.intelliSenseMode": "gcc-arm",
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
@@ -23,15 +22,12 @@
     "__THUMBEL__=1",
     "__ARMEL__=1"
   ],
-  
   // Suppress false positive template errors
   "C_Cpp.errorSquiggles": "enabled",
   "C_Cpp.dimInactiveRegions": false,
-
   // ---- Cortex Debug ----
   "cortex-debug.gdbPath": "arm-none-eabi-gdb",
   "cortex-debug.liveWatchRefreshRate": 500,
-
   // ---- IntelliSense / автокомплит ----
   "editor.quickSuggestions": {
     "other": true,
@@ -44,13 +40,11 @@
   "editor.parameterHints.enabled": true,
   "editor.suggestSelection": "first",
   "editor.wordBasedSuggestions": "off",
-
   // ---- Автоматическая активация подсказок ----
   "editor.inlineSuggest.enabled": true,
   "editor.snippetSuggestions": "inline",
   "editor.suggest.showSnippets": true,
   "editor.acceptSuggestionOnCommitCharacter": true,
-
   // ---- Ассоциации файлов ----
   "files.associations": {
     "bit": "cpp",
@@ -70,5 +64,8 @@
     "new": "cpp",
     "typeinfo": "cpp",
     "*.h": "cpp"
-  }
+  },
+  "C_Cpp.clang_format_path": "${workspaceFolder}/.clang-format",
+  "C_Cpp.formatting": "vcFormat",
+  "cortex-debug.variableUseNaturalFormat": false
 }

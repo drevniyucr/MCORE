@@ -97,29 +97,50 @@ ETH_Status ETH_Init() {
 	PHY_SetMDIOClock();
 	
 	// Initialize PHY (autonegotiation, link detection)
-	ETH_Status status = PHY_Init();
+	uint8_t DM = 0,FES = 0,JD = 0,CSD = 0,RD = 0,DC = 0,FCB_BPA = 0;
+	ETH_LinkState link = {0,0};
+	ETH_Status status = PHY_Init(&link);
 	if (status != ETH_Status::OK) {
 		return status;
 	}
-	
+	if(link.speed){//100mbps
+		FES = 1;
+	}//else 10mbps
+	if(link.duplex){//fullduplex
+		DM  = 1;
+		CSD = 1;
+		JD  = 1;
+		RD  = 1;
+	}else{//halfduplex
+		FCB_BPA = 1;
+		DC = 1;
+		JD = 1;
+	}
+
 	// MAC Control Register configuration
 	Ethernet_MAC::_MACCR::overwrite(
-		Ethernet_MAC::_MACCR::CSTF::BitMsk |  // Strip CRC from Type frames
-		(static_cast<uint32_t>(MACCR_IFG::_96bit) 
-		 << Ethernet_MAC::_MACCR::IFG::pos) |  // 96-bit interframe gap (Ethernet standard)
-		Ethernet_MAC::_MACCR::FES::BitMsk |   // Fast Ethernet 100 Mbps
-		Ethernet_MAC::_MACCR::DM::BitMsk |    // Full-duplex mode
-		Ethernet_MAC::_MACCR::IPCO::BitMsk |  // Hardware IPv4 checksum offload
-		Ethernet_MAC::_MACCR::RD::BitMsk      // Retry disable (safe in full-duplex)
+	Ethernet_MAC::_MACCR::CSTF::BitMsk      |  // Strip CRC from Type frames
+	(static_cast<uint32_t>(MACCR_IFG::_96bit)
+	<< Ethernet_MAC::_MACCR::IFG::pos)      |  // 96-bit interframe gap
+	(FES << Ethernet_MAC::_MACCR::FES::pos) |  // Fast Ethernet 10/100 Mbps
+	(DM  << Ethernet_MAC::_MACCR::DM::pos)  |  // Duplex mode
+	(JD  << Ethernet_MAC::_MACCR::JD::pos)  |  // Jabber disable
+	(CSD << Ethernet_MAC::_MACCR::CSD::pos) |  // Carrier sense disable
+	(RD  << Ethernet_MAC::_MACCR::RD::pos)  |  // Retry disable
+	(DC  << Ethernet_MAC::_MACCR::DC::pos)  |  // Deferral check
+	Ethernet_MAC::_MACCR::IPCO::BitMsk      |  // Hardware IPv4 checksum offload
+	Ethernet_MAC::_MACCR::APCS::BitMsk		   //Automatic pad/CRC stripping
 	);
-	
 	delay_ms(ETH_INIT_DELAY_MS);
 	
 	// MAC Flow Control Register configuration
 	Ethernet_MAC::_MACFCR::overwrite(
-		Ethernet_MAC::_MACFCR::ZQPD::BitMsk |  // Ignore PAUSE frames with zero pause
-		(static_cast<uint32_t>(MACFCR_PLT::Minus4) 
-		 << Ethernet_MAC::_MACFCR::PLT::pos)   // Pause time threshold
+	Ethernet_MAC::_MACFCR::ZQPD::BitMsk        |  // Ignore PAUSE frames with zero pause
+	(static_cast<uint32_t>(MACFCR_PLT::Minus4)
+	<< Ethernet_MAC::_MACFCR::PLT::pos)        |
+	Ethernet_MAC::_MACFCR::RFCE::BitMsk        |
+	Ethernet_MAC::_MACFCR::TFCE::BitMsk        |
+	(FCB_BPA << Ethernet_MAC::_MACFCR::FCB::pos)  //Flow Control Busy / Back Pressure Activate
 	);
 	
 	delay_ms(ETH_INIT_DELAY_MS);
@@ -288,7 +309,7 @@ extern "C" void ETH_IRQHandler(void) {
 			tail = (tail + 1) % ETH_TX_DESC_CNT;
 		}
 		TxDescList.CurrTailNum = tail;
-		eth_tx_event = 1;
+		eth_rx_event = 1;
 	}
 }
 
@@ -371,7 +392,7 @@ bool ETH_IsTxBufferAvailable() {
 
 bool ETH_SendFrame(uint32_t len) {
 	// Validate frame length
-	if (len < ETH_MIN_FRAME_SIZE || len > ETH_MAX_FRAME_SIZE) {
+	if (len > ETH_MAX_FRAME_SIZE) {
 		return false;  // Invalid frame size
 	}
 	
@@ -390,8 +411,8 @@ bool ETH_SendFrame(uint32_t len) {
 	TxDescList.TxDesc[head_idx]->DESC0 = 
 		ETH_DMATXDESC_OWN |                    // Owned by DMA
 		ETH_DMATXDESC_TCH |                    // Second address chained
-		ETH_DMATXDESC_FS |                     // First segment
-		ETH_DMATXDESC_LS |                     // Last segment
+		ETH_DMATXDESC_FS  |                     // First segment
+		ETH_DMATXDESC_LS  |                     // Last segment
 		ETH_DMATXDESC_CIC_TCPUDPICMP_FULL |    // Full checksum insertion
 		ETH_DMATXDESC_IC;                      // Interrupt on completion
 	
@@ -406,7 +427,7 @@ bool ETH_SendFrame(uint32_t len) {
 	return true;
 }
 
-ETH_Status PHY_Init() {
+ETH_Status PHY_Init(ETH_LinkState *lnk) {
 	uint32_t bcr, bsr, id1, id2, tickstart;
 	
 	// Verify PHY ID (LAN8742A)
@@ -450,7 +471,24 @@ ETH_Status PHY_Init() {
 		}
 	} while (!(bsr & PHY_LINKED_STATUS));
 	
-	return ETH_Status::OK;
+	// Check connection mode
+		PHY_Read(PHY_ADDR, PHY_SC_SR, &bsr);
+		if((bsr & PHY_FULLDUPLEX_100M) == PHY_FULLDUPLEX_100M){
+			lnk->duplex = 1;
+			lnk->speed  = 1;
+		}else if((bsr & PHY_HALFDUPLEX_100M) == PHY_HALFDUPLEX_100M){
+			lnk->duplex = 0;
+			lnk->speed  = 1;
+		}else if((bsr & PHY_FULLDUPLEX_10M) == PHY_FULLDUPLEX_10M){
+			lnk->duplex = 1;
+			lnk->speed  = 0;
+		}else if((bsr & PHY_HALFDUPLEX_10M) == PHY_HALFDUPLEX_10M){
+			lnk->duplex = 0;
+			lnk->speed  = 0;
+		}else{
+			return ETH_Status::UNEXPECT_FAULT;
+		}
+		return ETH_Status::OK;
 }
 
 void PHY_SetMDIOClock() {

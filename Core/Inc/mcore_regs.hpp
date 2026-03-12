@@ -2745,14 +2745,14 @@ struct FMC {
 
 // --------------------------------------------
 // DMA2: DMA controller
-// Base address: 0x40026400
+// Base address: 
 // --------------------------------------------
-
-struct DMA2 {
-    static constexpr uint32_t DMA2_BASE = 0x40026400;
+template <uint32_t BASE_ADDR>
+struct DMA {
+    static constexpr uint32_t DMAx_BASE = BASE_ADDR;
 
     // low interrupt status register
-    struct _LISR : Register<DMA2_BASE + 0x0, ReadOnly, _LISR> {
+    struct _LISR : Register<DMAx_BASE + 0x0, ReadOnly, _LISR> {
         using TCIF3 = Field<_LISR, 27, 1>; // Stream x transfer complete interrupt flag (x = 3..0)
         using HTIF3 = Field<_LISR, 26, 1>; // Stream x half transfer interrupt flag (x=3..0)
         using TEIF3 = Field<_LISR, 25, 1>; // Stream x transfer error interrupt flag (x=3..0)
@@ -2776,7 +2776,7 @@ struct DMA2 {
     };
 
     // high interrupt status register
-    struct _HISR : Register<DMA2_BASE + 0x4, ReadOnly, _HISR> {
+    struct _HISR : Register<DMAx_BASE + 0x4, ReadOnly, _HISR> {
         using TCIF7 = Field<_HISR, 27, 1>; // Stream x transfer complete interrupt flag (x=7..4)
         using HTIF7 = Field<_HISR, 26, 1>; // Stream x half transfer interrupt flag (x=7..4)
         using TEIF7 = Field<_HISR, 25, 1>; // Stream x transfer error interrupt flag (x=7..4)
@@ -2800,7 +2800,7 @@ struct DMA2 {
     };
 
     // low interrupt flag clear register
-    struct _LIFCR : Register<DMA2_BASE + 0x8, ReadWrite, _LIFCR> {
+    struct _LIFCR : Register<DMAx_BASE + 0x8, ReadWrite, _LIFCR> {
         using CTCIF3 = Field<_LIFCR, 27, 1>; // Stream x clear transfer complete interrupt flag (x = 3..0)
         using CHTIF3 = Field<_LIFCR, 26, 1>; // Stream x clear half transfer interrupt flag (x = 3..0)
         using CTEIF3 = Field<_LIFCR, 25, 1>; // Stream x clear transfer error interrupt flag (x = 3..0)
@@ -2824,7 +2824,7 @@ struct DMA2 {
     };
 
     // high interrupt flag clear register
-    struct _HIFCR : Register<DMA2_BASE + 0xC, ReadWrite, _HIFCR> {
+    struct _HIFCR : Register<DMAx_BASE + 0xC, ReadWrite, _HIFCR> {
         using CTCIF7 = Field<_HIFCR, 27, 1>; // Stream x clear transfer complete interrupt flag (x = 7..4)
         using CHTIF7 = Field<_HIFCR, 26, 1>; // Stream x clear half transfer interrupt flag (x = 7..4)
         using CTEIF7 = Field<_HIFCR, 25, 1>; // Stream x clear transfer error interrupt flag (x = 7..4)
@@ -2848,7 +2848,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S0CR : Register<DMA2_BASE + 0x10, ReadWrite, _S0CR> {
+    struct _S0CR : Register<DMAx_BASE + 0x10, ReadWrite, _S0CR> {
         using CHSEL = Field<_S0CR, 25, 4>; // Channel selection
         using MBURST = Field<_S0CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S0CR, 21, 2>; // Peripheral burst transfer configuration
@@ -2871,27 +2871,27 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S0NDTR : Register<DMA2_BASE + 0x14, ReadWrite, _S0NDTR> {
+    struct _S0NDTR : Register<DMAx_BASE + 0x14, ReadWrite, _S0NDTR> {
         using NDT = Field<_S0NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S0PAR : Register<DMA2_BASE + 0x18, ReadWrite, _S0PAR> {
+    struct _S0PAR : Register<DMAx_BASE + 0x18, ReadWrite, _S0PAR> {
         using PA = Field<_S0PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S0M0AR : Register<DMA2_BASE + 0x1C, ReadWrite, _S0M0AR> {
+    struct _S0M0AR : Register<DMAx_BASE + 0x1C, ReadWrite, _S0M0AR> {
         using M0A = Field<_S0M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S0M1AR : Register<DMA2_BASE + 0x20, ReadWrite, _S0M1AR> {
+    struct _S0M1AR : Register<DMAx_BASE + 0x20, ReadWrite, _S0M1AR> {
         using M1A = Field<_S0M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S0FCR : Register<DMA2_BASE + 0x24, ReadWrite, _S0FCR> {
+    struct _S0FCR : Register<DMAx_BASE + 0x24, ReadWrite, _S0FCR> {
         using FEIE = Field<_S0FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S0FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S0FCR, 2, 1>; // Direct mode disable
@@ -2899,7 +2899,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S1CR : Register<DMA2_BASE + 0x28, ReadWrite, _S1CR> {
+    struct _S1CR : Register<DMAx_BASE + 0x28, ReadWrite, _S1CR> {
         using CHSEL = Field<_S1CR, 25, 4>; // Channel selection
         using MBURST = Field<_S1CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S1CR, 21, 2>; // Peripheral burst transfer configuration
@@ -2923,27 +2923,27 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S1NDTR : Register<DMA2_BASE + 0x2C, ReadWrite, _S1NDTR> {
+    struct _S1NDTR : Register<DMAx_BASE + 0x2C, ReadWrite, _S1NDTR> {
         using NDT = Field<_S1NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S1PAR : Register<DMA2_BASE + 0x30, ReadWrite, _S1PAR> {
+    struct _S1PAR : Register<DMAx_BASE + 0x30, ReadWrite, _S1PAR> {
         using PA = Field<_S1PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S1M0AR : Register<DMA2_BASE + 0x34, ReadWrite, _S1M0AR> {
+    struct _S1M0AR : Register<DMAx_BASE + 0x34, ReadWrite, _S1M0AR> {
         using M0A = Field<_S1M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S1M1AR : Register<DMA2_BASE + 0x38, ReadWrite, _S1M1AR> {
+    struct _S1M1AR : Register<DMAx_BASE + 0x38, ReadWrite, _S1M1AR> {
         using M1A = Field<_S1M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S1FCR : Register<DMA2_BASE + 0x3C, ReadWrite, _S1FCR> {
+    struct _S1FCR : Register<DMAx_BASE + 0x3C, ReadWrite, _S1FCR> {
         using FEIE = Field<_S1FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S1FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S1FCR, 2, 1>; // Direct mode disable
@@ -2951,7 +2951,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S2CR : Register<DMA2_BASE + 0x40, ReadWrite, _S2CR> {
+    struct _S2CR : Register<DMAx_BASE + 0x40, ReadWrite, _S2CR> {
         using CHSEL = Field<_S2CR, 25, 4>; // Channel selection
         using MBURST = Field<_S2CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S2CR, 21, 2>; // Peripheral burst transfer configuration
@@ -2975,27 +2975,27 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S2NDTR : Register<DMA2_BASE + 0x44, ReadWrite, _S2NDTR> {
+    struct _S2NDTR : Register<DMAx_BASE + 0x44, ReadWrite, _S2NDTR> {
         using NDT = Field<_S2NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S2PAR : Register<DMA2_BASE + 0x48, ReadWrite, _S2PAR> {
+    struct _S2PAR : Register<DMAx_BASE + 0x48, ReadWrite, _S2PAR> {
         using PA = Field<_S2PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S2M0AR : Register<DMA2_BASE + 0x4C, ReadWrite, _S2M0AR> {
+    struct _S2M0AR : Register<DMAx_BASE + 0x4C, ReadWrite, _S2M0AR> {
         using M0A = Field<_S2M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S2M1AR : Register<DMA2_BASE + 0x50, ReadWrite, _S2M1AR> {
+    struct _S2M1AR : Register<DMAx_BASE + 0x50, ReadWrite, _S2M1AR> {
         using M1A = Field<_S2M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S2FCR : Register<DMA2_BASE + 0x54, ReadWrite, _S2FCR> {
+    struct _S2FCR : Register<DMAx_BASE + 0x54, ReadWrite, _S2FCR> {
         using FEIE = Field<_S2FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S2FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S2FCR, 2, 1>; // Direct mode disable
@@ -3003,7 +3003,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S3CR : Register<DMA2_BASE + 0x58, ReadWrite, _S3CR> {
+    struct _S3CR : Register<DMAx_BASE + 0x58, ReadWrite, _S3CR> {
         using CHSEL = Field<_S3CR, 25, 4>; // Channel selection
         using MBURST = Field<_S3CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S3CR, 21, 2>; // Peripheral burst transfer configuration
@@ -3027,27 +3027,27 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S3NDTR : Register<DMA2_BASE + 0x5C, ReadWrite, _S3NDTR> {
+    struct _S3NDTR : Register<DMAx_BASE + 0x5C, ReadWrite, _S3NDTR> {
         using NDT = Field<_S3NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S3PAR : Register<DMA2_BASE + 0x60, ReadWrite, _S3PAR> {
+    struct _S3PAR : Register<DMAx_BASE + 0x60, ReadWrite, _S3PAR> {
         using PA = Field<_S3PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S3M0AR : Register<DMA2_BASE + 0x64, ReadWrite, _S3M0AR> {
+    struct _S3M0AR : Register<DMAx_BASE + 0x64, ReadWrite, _S3M0AR> {
         using M0A = Field<_S3M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S3M1AR : Register<DMA2_BASE + 0x68, ReadWrite, _S3M1AR> {
+    struct _S3M1AR : Register<DMAx_BASE + 0x68, ReadWrite, _S3M1AR> {
         using M1A = Field<_S3M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S3FCR : Register<DMA2_BASE + 0x6C, ReadWrite, _S3FCR> {
+    struct _S3FCR : Register<DMAx_BASE + 0x6C, ReadWrite, _S3FCR> {
         using FEIE = Field<_S3FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S3FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S3FCR, 2, 1>; // Direct mode disable
@@ -3055,7 +3055,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S4CR : Register<DMA2_BASE + 0x70, ReadWrite, _S4CR> {
+    struct _S4CR : Register<DMAx_BASE + 0x70, ReadWrite, _S4CR> {
         using CHSEL = Field<_S4CR, 25, 3>; // Channel selection
         using MBURST = Field<_S4CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S4CR, 21, 2>; // Peripheral burst transfer configuration
@@ -3079,27 +3079,27 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S4NDTR : Register<DMA2_BASE + 0x74, ReadWrite, _S4NDTR> {
+    struct _S4NDTR : Register<DMAx_BASE + 0x74, ReadWrite, _S4NDTR> {
         using NDT = Field<_S4NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S4PAR : Register<DMA2_BASE + 0x78, ReadWrite, _S4PAR> {
+    struct _S4PAR : Register<DMAx_BASE + 0x78, ReadWrite, _S4PAR> {
         using PA = Field<_S4PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S4M0AR : Register<DMA2_BASE + 0x7C, ReadWrite, _S4M0AR> {
+    struct _S4M0AR : Register<DMAx_BASE + 0x7C, ReadWrite, _S4M0AR> {
         using M0A = Field<_S4M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S4M1AR : Register<DMA2_BASE + 0x80, ReadWrite, _S4M1AR> {
+    struct _S4M1AR : Register<DMAx_BASE + 0x80, ReadWrite, _S4M1AR> {
         using M1A = Field<_S4M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S4FCR : Register<DMA2_BASE + 0x84, ReadWrite, _S4FCR> {
+    struct _S4FCR : Register<DMAx_BASE + 0x84, ReadWrite, _S4FCR> {
         using FEIE = Field<_S4FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S4FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S4FCR, 2, 1>; // Direct mode disable
@@ -3107,7 +3107,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S5CR : Register<DMA2_BASE + 0x88, ReadWrite, _S5CR> {
+    struct _S5CR : Register<DMAx_BASE + 0x88, ReadWrite, _S5CR> {
         using CHSEL = Field<_S5CR, 25, 4>; // Channel selection
         using MBURST = Field<_S5CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S5CR, 21, 2>; // Peripheral burst transfer configuration
@@ -3131,27 +3131,27 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S5NDTR : Register<DMA2_BASE + 0x8C, ReadWrite, _S5NDTR> {
+    struct _S5NDTR : Register<DMAx_BASE + 0x8C, ReadWrite, _S5NDTR> {
         using NDT = Field<_S5NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S5PAR : Register<DMA2_BASE + 0x90, ReadWrite, _S5PAR> {
+    struct _S5PAR : Register<DMAx_BASE + 0x90, ReadWrite, _S5PAR> {
         using PA = Field<_S5PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S5M0AR : Register<DMA2_BASE + 0x94, ReadWrite, _S5M0AR> {
+    struct _S5M0AR : Register<DMAx_BASE + 0x94, ReadWrite, _S5M0AR> {
         using M0A = Field<_S5M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S5M1AR : Register<DMA2_BASE + 0x98, ReadWrite, _S5M1AR> {
+    struct _S5M1AR : Register<DMAx_BASE + 0x98, ReadWrite, _S5M1AR> {
         using M1A = Field<_S5M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S5FCR : Register<DMA2_BASE + 0x9C, ReadWrite, _S5FCR> {
+    struct _S5FCR : Register<DMAx_BASE + 0x9C, ReadWrite, _S5FCR> {
         using FEIE = Field<_S5FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S5FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S5FCR, 2, 1>; // Direct mode disable
@@ -3159,7 +3159,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S6CR : Register<DMA2_BASE + 0xA0, ReadWrite, _S6CR> {
+    struct _S6CR : Register<DMAx_BASE + 0xA0, ReadWrite, _S6CR> {
         using CHSEL = Field<_S6CR, 25, 4>; // Channel selection
         using MBURST = Field<_S6CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S6CR, 21, 2>; // Peripheral burst transfer configuration
@@ -3183,27 +3183,27 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S6NDTR : Register<DMA2_BASE + 0xA4, ReadWrite, _S6NDTR> {
+    struct _S6NDTR : Register<DMAx_BASE + 0xA4, ReadWrite, _S6NDTR> {
         using NDT = Field<_S6NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S6PAR : Register<DMA2_BASE + 0xA8, ReadWrite, _S6PAR> {
+    struct _S6PAR : Register<DMAx_BASE + 0xA8, ReadWrite, _S6PAR> {
         using PA = Field<_S6PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S6M0AR : Register<DMA2_BASE + 0xAC, ReadWrite, _S6M0AR> {
+    struct _S6M0AR : Register<DMAx_BASE + 0xAC, ReadWrite, _S6M0AR> {
         using M0A = Field<_S6M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S6M1AR : Register<DMA2_BASE + 0xB0, ReadWrite, _S6M1AR> {
+    struct _S6M1AR : Register<DMAx_BASE + 0xB0, ReadWrite, _S6M1AR> {
         using M1A = Field<_S6M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S6FCR : Register<DMA2_BASE + 0xB4, ReadWrite, _S6FCR> {
+    struct _S6FCR : Register<DMAx_BASE + 0xB4, ReadWrite, _S6FCR> {
         using FEIE = Field<_S6FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S6FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S6FCR, 2, 1>; // Direct mode disable
@@ -3211,7 +3211,7 @@ struct DMA2 {
     };
 
     // stream x configuration register
-    struct _S7CR : Register<DMA2_BASE + 0xB8, ReadWrite, _S7CR> {
+    struct _S7CR : Register<DMAx_BASE + 0xB8, ReadWrite, _S7CR> {
         using CHSEL = Field<_S7CR, 25, 4>; // Channel selection
         using MBURST = Field<_S7CR, 23, 2>; // Memory burst transfer configuration
         using PBURST = Field<_S7CR, 21, 2>; // Peripheral burst transfer configuration
@@ -3235,44 +3235,47 @@ struct DMA2 {
     };
 
     // stream x number of data register
-    struct _S7NDTR : Register<DMA2_BASE + 0xBC, ReadWrite, _S7NDTR> {
+    struct _S7NDTR : Register<DMAx_BASE + 0xBC, ReadWrite, _S7NDTR> {
         using NDT = Field<_S7NDTR, 0, 16>; // Number of data items to transfer
     };
 
     // stream x peripheral address register
-    struct _S7PAR : Register<DMA2_BASE + 0xC0, ReadWrite, _S7PAR> {
+    struct _S7PAR : Register<DMAx_BASE + 0xC0, ReadWrite, _S7PAR> {
         using PA = Field<_S7PAR, 0, 32>; // Peripheral address
     };
 
     // stream x memory 0 address register
-    struct _S7M0AR : Register<DMA2_BASE + 0xC4, ReadWrite, _S7M0AR> {
+    struct _S7M0AR : Register<DMAx_BASE + 0xC4, ReadWrite, _S7M0AR> {
         using M0A = Field<_S7M0AR, 0, 32>; // Memory 0 address
     };
 
     // stream x memory 1 address register
-    struct _S7M1AR : Register<DMA2_BASE + 0xC8, ReadWrite, _S7M1AR> {
+    struct _S7M1AR : Register<DMAx_BASE + 0xC8, ReadWrite, _S7M1AR> {
         using M1A = Field<_S7M1AR, 0, 32>; // Memory 1 address (used in case of Double buffer mode)
     };
 
     // stream x FIFO control register
-    struct _S7FCR : Register<DMA2_BASE + 0xCC, ReadWrite, _S7FCR> {
+    struct _S7FCR : Register<DMAx_BASE + 0xCC, ReadWrite, _S7FCR> {
         using FEIE = Field<_S7FCR, 7, 1>; // FIFO error interrupt enable
         using FS = Field<_S7FCR, 3, 3>; // FIFO status
         using DMDIS = Field<_S7FCR, 2, 1>; // Direct mode disable
         using FTH = Field<_S7FCR, 0, 2>; // FIFO threshold selection
     };
 
-}; // struct DMA2
+}; // struct DMA
+
+
+// --------------------------------------------
+// DMA2: 
+// Base address: 0x40026400
+// --------------------------------------------
+using DMA2 = DMA<0x40026400>;
 
 // --------------------------------------------
 // DMA1: 
 // Base address: 0x40026000
 // --------------------------------------------
-
-struct DMA1 {
-    static constexpr uint32_t DMA1_BASE = 0x40026000;
-
-}; // struct DMA1
+using DMA1 = DMA<0x40026000>;
 
 // --------------------------------------------
 // RCC: Reset and clock control
@@ -4222,15 +4225,15 @@ struct SPI6 {
 }; // struct SPI6
 
 // --------------------------------------------
-// ADC1: Analog-to-digital converter
-// Base address: 0x40012000
+// ADC: Analog-to-digital converter
+// Base address:
 // --------------------------------------------
-
-struct ADC1 {
-    static constexpr uint32_t ADC1_BASE = 0x40012000;
+template <uint32_t BASE_ADDR>
+struct ADC {
+    static constexpr uint32_t ADCx_BASE = BASE_ADDR;
 
     // status register
-    struct _SR : Register<ADC1_BASE + 0x0, ReadWrite, _SR> {
+    struct _SR : Register<ADCx_BASE + 0x0, ReadWrite, _SR> {
         using OVR = Field<_SR, 5, 1>; // Overrun
         using STRT = Field<_SR, 4, 1>; // Regular channel start flag
         using JSTRT = Field<_SR, 3, 1>; // Injected channel start flag
@@ -4240,7 +4243,7 @@ struct ADC1 {
     };
 
     // control register 1
-    struct _CR1 : Register<ADC1_BASE + 0x4, ReadWrite, _CR1> {
+    struct _CR1 : Register<ADCx_BASE + 0x4, ReadWrite, _CR1> {
         using OVRIE = Field<_CR1, 26, 1>; // Overrun interrupt enable
         using RES = Field<_CR1, 24, 2>; // Resolution
         using AWDEN = Field<_CR1, 23, 1>; // Analog watchdog enable on regular channels
@@ -4258,7 +4261,7 @@ struct ADC1 {
     };
 
     // control register 2
-    struct _CR2 : Register<ADC1_BASE + 0x8, ReadWrite, _CR2> {
+    struct _CR2 : Register<ADCx_BASE + 0x8, ReadWrite, _CR2> {
         using SWSTART = Field<_CR2, 30, 1>; // Start conversion of regular channels
         using EXTEN = Field<_CR2, 28, 2>; // External trigger enable for regular channels
         using EXTSEL = Field<_CR2, 24, 4>; // External event select for regular group
@@ -4274,47 +4277,63 @@ struct ADC1 {
     };
 
     // sample time register 1
-    struct _SMPR1 : Register<ADC1_BASE + 0xC, ReadWrite, _SMPR1> {
-        using SMPx_x = Field<_SMPR1, 0, 32>; // Sample time bits
+    struct _SMPR1 : Register<ADCx_BASE + 0xC, ReadWrite, _SMPR1> {
+        using SMP18 = Field<_SMPR1, 24, 3>; // Sample time bits
+        using SMP17 = Field<_SMPR1, 21, 3>; // Sample time bits
+        using SMP16 = Field<_SMPR1, 18, 3>; // Sample time bits
+        using SMP15 = Field<_SMPR1, 15, 3>; // Sample time bits
+        using SMP14 = Field<_SMPR1, 12, 3>; // Sample time bits
+        using SMP13 = Field<_SMPR1, 9,  3>; // Sample time bits
+        using SMP12 = Field<_SMPR1, 6,  3>; // Sample time bits
+        using SMP11 = Field<_SMPR1, 3,  3>; // Sample time bits
+        using SMP10 = Field<_SMPR1, 0,  3>; // Sample time bits
     };
 
     // sample time register 2
-    struct _SMPR2 : Register<ADC1_BASE + 0x10, ReadWrite, _SMPR2> {
-        using SMPx_x = Field<_SMPR2, 0, 32>; // Sample time bits
+    struct _SMPR2 : Register<ADCx_BASE + 0x10, ReadWrite, _SMPR2> {
+        using SMP9 = Field<_SMPR1, 24, 3>; // Sample time bits
+        using SMP8 = Field<_SMPR1, 21, 3>; // Sample time bits
+        using SMP7 = Field<_SMPR1, 18, 3>; // Sample time bits
+        using SMP6 = Field<_SMPR1, 15, 3>; // Sample time bits
+        using SMP5 = Field<_SMPR1, 12, 3>; // Sample time bits
+        using SMP4 = Field<_SMPR1, 9,  3>; // Sample time bits
+        using SMP3 = Field<_SMPR1, 6,  3>; // Sample time bits
+        using SMP2 = Field<_SMPR1, 3,  3>; // Sample time bits
+        using SMP1 = Field<_SMPR1, 0,  3>; // Sample time bits
     };
 
     // injected channel data offset register x
-    struct _JOFR1 : Register<ADC1_BASE + 0x14, ReadWrite, _JOFR1> {
+    struct _JOFR1 : Register<ADCx_BASE + 0x14, ReadWrite, _JOFR1> {
         using JOFFSET1 = Field<_JOFR1, 0, 12>; // Data offset for injected channel x
     };
 
     // injected channel data offset register x
-    struct _JOFR2 : Register<ADC1_BASE + 0x18, ReadWrite, _JOFR2> {
+    struct _JOFR2 : Register<ADCx_BASE + 0x18, ReadWrite, _JOFR2> {
         using JOFFSET2 = Field<_JOFR2, 0, 12>; // Data offset for injected channel x
     };
 
     // injected channel data offset register x
-    struct _JOFR3 : Register<ADC1_BASE + 0x1C, ReadWrite, _JOFR3> {
+    struct _JOFR3 : Register<ADCx_BASE + 0x1C, ReadWrite, _JOFR3> {
         using JOFFSET3 = Field<_JOFR3, 0, 12>; // Data offset for injected channel x
     };
 
     // injected channel data offset register x
-    struct _JOFR4 : Register<ADC1_BASE + 0x20, ReadWrite, _JOFR4> {
+    struct _JOFR4 : Register<ADCx_BASE + 0x20, ReadWrite, _JOFR4> {
         using JOFFSET4 = Field<_JOFR4, 0, 12>; // Data offset for injected channel x
     };
 
     // watchdog higher threshold register
-    struct _HTR : Register<ADC1_BASE + 0x24, ReadWrite, _HTR> {
+    struct _HTR : Register<ADCx_BASE + 0x24, ReadWrite, _HTR> {
         using HT = Field<_HTR, 0, 12>; // Analog watchdog higher threshold
     };
 
     // watchdog lower threshold register
-    struct _LTR : Register<ADC1_BASE + 0x28, ReadWrite, _LTR> {
+    struct _LTR : Register<ADCx_BASE + 0x28, ReadWrite, _LTR> {
         using LT = Field<_LTR, 0, 12>; // Analog watchdog lower threshold
     };
 
     // regular sequence register 1
-    struct _SQR1 : Register<ADC1_BASE + 0x2C, ReadWrite, _SQR1> {
+    struct _SQR1 : Register<ADCx_BASE + 0x2C, ReadWrite, _SQR1> {
         using L = Field<_SQR1, 20, 4>; // Regular channel sequence length
         using SQ16 = Field<_SQR1, 15, 5>; // 16th conversion in regular sequence
         using SQ15 = Field<_SQR1, 10, 5>; // 15th conversion in regular sequence
@@ -4323,7 +4342,7 @@ struct ADC1 {
     };
 
     // regular sequence register 2
-    struct _SQR2 : Register<ADC1_BASE + 0x30, ReadWrite, _SQR2> {
+    struct _SQR2 : Register<ADCx_BASE + 0x30, ReadWrite, _SQR2> {
         using SQ12 = Field<_SQR2, 25, 5>; // 12th conversion in regular sequence
         using SQ11 = Field<_SQR2, 20, 5>; // 11th conversion in regular sequence
         using SQ10 = Field<_SQR2, 15, 5>; // 10th conversion in regular sequence
@@ -4333,7 +4352,7 @@ struct ADC1 {
     };
 
     // regular sequence register 3
-    struct _SQR3 : Register<ADC1_BASE + 0x34, ReadWrite, _SQR3> {
+    struct _SQR3 : Register<ADCx_BASE + 0x34, ReadWrite, _SQR3> {
         using SQ6 = Field<_SQR3, 25, 5>; // 6th conversion in regular sequence
         using SQ5 = Field<_SQR3, 20, 5>; // 5th conversion in regular sequence
         using SQ4 = Field<_SQR3, 15, 5>; // 4th conversion in regular sequence
@@ -4343,7 +4362,7 @@ struct ADC1 {
     };
 
     // injected sequence register
-    struct _JSQR : Register<ADC1_BASE + 0x38, ReadWrite, _JSQR> {
+    struct _JSQR : Register<ADCx_BASE + 0x38, ReadWrite, _JSQR> {
         using JL = Field<_JSQR, 20, 2>; // Injected sequence length
         using JSQ4 = Field<_JSQR, 15, 5>; // 4th conversion in injected sequence
         using JSQ3 = Field<_JSQR, 10, 5>; // 3rd conversion in injected sequence
@@ -4352,51 +4371,50 @@ struct ADC1 {
     };
 
     // injected data register x
-    struct _JDR1 : Register<ADC1_BASE + 0x3C, ReadOnly, _JDR1> {
+    struct _JDR1 : Register<ADCx_BASE + 0x3C, ReadOnly, _JDR1> {
         using JDATA = Field<_JDR1, 0, 16>; // Injected data
     };
 
     // injected data register x
-    struct _JDR2 : Register<ADC1_BASE + 0x40, ReadOnly, _JDR2> {
+    struct _JDR2 : Register<ADCx_BASE + 0x40, ReadOnly, _JDR2> {
         using JDATA = Field<_JDR2, 0, 16>; // Injected data
     };
 
     // injected data register x
-    struct _JDR3 : Register<ADC1_BASE + 0x44, ReadOnly, _JDR3> {
+    struct _JDR3 : Register<ADCx_BASE + 0x44, ReadOnly, _JDR3> {
         using JDATA = Field<_JDR3, 0, 16>; // Injected data
     };
 
     // injected data register x
-    struct _JDR4 : Register<ADC1_BASE + 0x48, ReadOnly, _JDR4> {
+    struct _JDR4 : Register<ADCx_BASE + 0x48, ReadOnly, _JDR4> {
         using JDATA = Field<_JDR4, 0, 16>; // Injected data
     };
 
     // regular data register
-    struct _DR : Register<ADC1_BASE + 0x4C, ReadOnly, _DR> {
+    struct _DR : Register<ADCx_BASE + 0x4C, ReadOnly, _DR> {
         using DATA = Field<_DR, 0, 16>; // Regular data
     };
 
 }; // struct ADC1
 
+
+// --------------------------------------------
+// ADC1: 
+// Base address: 0x40012000
+// --------------------------------------------
+using ADC1 = ADC<0x40012000>;
+
 // --------------------------------------------
 // ADC2: 
 // Base address: 0x40012100
 // --------------------------------------------
-
-struct ADC2 {
-    static constexpr uint32_t ADC2_BASE = 0x40012100;
-
-}; // struct ADC2
+using ADC2 = ADC<0x40012100>;
 
 // --------------------------------------------
 // ADC3: 
 // Base address: 0x40012200
 // --------------------------------------------
-
-struct ADC3 {
-    static constexpr uint32_t ADC3_BASE = 0x40012200;
-
-}; // struct ADC3
+using ADC3 = ADC<0x40012200>;
 
 // --------------------------------------------
 // ADC_Common: Common ADC registers
@@ -4784,6 +4802,8 @@ struct TIM1 {
 
     // capture/compare mode register 1 (output mode)
     struct _CCMR1_Output : Register<TIM1_BASE + 0x18, ReadWrite, _CCMR1_Output> {
+        using OC2M3 = Field<_CCMR1_Output, 24, 1>; // Output Compare 2 mode 3 bit
+        using OC1M3 = Field<_CCMR1_Output, 16, 1>; // Output Compare 1 mode 3 bit
         using OC2CE = Field<_CCMR1_Output, 15, 1>; // Output Compare 2 clear enable
         using OC2M = Field<_CCMR1_Output, 12, 3>; // Output Compare 2 mode
         using OC2PE = Field<_CCMR1_Output, 11, 1>; // Output Compare 2 preload enable
@@ -4808,6 +4828,8 @@ struct TIM1 {
 
     // capture/compare mode register 2 (output mode)
     struct _CCMR2_Output : Register<TIM1_BASE + 0x1C, ReadWrite, _CCMR2_Output> {
+        using OC2M3 = Field<_CCMR1_Output, 24, 1>; // Output Compare 2 mode 3 bit
+        using OC1M3 = Field<_CCMR1_Output, 16, 1>; // Output Compare 1 mode 3 bit
         using OC4CE = Field<_CCMR2_Output, 15, 1>; // Output compare 4 clear enable
         using OC4M = Field<_CCMR2_Output, 12, 3>; // Output compare 4 mode
         using OC4PE = Field<_CCMR2_Output, 11, 1>; // Output compare 4 preload enable
@@ -4832,6 +4854,14 @@ struct TIM1 {
 
     // capture/compare enable register
     struct _CCER : Register<TIM1_BASE + 0x20, ReadWrite, _CCER> {
+        using CC6P = Field<_CCER, 21, 1>; // Capture/Compare 6 output Polarity
+        using CC6E = Field<_CCER, 20, 1>; // Capture/Compare 6  output enable
+        using CC5P = Field<_CCER, 17, 1>; // Capture/Compare 5 output Polarity
+        using CC5E = Field<_CCER, 16, 1>; // Capture/Compare 5 output enable
+        using CC4NP = Field<_CCER, 15, 1>; // Capture/Compare 4 output complementary output enable
+        
+
+
         using CC4P = Field<_CCER, 13, 1>; // Capture/Compare 3 output Polarity
         using CC4E = Field<_CCER, 12, 1>; // Capture/Compare 4 output enable
         using CC3NP = Field<_CCER, 11, 1>; // Capture/Compare 3 output Polarity
@@ -5462,6 +5492,8 @@ struct TIM4 {
 
     // capture/compare mode register 1 (output mode)
     struct _CCMR1_Output : Register<TIM4_BASE + 0x18, ReadWrite, _CCMR1_Output> {
+        using OC2M3 = Field<_CCMR1_Output, 24, 1>; // OC2M3
+        using OC1M3 = Field<_CCMR1_Output, 16, 1>; // OC1M3
         using OC2CE = Field<_CCMR1_Output, 15, 1>; // OC2CE
         using OC2M = Field<_CCMR1_Output, 12, 3>; // OC2M
         using OC2PE = Field<_CCMR1_Output, 11, 1>; // OC2PE
@@ -5486,7 +5518,9 @@ struct TIM4 {
 
     // capture/compare mode register 2 (output mode)
     struct _CCMR2_Output : Register<TIM4_BASE + 0x1C, ReadWrite, _CCMR2_Output> {
-        using O24CE = Field<_CCMR2_Output, 15, 1>; // O24CE
+        using OC4M3 = Field<_CCMR1_Output, 24, 1>; // OC2M3
+        using OC3M3 = Field<_CCMR1_Output, 16, 1>; // OC1M3
+        using OC4CE = Field<_CCMR2_Output, 15, 1>; // OC4CE
         using OC4M = Field<_CCMR2_Output, 12, 3>; // OC4M
         using OC4PE = Field<_CCMR2_Output, 11, 1>; // OC4PE
         using OC4FE = Field<_CCMR2_Output, 10, 1>; // OC4FE
@@ -6114,11 +6148,13 @@ struct CRC {
 // Base address: 0x40006400
 // --------------------------------------------
 
-struct CAN1 {
-    static constexpr uint32_t CAN1_BASE = 0x40006400;
+
+template <uint32_t BASE_ADDR>
+struct CAN {
+    static constexpr uint32_t CANx_BASE = BASE_ADDR;
 
     // master control register
-    struct _MCR : Register<CAN1_BASE + 0x0, ReadWrite, _MCR> {
+    struct _MCR : Register<CANx_BASE + 0x0, ReadWrite, _MCR> {
         using DBF = Field<_MCR, 16, 1>; // DBF
         using RESET = Field<_MCR, 15, 1>; // RESET
         using TTCM = Field<_MCR, 7, 1>; // TTCM
@@ -6132,7 +6168,7 @@ struct CAN1 {
     };
 
     // master status register
-    struct _MSR : Register<CAN1_BASE + 0x4, ReadWrite, _MSR> {
+    struct _MSR : Register<CANx_BASE + 0x4, ReadWrite, _MSR> {
         using RX = Field<_MSR, 11, 1>; // RX
         using SAMP = Field<_MSR, 10, 1>; // SAMP
         using RXM = Field<_MSR, 9, 1>; // RXM
@@ -6145,7 +6181,7 @@ struct CAN1 {
     };
 
     // transmit status register
-    struct _TSR : Register<CAN1_BASE + 0x8, ReadWrite, _TSR> {
+    struct _TSR : Register<CANx_BASE + 0x8, ReadWrite, _TSR> {
         using LOW2 = Field<_TSR, 31, 1>; // Lowest priority flag for mailbox 2
         using LOW1 = Field<_TSR, 30, 1>; // Lowest priority flag for mailbox 1
         using LOW0 = Field<_TSR, 29, 1>; // Lowest priority flag for mailbox 0
@@ -6171,7 +6207,7 @@ struct CAN1 {
     };
 
     // receive FIFO 0 register
-    struct _RF0R : Register<CAN1_BASE + 0xC, ReadWrite, _RF0R> {
+    struct _RF0R : Register<CANx_BASE + 0xC, ReadWrite, _RF0R> {
         using RFOM0 = Field<_RF0R, 5, 1>; // RFOM0
         using FOVR0 = Field<_RF0R, 4, 1>; // FOVR0
         using FULL0 = Field<_RF0R, 3, 1>; // FULL0
@@ -6179,7 +6215,7 @@ struct CAN1 {
     };
 
     // receive FIFO 1 register
-    struct _RF1R : Register<CAN1_BASE + 0x10, ReadWrite, _RF1R> {
+    struct _RF1R : Register<CANx_BASE + 0x10, ReadWrite, _RF1R> {
         using RFOM1 = Field<_RF1R, 5, 1>; // RFOM1
         using FOVR1 = Field<_RF1R, 4, 1>; // FOVR1
         using FULL1 = Field<_RF1R, 3, 1>; // FULL1
@@ -6187,7 +6223,7 @@ struct CAN1 {
     };
 
     // interrupt enable register
-    struct _IER : Register<CAN1_BASE + 0x14, ReadWrite, _IER> {
+    struct _IER : Register<CANx_BASE + 0x14, ReadWrite, _IER> {
         using SLKIE = Field<_IER, 17, 1>; // SLKIE
         using WKUIE = Field<_IER, 16, 1>; // WKUIE
         using ERRIE = Field<_IER, 15, 1>; // ERRIE
@@ -6205,7 +6241,7 @@ struct CAN1 {
     };
 
     // interrupt enable register
-    struct _ESR : Register<CAN1_BASE + 0x18, ReadWrite, _ESR> {
+    struct _ESR : Register<CANx_BASE + 0x18, ReadWrite, _ESR> {
         using REC = Field<_ESR, 24, 8>; // REC
         using TEC = Field<_ESR, 16, 8>; // TEC
         using LEC = Field<_ESR, 4, 3>; // LEC
@@ -6215,7 +6251,7 @@ struct CAN1 {
     };
 
     // bit timing register
-    struct _BTR : Register<CAN1_BASE + 0x1C, ReadWrite, _BTR> {
+    struct _BTR : Register<CANx_BASE + 0x1C, ReadWrite, _BTR> {
         using SILM = Field<_BTR, 31, 1>; // SILM
         using LBKM = Field<_BTR, 30, 1>; // LBKM
         using SJW = Field<_BTR, 24, 2>; // SJW
@@ -6225,7 +6261,7 @@ struct CAN1 {
     };
 
     // TX mailbox identifier register
-    struct _TI0R : Register<CAN1_BASE + 0x180, ReadWrite, _TI0R> {
+    struct _TI0R : Register<CANx_BASE + 0x180, ReadWrite, _TI0R> {
         using STID = Field<_TI0R, 21, 11>; // STID
         using EXID = Field<_TI0R, 3, 18>; // EXID
         using IDE = Field<_TI0R, 2, 1>; // IDE
@@ -6234,14 +6270,14 @@ struct CAN1 {
     };
 
     // mailbox data length control and time stamp register
-    struct _TDT0R : Register<CAN1_BASE + 0x184, ReadWrite, _TDT0R> {
+    struct _TDT0R : Register<CANx_BASE + 0x184, ReadWrite, _TDT0R> {
         using TIME = Field<_TDT0R, 16, 16>; // TIME
         using TGT = Field<_TDT0R, 8, 1>; // TGT
         using DLC = Field<_TDT0R, 0, 4>; // DLC
     };
 
     // mailbox data low register
-    struct _TDL0R : Register<CAN1_BASE + 0x188, ReadWrite, _TDL0R> {
+    struct _TDL0R : Register<CANx_BASE + 0x188, ReadWrite, _TDL0R> {
         using DATA3 = Field<_TDL0R, 24, 8>; // DATA3
         using DATA2 = Field<_TDL0R, 16, 8>; // DATA2
         using DATA1 = Field<_TDL0R, 8, 8>; // DATA1
@@ -6249,7 +6285,7 @@ struct CAN1 {
     };
 
     // mailbox data high register
-    struct _TDH0R : Register<CAN1_BASE + 0x18C, ReadWrite, _TDH0R> {
+    struct _TDH0R : Register<CANx_BASE + 0x18C, ReadWrite, _TDH0R> {
         using DATA7 = Field<_TDH0R, 24, 8>; // DATA7
         using DATA6 = Field<_TDH0R, 16, 8>; // DATA6
         using DATA5 = Field<_TDH0R, 8, 8>; // DATA5
@@ -6257,7 +6293,7 @@ struct CAN1 {
     };
 
     // mailbox identifier register
-    struct _TI1R : Register<CAN1_BASE + 0x190, ReadWrite, _TI1R> {
+    struct _TI1R : Register<CANx_BASE + 0x190, ReadWrite, _TI1R> {
         using STID = Field<_TI1R, 21, 11>; // STID
         using EXID = Field<_TI1R, 3, 18>; // EXID
         using IDE = Field<_TI1R, 2, 1>; // IDE
@@ -6266,14 +6302,14 @@ struct CAN1 {
     };
 
     // mailbox data length control and time stamp register
-    struct _TDT1R : Register<CAN1_BASE + 0x194, ReadWrite, _TDT1R> {
+    struct _TDT1R : Register<CANx_BASE + 0x194, ReadWrite, _TDT1R> {
         using TIME = Field<_TDT1R, 16, 16>; // TIME
         using TGT = Field<_TDT1R, 8, 1>; // TGT
         using DLC = Field<_TDT1R, 0, 4>; // DLC
     };
 
     // mailbox data low register
-    struct _TDL1R : Register<CAN1_BASE + 0x198, ReadWrite, _TDL1R> {
+    struct _TDL1R : Register<CANx_BASE + 0x198, ReadWrite, _TDL1R> {
         using DATA3 = Field<_TDL1R, 24, 8>; // DATA3
         using DATA2 = Field<_TDL1R, 16, 8>; // DATA2
         using DATA1 = Field<_TDL1R, 8, 8>; // DATA1
@@ -6281,7 +6317,7 @@ struct CAN1 {
     };
 
     // mailbox data high register
-    struct _TDH1R : Register<CAN1_BASE + 0x19C, ReadWrite, _TDH1R> {
+    struct _TDH1R : Register<CANx_BASE + 0x19C, ReadWrite, _TDH1R> {
         using DATA7 = Field<_TDH1R, 24, 8>; // DATA7
         using DATA6 = Field<_TDH1R, 16, 8>; // DATA6
         using DATA5 = Field<_TDH1R, 8, 8>; // DATA5
@@ -6289,7 +6325,7 @@ struct CAN1 {
     };
 
     // mailbox identifier register
-    struct _TI2R : Register<CAN1_BASE + 0x1A0, ReadWrite, _TI2R> {
+    struct _TI2R : Register<CANx_BASE + 0x1A0, ReadWrite, _TI2R> {
         using STID = Field<_TI2R, 21, 11>; // STID
         using EXID = Field<_TI2R, 3, 18>; // EXID
         using IDE = Field<_TI2R, 2, 1>; // IDE
@@ -6298,14 +6334,14 @@ struct CAN1 {
     };
 
     // mailbox data length control and time stamp register
-    struct _TDT2R : Register<CAN1_BASE + 0x1A4, ReadWrite, _TDT2R> {
+    struct _TDT2R : Register<CANx_BASE + 0x1A4, ReadWrite, _TDT2R> {
         using TIME = Field<_TDT2R, 16, 16>; // TIME
         using TGT = Field<_TDT2R, 8, 1>; // TGT
         using DLC = Field<_TDT2R, 0, 4>; // DLC
     };
 
     // mailbox data low register
-    struct _TDL2R : Register<CAN1_BASE + 0x1A8, ReadWrite, _TDL2R> {
+    struct _TDL2R : Register<CANx_BASE + 0x1A8, ReadWrite, _TDL2R> {
         using DATA3 = Field<_TDL2R, 24, 8>; // DATA3
         using DATA2 = Field<_TDL2R, 16, 8>; // DATA2
         using DATA1 = Field<_TDL2R, 8, 8>; // DATA1
@@ -6313,7 +6349,7 @@ struct CAN1 {
     };
 
     // mailbox data high register
-    struct _TDH2R : Register<CAN1_BASE + 0x1AC, ReadWrite, _TDH2R> {
+    struct _TDH2R : Register<CANx_BASE + 0x1AC, ReadWrite, _TDH2R> {
         using DATA7 = Field<_TDH2R, 24, 8>; // DATA7
         using DATA6 = Field<_TDH2R, 16, 8>; // DATA6
         using DATA5 = Field<_TDH2R, 8, 8>; // DATA5
@@ -6321,7 +6357,7 @@ struct CAN1 {
     };
 
     // receive FIFO mailbox identifier register
-    struct _RI0R : Register<CAN1_BASE + 0x1B0, ReadOnly, _RI0R> {
+    struct _RI0R : Register<CANx_BASE + 0x1B0, ReadOnly, _RI0R> {
         using STID = Field<_RI0R, 21, 11>; // STID
         using EXID = Field<_RI0R, 3, 18>; // EXID
         using IDE = Field<_RI0R, 2, 1>; // IDE
@@ -6329,14 +6365,14 @@ struct CAN1 {
     };
 
     // mailbox data high register
-    struct _RDT0R : Register<CAN1_BASE + 0x1B4, ReadOnly, _RDT0R> {
+    struct _RDT0R : Register<CANx_BASE + 0x1B4, ReadOnly, _RDT0R> {
         using TIME = Field<_RDT0R, 16, 16>; // TIME
         using FMI = Field<_RDT0R, 8, 8>; // FMI
         using DLC = Field<_RDT0R, 0, 4>; // DLC
     };
 
     // mailbox data high register
-    struct _RDL0R : Register<CAN1_BASE + 0x1B8, ReadOnly, _RDL0R> {
+    struct _RDL0R : Register<CANx_BASE + 0x1B8, ReadOnly, _RDL0R> {
         using DATA3 = Field<_RDL0R, 24, 8>; // DATA3
         using DATA2 = Field<_RDL0R, 16, 8>; // DATA2
         using DATA1 = Field<_RDL0R, 8, 8>; // DATA1
@@ -6344,7 +6380,7 @@ struct CAN1 {
     };
 
     // receive FIFO mailbox data high register
-    struct _RDH0R : Register<CAN1_BASE + 0x1BC, ReadOnly, _RDH0R> {
+    struct _RDH0R : Register<CANx_BASE + 0x1BC, ReadOnly, _RDH0R> {
         using DATA7 = Field<_RDH0R, 24, 8>; // DATA7
         using DATA6 = Field<_RDH0R, 16, 8>; // DATA6
         using DATA5 = Field<_RDH0R, 8, 8>; // DATA5
@@ -6352,7 +6388,7 @@ struct CAN1 {
     };
 
     // mailbox data high register
-    struct _RI1R : Register<CAN1_BASE + 0x1C0, ReadOnly, _RI1R> {
+    struct _RI1R : Register<CANx_BASE + 0x1C0, ReadOnly, _RI1R> {
         using STID = Field<_RI1R, 21, 11>; // STID
         using EXID = Field<_RI1R, 3, 18>; // EXID
         using IDE = Field<_RI1R, 2, 1>; // IDE
@@ -6360,14 +6396,14 @@ struct CAN1 {
     };
 
     // mailbox data high register
-    struct _RDT1R : Register<CAN1_BASE + 0x1C4, ReadOnly, _RDT1R> {
+    struct _RDT1R : Register<CANx_BASE + 0x1C4, ReadOnly, _RDT1R> {
         using TIME = Field<_RDT1R, 16, 16>; // TIME
         using FMI = Field<_RDT1R, 8, 8>; // FMI
         using DLC = Field<_RDT1R, 0, 4>; // DLC
     };
 
     // mailbox data high register
-    struct _RDL1R : Register<CAN1_BASE + 0x1C8, ReadOnly, _RDL1R> {
+    struct _RDL1R : Register<CANx_BASE + 0x1C8, ReadOnly, _RDL1R> {
         using DATA3 = Field<_RDL1R, 24, 8>; // DATA3
         using DATA2 = Field<_RDL1R, 16, 8>; // DATA2
         using DATA1 = Field<_RDL1R, 8, 8>; // DATA1
@@ -6375,7 +6411,7 @@ struct CAN1 {
     };
 
     // mailbox data high register
-    struct _RDH1R : Register<CAN1_BASE + 0x1CC, ReadOnly, _RDH1R> {
+    struct _RDH1R : Register<CANx_BASE + 0x1CC, ReadOnly, _RDH1R> {
         using DATA7 = Field<_RDH1R, 24, 8>; // DATA7
         using DATA6 = Field<_RDH1R, 16, 8>; // DATA6
         using DATA5 = Field<_RDH1R, 8, 8>; // DATA5
@@ -6383,13 +6419,13 @@ struct CAN1 {
     };
 
     // filter master register
-    struct _FMR : Register<CAN1_BASE + 0x200, ReadWrite, _FMR> {
+    struct _FMR : Register<CANx_BASE + 0x200, ReadWrite, _FMR> {
         using CAN2SB = Field<_FMR, 8, 6>; // CAN2SB
         using FINIT = Field<_FMR, 0, 1>; // FINIT
     };
 
     // filter mode register
-    struct _FM1R : Register<CAN1_BASE + 0x204, ReadWrite, _FM1R> {
+    struct _FM1R : Register<CANx_BASE + 0x204, ReadWrite, _FM1R> {
         using FBM0 = Field<_FM1R, 0, 1>; // Filter mode
         using FBM1 = Field<_FM1R, 1, 1>; // Filter mode
         using FBM2 = Field<_FM1R, 2, 1>; // Filter mode
@@ -6421,7 +6457,7 @@ struct CAN1 {
     };
 
     // filter scale register
-    struct _FS1R : Register<CAN1_BASE + 0x20C, ReadWrite, _FS1R> {
+    struct _FS1R : Register<CANx_BASE + 0x20C, ReadWrite, _FS1R> {
         using FSC0 = Field<_FS1R, 0, 1>; // Filter scale configuration
         using FSC1 = Field<_FS1R, 1, 1>; // Filter scale configuration
         using FSC2 = Field<_FS1R, 2, 1>; // Filter scale configuration
@@ -6453,7 +6489,7 @@ struct CAN1 {
     };
 
     // filter FIFO assignment register
-    struct _FFA1R : Register<CAN1_BASE + 0x214, ReadWrite, _FFA1R> {
+    struct _FFA1R : Register<CANx_BASE + 0x214, ReadWrite, _FFA1R> {
         using FFA0 = Field<_FFA1R, 0, 1>; // Filter FIFO assignment for filter 0
         using FFA1 = Field<_FFA1R, 1, 1>; // Filter FIFO assignment for filter 1
         using FFA2 = Field<_FFA1R, 2, 1>; // Filter FIFO assignment for filter 2
@@ -6485,7 +6521,7 @@ struct CAN1 {
     };
 
     // filter activation register
-    struct _FA1R : Register<CAN1_BASE + 0x21C, ReadWrite, _FA1R> {
+    struct _FA1R : Register<CANx_BASE + 0x21C, ReadWrite, _FA1R> {
         using FACT0 = Field<_FA1R, 0, 1>; // Filter active
         using FACT1 = Field<_FA1R, 1, 1>; // Filter active
         using FACT2 = Field<_FA1R, 2, 1>; // Filter active
@@ -6517,7 +6553,7 @@ struct CAN1 {
     };
 
     // Filter bank 0 register 1
-    struct _F0R1 : Register<CAN1_BASE + 0x240, ReadWrite, _F0R1> {
+    struct _F0R1 : Register<CANx_BASE + 0x240, ReadWrite, _F0R1> {
         using FB0 = Field<_F0R1, 0, 1>; // Filter bits
         using FB1 = Field<_F0R1, 1, 1>; // Filter bits
         using FB2 = Field<_F0R1, 2, 1>; // Filter bits
@@ -6553,7 +6589,7 @@ struct CAN1 {
     };
 
     // Filter bank 0 register 2
-    struct _F0R2 : Register<CAN1_BASE + 0x244, ReadWrite, _F0R2> {
+    struct _F0R2 : Register<CANx_BASE + 0x244, ReadWrite, _F0R2> {
         using FB0 = Field<_F0R2, 0, 1>; // Filter bits
         using FB1 = Field<_F0R2, 1, 1>; // Filter bits
         using FB2 = Field<_F0R2, 2, 1>; // Filter bits
@@ -6589,7 +6625,7 @@ struct CAN1 {
     };
 
     // Filter bank 1 register 1
-    struct _F1R1 : Register<CAN1_BASE + 0x248, ReadWrite, _F1R1> {
+    struct _F1R1 : Register<CANx_BASE + 0x248, ReadWrite, _F1R1> {
         using FB0 = Field<_F1R1, 0, 1>; // Filter bits
         using FB1 = Field<_F1R1, 1, 1>; // Filter bits
         using FB2 = Field<_F1R1, 2, 1>; // Filter bits
@@ -6625,7 +6661,7 @@ struct CAN1 {
     };
 
     // Filter bank 1 register 2
-    struct _F1R2 : Register<CAN1_BASE + 0x24C, ReadWrite, _F1R2> {
+    struct _F1R2 : Register<CANx_BASE + 0x24C, ReadWrite, _F1R2> {
         using FB0 = Field<_F1R2, 0, 1>; // Filter bits
         using FB1 = Field<_F1R2, 1, 1>; // Filter bits
         using FB2 = Field<_F1R2, 2, 1>; // Filter bits
@@ -6661,7 +6697,7 @@ struct CAN1 {
     };
 
     // Filter bank 2 register 1
-    struct _F2R1 : Register<CAN1_BASE + 0x250, ReadWrite, _F2R1> {
+    struct _F2R1 : Register<CANx_BASE + 0x250, ReadWrite, _F2R1> {
         using FB0 = Field<_F2R1, 0, 1>; // Filter bits
         using FB1 = Field<_F2R1, 1, 1>; // Filter bits
         using FB2 = Field<_F2R1, 2, 1>; // Filter bits
@@ -6697,7 +6733,7 @@ struct CAN1 {
     };
 
     // Filter bank 2 register 2
-    struct _F2R2 : Register<CAN1_BASE + 0x254, ReadWrite, _F2R2> {
+    struct _F2R2 : Register<CANx_BASE + 0x254, ReadWrite, _F2R2> {
         using FB0 = Field<_F2R2, 0, 1>; // Filter bits
         using FB1 = Field<_F2R2, 1, 1>; // Filter bits
         using FB2 = Field<_F2R2, 2, 1>; // Filter bits
@@ -6733,7 +6769,7 @@ struct CAN1 {
     };
 
     // Filter bank 3 register 1
-    struct _F3R1 : Register<CAN1_BASE + 0x258, ReadWrite, _F3R1> {
+    struct _F3R1 : Register<CANx_BASE + 0x258, ReadWrite, _F3R1> {
         using FB0 = Field<_F3R1, 0, 1>; // Filter bits
         using FB1 = Field<_F3R1, 1, 1>; // Filter bits
         using FB2 = Field<_F3R1, 2, 1>; // Filter bits
@@ -6769,7 +6805,7 @@ struct CAN1 {
     };
 
     // Filter bank 3 register 2
-    struct _F3R2 : Register<CAN1_BASE + 0x25C, ReadWrite, _F3R2> {
+    struct _F3R2 : Register<CANx_BASE + 0x25C, ReadWrite, _F3R2> {
         using FB0 = Field<_F3R2, 0, 1>; // Filter bits
         using FB1 = Field<_F3R2, 1, 1>; // Filter bits
         using FB2 = Field<_F3R2, 2, 1>; // Filter bits
@@ -6805,7 +6841,7 @@ struct CAN1 {
     };
 
     // Filter bank 4 register 1
-    struct _F4R1 : Register<CAN1_BASE + 0x260, ReadWrite, _F4R1> {
+    struct _F4R1 : Register<CANx_BASE + 0x260, ReadWrite, _F4R1> {
         using FB0 = Field<_F4R1, 0, 1>; // Filter bits
         using FB1 = Field<_F4R1, 1, 1>; // Filter bits
         using FB2 = Field<_F4R1, 2, 1>; // Filter bits
@@ -6841,7 +6877,7 @@ struct CAN1 {
     };
 
     // Filter bank 4 register 2
-    struct _F4R2 : Register<CAN1_BASE + 0x264, ReadWrite, _F4R2> {
+    struct _F4R2 : Register<CANx_BASE + 0x264, ReadWrite, _F4R2> {
         using FB0 = Field<_F4R2, 0, 1>; // Filter bits
         using FB1 = Field<_F4R2, 1, 1>; // Filter bits
         using FB2 = Field<_F4R2, 2, 1>; // Filter bits
@@ -6877,7 +6913,7 @@ struct CAN1 {
     };
 
     // Filter bank 5 register 1
-    struct _F5R1 : Register<CAN1_BASE + 0x268, ReadWrite, _F5R1> {
+    struct _F5R1 : Register<CANx_BASE + 0x268, ReadWrite, _F5R1> {
         using FB0 = Field<_F5R1, 0, 1>; // Filter bits
         using FB1 = Field<_F5R1, 1, 1>; // Filter bits
         using FB2 = Field<_F5R1, 2, 1>; // Filter bits
@@ -6913,7 +6949,7 @@ struct CAN1 {
     };
 
     // Filter bank 5 register 2
-    struct _F5R2 : Register<CAN1_BASE + 0x26C, ReadWrite, _F5R2> {
+    struct _F5R2 : Register<CANx_BASE + 0x26C, ReadWrite, _F5R2> {
         using FB0 = Field<_F5R2, 0, 1>; // Filter bits
         using FB1 = Field<_F5R2, 1, 1>; // Filter bits
         using FB2 = Field<_F5R2, 2, 1>; // Filter bits
@@ -6949,7 +6985,7 @@ struct CAN1 {
     };
 
     // Filter bank 6 register 1
-    struct _F6R1 : Register<CAN1_BASE + 0x270, ReadWrite, _F6R1> {
+    struct _F6R1 : Register<CANx_BASE + 0x270, ReadWrite, _F6R1> {
         using FB0 = Field<_F6R1, 0, 1>; // Filter bits
         using FB1 = Field<_F6R1, 1, 1>; // Filter bits
         using FB2 = Field<_F6R1, 2, 1>; // Filter bits
@@ -6985,7 +7021,7 @@ struct CAN1 {
     };
 
     // Filter bank 6 register 2
-    struct _F6R2 : Register<CAN1_BASE + 0x274, ReadWrite, _F6R2> {
+    struct _F6R2 : Register<CANx_BASE + 0x274, ReadWrite, _F6R2> {
         using FB0 = Field<_F6R2, 0, 1>; // Filter bits
         using FB1 = Field<_F6R2, 1, 1>; // Filter bits
         using FB2 = Field<_F6R2, 2, 1>; // Filter bits
@@ -7021,7 +7057,7 @@ struct CAN1 {
     };
 
     // Filter bank 7 register 1
-    struct _F7R1 : Register<CAN1_BASE + 0x278, ReadWrite, _F7R1> {
+    struct _F7R1 : Register<CANx_BASE + 0x278, ReadWrite, _F7R1> {
         using FB0 = Field<_F7R1, 0, 1>; // Filter bits
         using FB1 = Field<_F7R1, 1, 1>; // Filter bits
         using FB2 = Field<_F7R1, 2, 1>; // Filter bits
@@ -7057,7 +7093,7 @@ struct CAN1 {
     };
 
     // Filter bank 7 register 2
-    struct _F7R2 : Register<CAN1_BASE + 0x27C, ReadWrite, _F7R2> {
+    struct _F7R2 : Register<CANx_BASE + 0x27C, ReadWrite, _F7R2> {
         using FB0 = Field<_F7R2, 0, 1>; // Filter bits
         using FB1 = Field<_F7R2, 1, 1>; // Filter bits
         using FB2 = Field<_F7R2, 2, 1>; // Filter bits
@@ -7093,7 +7129,7 @@ struct CAN1 {
     };
 
     // Filter bank 8 register 1
-    struct _F8R1 : Register<CAN1_BASE + 0x280, ReadWrite, _F8R1> {
+    struct _F8R1 : Register<CANx_BASE + 0x280, ReadWrite, _F8R1> {
         using FB0 = Field<_F8R1, 0, 1>; // Filter bits
         using FB1 = Field<_F8R1, 1, 1>; // Filter bits
         using FB2 = Field<_F8R1, 2, 1>; // Filter bits
@@ -7129,7 +7165,7 @@ struct CAN1 {
     };
 
     // Filter bank 8 register 2
-    struct _F8R2 : Register<CAN1_BASE + 0x284, ReadWrite, _F8R2> {
+    struct _F8R2 : Register<CANx_BASE + 0x284, ReadWrite, _F8R2> {
         using FB0 = Field<_F8R2, 0, 1>; // Filter bits
         using FB1 = Field<_F8R2, 1, 1>; // Filter bits
         using FB2 = Field<_F8R2, 2, 1>; // Filter bits
@@ -7165,7 +7201,7 @@ struct CAN1 {
     };
 
     // Filter bank 9 register 1
-    struct _F9R1 : Register<CAN1_BASE + 0x288, ReadWrite, _F9R1> {
+    struct _F9R1 : Register<CANx_BASE + 0x288, ReadWrite, _F9R1> {
         using FB0 = Field<_F9R1, 0, 1>; // Filter bits
         using FB1 = Field<_F9R1, 1, 1>; // Filter bits
         using FB2 = Field<_F9R1, 2, 1>; // Filter bits
@@ -7201,7 +7237,7 @@ struct CAN1 {
     };
 
     // Filter bank 9 register 2
-    struct _F9R2 : Register<CAN1_BASE + 0x28C, ReadWrite, _F9R2> {
+    struct _F9R2 : Register<CANx_BASE + 0x28C, ReadWrite, _F9R2> {
         using FB0 = Field<_F9R2, 0, 1>; // Filter bits
         using FB1 = Field<_F9R2, 1, 1>; // Filter bits
         using FB2 = Field<_F9R2, 2, 1>; // Filter bits
@@ -7237,7 +7273,7 @@ struct CAN1 {
     };
 
     // Filter bank 10 register 1
-    struct _F10R1 : Register<CAN1_BASE + 0x290, ReadWrite, _F10R1> {
+    struct _F10R1 : Register<CANx_BASE + 0x290, ReadWrite, _F10R1> {
         using FB0 = Field<_F10R1, 0, 1>; // Filter bits
         using FB1 = Field<_F10R1, 1, 1>; // Filter bits
         using FB2 = Field<_F10R1, 2, 1>; // Filter bits
@@ -7273,7 +7309,7 @@ struct CAN1 {
     };
 
     // Filter bank 10 register 2
-    struct _F10R2 : Register<CAN1_BASE + 0x294, ReadWrite, _F10R2> {
+    struct _F10R2 : Register<CANx_BASE + 0x294, ReadWrite, _F10R2> {
         using FB0 = Field<_F10R2, 0, 1>; // Filter bits
         using FB1 = Field<_F10R2, 1, 1>; // Filter bits
         using FB2 = Field<_F10R2, 2, 1>; // Filter bits
@@ -7309,7 +7345,7 @@ struct CAN1 {
     };
 
     // Filter bank 11 register 1
-    struct _F11R1 : Register<CAN1_BASE + 0x298, ReadWrite, _F11R1> {
+    struct _F11R1 : Register<CANx_BASE + 0x298, ReadWrite, _F11R1> {
         using FB0 = Field<_F11R1, 0, 1>; // Filter bits
         using FB1 = Field<_F11R1, 1, 1>; // Filter bits
         using FB2 = Field<_F11R1, 2, 1>; // Filter bits
@@ -7345,7 +7381,7 @@ struct CAN1 {
     };
 
     // Filter bank 11 register 2
-    struct _F11R2 : Register<CAN1_BASE + 0x29C, ReadWrite, _F11R2> {
+    struct _F11R2 : Register<CANx_BASE + 0x29C, ReadWrite, _F11R2> {
         using FB0 = Field<_F11R2, 0, 1>; // Filter bits
         using FB1 = Field<_F11R2, 1, 1>; // Filter bits
         using FB2 = Field<_F11R2, 2, 1>; // Filter bits
@@ -7381,7 +7417,7 @@ struct CAN1 {
     };
 
     // Filter bank 4 register 1
-    struct _F12R1 : Register<CAN1_BASE + 0x2A0, ReadWrite, _F12R1> {
+    struct _F12R1 : Register<CANx_BASE + 0x2A0, ReadWrite, _F12R1> {
         using FB0 = Field<_F12R1, 0, 1>; // Filter bits
         using FB1 = Field<_F12R1, 1, 1>; // Filter bits
         using FB2 = Field<_F12R1, 2, 1>; // Filter bits
@@ -7417,7 +7453,7 @@ struct CAN1 {
     };
 
     // Filter bank 12 register 2
-    struct _F12R2 : Register<CAN1_BASE + 0x2A4, ReadWrite, _F12R2> {
+    struct _F12R2 : Register<CANx_BASE + 0x2A4, ReadWrite, _F12R2> {
         using FB0 = Field<_F12R2, 0, 1>; // Filter bits
         using FB1 = Field<_F12R2, 1, 1>; // Filter bits
         using FB2 = Field<_F12R2, 2, 1>; // Filter bits
@@ -7453,7 +7489,7 @@ struct CAN1 {
     };
 
     // Filter bank 13 register 1
-    struct _F13R1 : Register<CAN1_BASE + 0x2A8, ReadWrite, _F13R1> {
+    struct _F13R1 : Register<CANx_BASE + 0x2A8, ReadWrite, _F13R1> {
         using FB0 = Field<_F13R1, 0, 1>; // Filter bits
         using FB1 = Field<_F13R1, 1, 1>; // Filter bits
         using FB2 = Field<_F13R1, 2, 1>; // Filter bits
@@ -7489,7 +7525,7 @@ struct CAN1 {
     };
 
     // Filter bank 13 register 2
-    struct _F13R2 : Register<CAN1_BASE + 0x2AC, ReadWrite, _F13R2> {
+    struct _F13R2 : Register<CANx_BASE + 0x2AC, ReadWrite, _F13R2> {
         using FB0 = Field<_F13R2, 0, 1>; // Filter bits
         using FB1 = Field<_F13R2, 1, 1>; // Filter bits
         using FB2 = Field<_F13R2, 2, 1>; // Filter bits
@@ -7525,7 +7561,7 @@ struct CAN1 {
     };
 
     // Filter bank 14 register 1
-    struct _F14R1 : Register<CAN1_BASE + 0x2B0, ReadWrite, _F14R1> {
+    struct _F14R1 : Register<CANx_BASE + 0x2B0, ReadWrite, _F14R1> {
         using FB0 = Field<_F14R1, 0, 1>; // Filter bits
         using FB1 = Field<_F14R1, 1, 1>; // Filter bits
         using FB2 = Field<_F14R1, 2, 1>; // Filter bits
@@ -7561,7 +7597,7 @@ struct CAN1 {
     };
 
     // Filter bank 14 register 2
-    struct _F14R2 : Register<CAN1_BASE + 0x2B4, ReadWrite, _F14R2> {
+    struct _F14R2 : Register<CANx_BASE + 0x2B4, ReadWrite, _F14R2> {
         using FB0 = Field<_F14R2, 0, 1>; // Filter bits
         using FB1 = Field<_F14R2, 1, 1>; // Filter bits
         using FB2 = Field<_F14R2, 2, 1>; // Filter bits
@@ -7597,7 +7633,7 @@ struct CAN1 {
     };
 
     // Filter bank 15 register 1
-    struct _F15R1 : Register<CAN1_BASE + 0x2B8, ReadWrite, _F15R1> {
+    struct _F15R1 : Register<CANx_BASE + 0x2B8, ReadWrite, _F15R1> {
         using FB0 = Field<_F15R1, 0, 1>; // Filter bits
         using FB1 = Field<_F15R1, 1, 1>; // Filter bits
         using FB2 = Field<_F15R1, 2, 1>; // Filter bits
@@ -7633,7 +7669,7 @@ struct CAN1 {
     };
 
     // Filter bank 15 register 2
-    struct _F15R2 : Register<CAN1_BASE + 0x2BC, ReadWrite, _F15R2> {
+    struct _F15R2 : Register<CANx_BASE + 0x2BC, ReadWrite, _F15R2> {
         using FB0 = Field<_F15R2, 0, 1>; // Filter bits
         using FB1 = Field<_F15R2, 1, 1>; // Filter bits
         using FB2 = Field<_F15R2, 2, 1>; // Filter bits
@@ -7669,7 +7705,7 @@ struct CAN1 {
     };
 
     // Filter bank 16 register 1
-    struct _F16R1 : Register<CAN1_BASE + 0x2C0, ReadWrite, _F16R1> {
+    struct _F16R1 : Register<CANx_BASE + 0x2C0, ReadWrite, _F16R1> {
         using FB0 = Field<_F16R1, 0, 1>; // Filter bits
         using FB1 = Field<_F16R1, 1, 1>; // Filter bits
         using FB2 = Field<_F16R1, 2, 1>; // Filter bits
@@ -7705,7 +7741,7 @@ struct CAN1 {
     };
 
     // Filter bank 16 register 2
-    struct _F16R2 : Register<CAN1_BASE + 0x2C4, ReadWrite, _F16R2> {
+    struct _F16R2 : Register<CANx_BASE + 0x2C4, ReadWrite, _F16R2> {
         using FB0 = Field<_F16R2, 0, 1>; // Filter bits
         using FB1 = Field<_F16R2, 1, 1>; // Filter bits
         using FB2 = Field<_F16R2, 2, 1>; // Filter bits
@@ -7741,7 +7777,7 @@ struct CAN1 {
     };
 
     // Filter bank 17 register 1
-    struct _F17R1 : Register<CAN1_BASE + 0x2C8, ReadWrite, _F17R1> {
+    struct _F17R1 : Register<CANx_BASE + 0x2C8, ReadWrite, _F17R1> {
         using FB0 = Field<_F17R1, 0, 1>; // Filter bits
         using FB1 = Field<_F17R1, 1, 1>; // Filter bits
         using FB2 = Field<_F17R1, 2, 1>; // Filter bits
@@ -7777,7 +7813,7 @@ struct CAN1 {
     };
 
     // Filter bank 17 register 2
-    struct _F17R2 : Register<CAN1_BASE + 0x2CC, ReadWrite, _F17R2> {
+    struct _F17R2 : Register<CANx_BASE + 0x2CC, ReadWrite, _F17R2> {
         using FB0 = Field<_F17R2, 0, 1>; // Filter bits
         using FB1 = Field<_F17R2, 1, 1>; // Filter bits
         using FB2 = Field<_F17R2, 2, 1>; // Filter bits
@@ -7813,7 +7849,7 @@ struct CAN1 {
     };
 
     // Filter bank 18 register 1
-    struct _F18R1 : Register<CAN1_BASE + 0x2D0, ReadWrite, _F18R1> {
+    struct _F18R1 : Register<CANx_BASE + 0x2D0, ReadWrite, _F18R1> {
         using FB0 = Field<_F18R1, 0, 1>; // Filter bits
         using FB1 = Field<_F18R1, 1, 1>; // Filter bits
         using FB2 = Field<_F18R1, 2, 1>; // Filter bits
@@ -7849,7 +7885,7 @@ struct CAN1 {
     };
 
     // Filter bank 18 register 2
-    struct _F18R2 : Register<CAN1_BASE + 0x2D4, ReadWrite, _F18R2> {
+    struct _F18R2 : Register<CANx_BASE + 0x2D4, ReadWrite, _F18R2> {
         using FB0 = Field<_F18R2, 0, 1>; // Filter bits
         using FB1 = Field<_F18R2, 1, 1>; // Filter bits
         using FB2 = Field<_F18R2, 2, 1>; // Filter bits
@@ -7885,7 +7921,7 @@ struct CAN1 {
     };
 
     // Filter bank 19 register 1
-    struct _F19R1 : Register<CAN1_BASE + 0x2D8, ReadWrite, _F19R1> {
+    struct _F19R1 : Register<CANx_BASE + 0x2D8, ReadWrite, _F19R1> {
         using FB0 = Field<_F19R1, 0, 1>; // Filter bits
         using FB1 = Field<_F19R1, 1, 1>; // Filter bits
         using FB2 = Field<_F19R1, 2, 1>; // Filter bits
@@ -7921,7 +7957,7 @@ struct CAN1 {
     };
 
     // Filter bank 19 register 2
-    struct _F19R2 : Register<CAN1_BASE + 0x2DC, ReadWrite, _F19R2> {
+    struct _F19R2 : Register<CANx_BASE + 0x2DC, ReadWrite, _F19R2> {
         using FB0 = Field<_F19R2, 0, 1>; // Filter bits
         using FB1 = Field<_F19R2, 1, 1>; // Filter bits
         using FB2 = Field<_F19R2, 2, 1>; // Filter bits
@@ -7957,7 +7993,7 @@ struct CAN1 {
     };
 
     // Filter bank 20 register 1
-    struct _F20R1 : Register<CAN1_BASE + 0x2E0, ReadWrite, _F20R1> {
+    struct _F20R1 : Register<CANx_BASE + 0x2E0, ReadWrite, _F20R1> {
         using FB0 = Field<_F20R1, 0, 1>; // Filter bits
         using FB1 = Field<_F20R1, 1, 1>; // Filter bits
         using FB2 = Field<_F20R1, 2, 1>; // Filter bits
@@ -7993,7 +8029,7 @@ struct CAN1 {
     };
 
     // Filter bank 20 register 2
-    struct _F20R2 : Register<CAN1_BASE + 0x2E4, ReadWrite, _F20R2> {
+    struct _F20R2 : Register<CANx_BASE + 0x2E4, ReadWrite, _F20R2> {
         using FB0 = Field<_F20R2, 0, 1>; // Filter bits
         using FB1 = Field<_F20R2, 1, 1>; // Filter bits
         using FB2 = Field<_F20R2, 2, 1>; // Filter bits
@@ -8029,7 +8065,7 @@ struct CAN1 {
     };
 
     // Filter bank 21 register 1
-    struct _F21R1 : Register<CAN1_BASE + 0x2E8, ReadWrite, _F21R1> {
+    struct _F21R1 : Register<CANx_BASE + 0x2E8, ReadWrite, _F21R1> {
         using FB0 = Field<_F21R1, 0, 1>; // Filter bits
         using FB1 = Field<_F21R1, 1, 1>; // Filter bits
         using FB2 = Field<_F21R1, 2, 1>; // Filter bits
@@ -8065,7 +8101,7 @@ struct CAN1 {
     };
 
     // Filter bank 21 register 2
-    struct _F21R2 : Register<CAN1_BASE + 0x2EC, ReadWrite, _F21R2> {
+    struct _F21R2 : Register<CANx_BASE + 0x2EC, ReadWrite, _F21R2> {
         using FB0 = Field<_F21R2, 0, 1>; // Filter bits
         using FB1 = Field<_F21R2, 1, 1>; // Filter bits
         using FB2 = Field<_F21R2, 2, 1>; // Filter bits
@@ -8101,7 +8137,7 @@ struct CAN1 {
     };
 
     // Filter bank 22 register 1
-    struct _F22R1 : Register<CAN1_BASE + 0x2F0, ReadWrite, _F22R1> {
+    struct _F22R1 : Register<CANx_BASE + 0x2F0, ReadWrite, _F22R1> {
         using FB0 = Field<_F22R1, 0, 1>; // Filter bits
         using FB1 = Field<_F22R1, 1, 1>; // Filter bits
         using FB2 = Field<_F22R1, 2, 1>; // Filter bits
@@ -8137,7 +8173,7 @@ struct CAN1 {
     };
 
     // Filter bank 22 register 2
-    struct _F22R2 : Register<CAN1_BASE + 0x2F4, ReadWrite, _F22R2> {
+    struct _F22R2 : Register<CANx_BASE + 0x2F4, ReadWrite, _F22R2> {
         using FB0 = Field<_F22R2, 0, 1>; // Filter bits
         using FB1 = Field<_F22R2, 1, 1>; // Filter bits
         using FB2 = Field<_F22R2, 2, 1>; // Filter bits
@@ -8173,7 +8209,7 @@ struct CAN1 {
     };
 
     // Filter bank 23 register 1
-    struct _F23R1 : Register<CAN1_BASE + 0x2F8, ReadWrite, _F23R1> {
+    struct _F23R1 : Register<CANx_BASE + 0x2F8, ReadWrite, _F23R1> {
         using FB0 = Field<_F23R1, 0, 1>; // Filter bits
         using FB1 = Field<_F23R1, 1, 1>; // Filter bits
         using FB2 = Field<_F23R1, 2, 1>; // Filter bits
@@ -8209,7 +8245,7 @@ struct CAN1 {
     };
 
     // Filter bank 23 register 2
-    struct _F23R2 : Register<CAN1_BASE + 0x2FC, ReadWrite, _F23R2> {
+    struct _F23R2 : Register<CANx_BASE + 0x2FC, ReadWrite, _F23R2> {
         using FB0 = Field<_F23R2, 0, 1>; // Filter bits
         using FB1 = Field<_F23R2, 1, 1>; // Filter bits
         using FB2 = Field<_F23R2, 2, 1>; // Filter bits
@@ -8245,7 +8281,7 @@ struct CAN1 {
     };
 
     // Filter bank 24 register 1
-    struct _F24R1 : Register<CAN1_BASE + 0x300, ReadWrite, _F24R1> {
+    struct _F24R1 : Register<CANx_BASE + 0x300, ReadWrite, _F24R1> {
         using FB0 = Field<_F24R1, 0, 1>; // Filter bits
         using FB1 = Field<_F24R1, 1, 1>; // Filter bits
         using FB2 = Field<_F24R1, 2, 1>; // Filter bits
@@ -8281,7 +8317,7 @@ struct CAN1 {
     };
 
     // Filter bank 24 register 2
-    struct _F24R2 : Register<CAN1_BASE + 0x304, ReadWrite, _F24R2> {
+    struct _F24R2 : Register<CANx_BASE + 0x304, ReadWrite, _F24R2> {
         using FB0 = Field<_F24R2, 0, 1>; // Filter bits
         using FB1 = Field<_F24R2, 1, 1>; // Filter bits
         using FB2 = Field<_F24R2, 2, 1>; // Filter bits
@@ -8317,7 +8353,7 @@ struct CAN1 {
     };
 
     // Filter bank 25 register 1
-    struct _F25R1 : Register<CAN1_BASE + 0x308, ReadWrite, _F25R1> {
+    struct _F25R1 : Register<CANx_BASE + 0x308, ReadWrite, _F25R1> {
         using FB0 = Field<_F25R1, 0, 1>; // Filter bits
         using FB1 = Field<_F25R1, 1, 1>; // Filter bits
         using FB2 = Field<_F25R1, 2, 1>; // Filter bits
@@ -8353,7 +8389,7 @@ struct CAN1 {
     };
 
     // Filter bank 25 register 2
-    struct _F25R2 : Register<CAN1_BASE + 0x30C, ReadWrite, _F25R2> {
+    struct _F25R2 : Register<CANx_BASE + 0x30C, ReadWrite, _F25R2> {
         using FB0 = Field<_F25R2, 0, 1>; // Filter bits
         using FB1 = Field<_F25R2, 1, 1>; // Filter bits
         using FB2 = Field<_F25R2, 2, 1>; // Filter bits
@@ -8389,7 +8425,7 @@ struct CAN1 {
     };
 
     // Filter bank 26 register 1
-    struct _F26R1 : Register<CAN1_BASE + 0x310, ReadWrite, _F26R1> {
+    struct _F26R1 : Register<CANx_BASE + 0x310, ReadWrite, _F26R1> {
         using FB0 = Field<_F26R1, 0, 1>; // Filter bits
         using FB1 = Field<_F26R1, 1, 1>; // Filter bits
         using FB2 = Field<_F26R1, 2, 1>; // Filter bits
@@ -8425,7 +8461,7 @@ struct CAN1 {
     };
 
     // Filter bank 26 register 2
-    struct _F26R2 : Register<CAN1_BASE + 0x314, ReadWrite, _F26R2> {
+    struct _F26R2 : Register<CANx_BASE + 0x314, ReadWrite, _F26R2> {
         using FB0 = Field<_F26R2, 0, 1>; // Filter bits
         using FB1 = Field<_F26R2, 1, 1>; // Filter bits
         using FB2 = Field<_F26R2, 2, 1>; // Filter bits
@@ -8461,7 +8497,7 @@ struct CAN1 {
     };
 
     // Filter bank 27 register 1
-    struct _F27R1 : Register<CAN1_BASE + 0x318, ReadWrite, _F27R1> {
+    struct _F27R1 : Register<CANx_BASE + 0x318, ReadWrite, _F27R1> {
         using FB0 = Field<_F27R1, 0, 1>; // Filter bits
         using FB1 = Field<_F27R1, 1, 1>; // Filter bits
         using FB2 = Field<_F27R1, 2, 1>; // Filter bits
@@ -8497,7 +8533,7 @@ struct CAN1 {
     };
 
     // Filter bank 27 register 2
-    struct _F27R2 : Register<CAN1_BASE + 0x31C, ReadWrite, _F27R2> {
+    struct _F27R2 : Register<CANx_BASE + 0x31C, ReadWrite, _F27R2> {
         using FB0 = Field<_F27R2, 0, 1>; // Filter bits
         using FB1 = Field<_F27R2, 1, 1>; // Filter bits
         using FB2 = Field<_F27R2, 2, 1>; // Filter bits
@@ -8532,27 +8568,26 @@ struct CAN1 {
         using FB31 = Field<_F27R2, 31, 1>; // Filter bits
     };
 
-}; // struct CAN1
+}; // struct CANx
+
+
+// --------------------------------------------
+// CAN1: 
+// Base address: 0x40006400
+// --------------------------------------------
+using CAN1 = CAN<0x40006400>;
 
 // --------------------------------------------
 // CAN2: 
 // Base address: 0x40006800
 // --------------------------------------------
-
-struct CAN2 {
-    static constexpr uint32_t CAN2_BASE = 0x40006800;
-
-}; // struct CAN2
+using CAN2 = CAN<0x40006800>;
 
 // --------------------------------------------
 // CAN3: 
 // Base address: 0x40003400
 // --------------------------------------------
-
-struct CAN3 {
-    static constexpr uint32_t CAN3_BASE = 0x40003400;
-
-}; // struct CAN3
+using CAN3 = CAN<0x40003400>;
 
 // --------------------------------------------
 // Flash: FLASH
@@ -9953,11 +9988,12 @@ struct LPTIM1 {
 // Base address: 0x40005400
 // --------------------------------------------
 
-struct I2C1 {
-    static constexpr uint32_t I2C1_BASE = 0x40005400;
+template <uint32_t BASE_ADDR>
+struct I2C {
+    static constexpr uint32_t I2Cx_BASE = BASE_ADDR;
 
     // Control register 1
-    struct _CR1 : Register<I2C1_BASE + 0x0, ReadWrite, _CR1> {
+    struct _CR1 : Register<I2Cx_BASE + 0x0, ReadWrite, _CR1> {
         using PE = Field<_CR1, 0, 1>; // Peripheral enable
         using TXIE = Field<_CR1, 1, 1>; // TX Interrupt enable
         using RXIE = Field<_CR1, 2, 1>; // RX Interrupt enable
@@ -9981,7 +10017,7 @@ struct I2C1 {
     };
 
     // Control register 2
-    struct _CR2 : Register<I2C1_BASE + 0x4, ReadWrite, _CR2> {
+    struct _CR2 : Register<I2Cx_BASE + 0x4, ReadWrite, _CR2> {
         using PECBYTE = Field<_CR2, 26, 1>; // Packet error checking byte
         using AUTOEND = Field<_CR2, 25, 1>; // Automatic end mode (master mode)
         using RELOAD = Field<_CR2, 24, 1>; // NBYTES reload mode
@@ -9996,21 +10032,21 @@ struct I2C1 {
     };
 
     // Own address register 1
-    struct _OAR1 : Register<I2C1_BASE + 0x8, ReadWrite, _OAR1> {
+    struct _OAR1 : Register<I2Cx_BASE + 0x8, ReadWrite, _OAR1> {
         using OA1 = Field<_OAR1, 0, 10>; // Interface address
         using OA1MODE = Field<_OAR1, 10, 1>; // Own Address 1 10-bit mode
         using OA1EN = Field<_OAR1, 15, 1>; // Own Address 1 enable
     };
 
     // Own address register 2
-    struct _OAR2 : Register<I2C1_BASE + 0xC, ReadWrite, _OAR2> {
+    struct _OAR2 : Register<I2Cx_BASE + 0xC, ReadWrite, _OAR2> {
         using OA2 = Field<_OAR2, 1, 7>; // Interface address
         using OA2MSK = Field<_OAR2, 8, 3>; // Own Address 2 masks
         using OA2EN = Field<_OAR2, 15, 1>; // Own Address 2 enable
     };
 
     // Timing register
-    struct _TIMINGR : Register<I2C1_BASE + 0x10, ReadWrite, _TIMINGR> {
+    struct _TIMINGR : Register<I2Cx_BASE + 0x10, ReadWrite, _TIMINGR> {
         using SCLL = Field<_TIMINGR, 0, 8>; // SCL low period (master mode)
         using SCLH = Field<_TIMINGR, 8, 8>; // SCL high period (master mode)
         using SDADEL = Field<_TIMINGR, 16, 4>; // Data hold time
@@ -10019,7 +10055,7 @@ struct I2C1 {
     };
 
     // Status register 1
-    struct _TIMEOUTR : Register<I2C1_BASE + 0x14, ReadWrite, _TIMEOUTR> {
+    struct _TIMEOUTR : Register<I2Cx_BASE + 0x14, ReadWrite, _TIMEOUTR> {
         using TIMEOUTA = Field<_TIMEOUTR, 0, 12>; // Bus timeout A
         using TIDLE = Field<_TIMEOUTR, 12, 1>; // Idle clock timeout detection
         using TIMOUTEN = Field<_TIMEOUTR, 15, 1>; // Clock timeout enable
@@ -10028,7 +10064,7 @@ struct I2C1 {
     };
 
     // Interrupt and Status register
-    struct _ISR : Register<I2C1_BASE + 0x18, ReadWrite, _ISR> {
+    struct _ISR : Register<I2Cx_BASE + 0x18, ReadWrite, _ISR> {
         using ADDCODE = Field<_ISR, 17, 7>; // Address match code (Slave mode)
         using DIR = Field<_ISR, 16, 1>; // Transfer direction (Slave mode)
         using BUSY = Field<_ISR, 15, 1>; // Bus busy
@@ -10049,7 +10085,7 @@ struct I2C1 {
     };
 
     // Interrupt clear register
-    struct _ICR : Register<I2C1_BASE + 0x1C, WriteOnly, _ICR> {
+    struct _ICR : Register<I2Cx_BASE + 0x1C, WriteOnly, _ICR> {
         using ALERTCF = Field<_ICR, 13, 1>; // Alert flag clear
         using TIMOUTCF = Field<_ICR, 12, 1>; // Timeout detection flag clear
         using PECCF = Field<_ICR, 11, 1>; // PEC Error flag clear
@@ -10062,51 +10098,46 @@ struct I2C1 {
     };
 
     // PEC register
-    struct _PECR : Register<I2C1_BASE + 0x20, ReadOnly, _PECR> {
+    struct _PECR : Register<I2Cx_BASE + 0x20, ReadOnly, _PECR> {
         using PEC = Field<_PECR, 0, 8>; // Packet error checking register
     };
 
     // Receive data register
-    struct _RXDR : Register<I2C1_BASE + 0x24, ReadOnly, _RXDR> {
+    struct _RXDR : Register<I2Cx_BASE + 0x24, ReadOnly, _RXDR> {
         using RXDATA = Field<_RXDR, 0, 8>; // 8-bit receive data
     };
 
     // Transmit data register
-    struct _TXDR : Register<I2C1_BASE + 0x28, ReadWrite, _TXDR> {
+    struct _TXDR : Register<I2Cx_BASE + 0x28, ReadWrite, _TXDR> {
         using TXDATA = Field<_TXDR, 0, 8>; // 8-bit transmit data
     };
 
-}; // struct I2C1
+}; // struct I2C
+
+
+// --------------------------------------------
+// I2C1: 
+// Base address: 0x40005400
+// --------------------------------------------
+using I2C1 =I2C<0x40005400>;
 
 // --------------------------------------------
 // I2C2: 
 // Base address: 0x40005800
 // --------------------------------------------
-
-struct I2C2 {
-    static constexpr uint32_t I2C2_BASE = 0x40005800;
-
-}; // struct I2C2
+using I2C2 =I2C<0x40005800>;
 
 // --------------------------------------------
 // I2C3: 
 // Base address: 0x40005C00
 // --------------------------------------------
-
-struct I2C3 {
-    static constexpr uint32_t I2C3_BASE = 0x40005C00;
-
-}; // struct I2C3
+using I2C3 =I2C<0x40005C00>;
 
 // --------------------------------------------
 // I2C4: 
 // Base address: 0x40006000
 // --------------------------------------------
-
-struct I2C4 {
-    static constexpr uint32_t I2C4_BASE = 0x40006000;
-
-}; // struct I2C4
+using I2C4 =I2C<0x40006000>;
 
 // --------------------------------------------
 // RTC: Real-time clock
@@ -10486,15 +10517,15 @@ struct RTC {
 }; // struct RTC
 
 // --------------------------------------------
-// USART6: Universal synchronous asynchronous receiver transmitter
-// Base address: 0x40011400
+// USART: Universal synchronous asynchronous receiver transmitter
+// Base address:
 // --------------------------------------------
-
-struct USART6 {
-    static constexpr uint32_t USART6_BASE = 0x40011400;
+template <uint32_t BASE_ADDR>
+struct USART {
+	static constexpr uint32_t USARTx_BASE = BASE_ADDR;
 
     // Control register 1
-    struct _CR1 : Register<USART6_BASE + 0x0, ReadWrite, _CR1> {
+    struct _CR1 : Register<USARTx_BASE + 0x0, ReadWrite, _CR1> {
         using M1 = Field<_CR1, 28, 1>; // Word length
         using EOBIE = Field<_CR1, 27, 1>; // End of Block interrupt enable
         using RTOIE = Field<_CR1, 26, 1>; // Receiver timeout interrupt enable
@@ -10527,7 +10558,7 @@ struct USART6 {
     };
 
     // Control register 2
-    struct _CR2 : Register<USART6_BASE + 0x4, ReadWrite, _CR2> {
+    struct _CR2 : Register<USARTx_BASE + 0x4, ReadWrite, _CR2> {
         using ADD4_7 = Field<_CR2, 28, 4>; // Address of the USART node
         using ADD0_3 = Field<_CR2, 24, 4>; // Address of the USART node
         using RTOEN = Field<_CR2, 23, 1>; // Receiver timeout enable
@@ -10551,7 +10582,7 @@ struct USART6 {
     };
 
     // Control register 3
-    struct _CR3 : Register<USART6_BASE + 0x8, ReadWrite, _CR3> {
+    struct _CR3 : Register<USARTx_BASE + 0x8, ReadWrite, _CR3> {
         using WUFIE = Field<_CR3, 22, 1>; // Wakeup from Stop mode interrupt enable
         using WUS = Field<_CR3, 20, 2>; // Wakeup from Stop mode interrupt flag selection
         using SCARCNT = Field<_CR3, 17, 3>; // Smartcard auto-retry count
@@ -10574,25 +10605,25 @@ struct USART6 {
     };
 
     // Baud rate register
-    struct _BRR : Register<USART6_BASE + 0xC, ReadWrite, _BRR> {
+    struct _BRR : Register<USARTx_BASE + 0xC, ReadWrite, _BRR> {
         using DIV_Mantissa = Field<_BRR, 4, 12>; // DIV_Mantissa
         using DIV_Fraction = Field<_BRR, 0, 4>; // DIV_Fraction
     };
 
     // Guard time and prescaler register
-    struct _GTPR : Register<USART6_BASE + 0x10, ReadWrite, _GTPR> {
+    struct _GTPR : Register<USARTx_BASE + 0x10, ReadWrite, _GTPR> {
         using GT = Field<_GTPR, 8, 8>; // Guard time value
         using PSC = Field<_GTPR, 0, 8>; // Prescaler value
     };
 
     // Receiver timeout register
-    struct _RTOR : Register<USART6_BASE + 0x14, ReadWrite, _RTOR> {
+    struct _RTOR : Register<USARTx_BASE + 0x14, ReadWrite, _RTOR> {
         using BLEN = Field<_RTOR, 24, 8>; // Block Length
         using RTO = Field<_RTOR, 0, 24>; // Receiver timeout value
     };
 
     // Request register
-    struct _RQR : Register<USART6_BASE + 0x18, WriteOnly, _RQR> {
+    struct _RQR : Register<USARTx_BASE + 0x18, WriteOnly, _RQR> {
         using TXFRQ = Field<_RQR, 4, 1>; // Transmit data flush request
         using RXFRQ = Field<_RQR, 3, 1>; // Receive data flush request
         using MMRQ = Field<_RQR, 2, 1>; // Mute mode request
@@ -10601,7 +10632,7 @@ struct USART6 {
     };
 
     // Interrupt & status register
-    struct _ISR : Register<USART6_BASE + 0x1C, ReadOnly, _ISR> {
+    struct _ISR : Register<USARTx_BASE + 0x1C, ReadOnly, _ISR> {
         using REACK = Field<_ISR, 22, 1>; // REACK
         using TEACK = Field<_ISR, 21, 1>; // TEACK
         using WUF = Field<_ISR, 20, 1>; // WUF
@@ -10627,7 +10658,7 @@ struct USART6 {
     };
 
     // Interrupt flag clear register
-    struct _ICR : Register<USART6_BASE + 0x20, WriteOnly, _ICR> {
+    struct _ICR : Register<USARTx_BASE + 0x20, WriteOnly, _ICR> {
         using WUCF = Field<_ICR, 20, 1>; // Wakeup from Stop mode clear flag
         using CMCF = Field<_ICR, 17, 1>; // Character match clear flag
         using EOBCF = Field<_ICR, 12, 1>; // End of block clear flag
@@ -10643,86 +10674,65 @@ struct USART6 {
     };
 
     // Receive data register
-    struct _RDR : Register<USART6_BASE + 0x24, ReadOnly, _RDR> {
+    struct _RDR : Register<USARTx_BASE + 0x24, ReadOnly, _RDR> {
         using RDR = Field<_RDR, 0, 9>; // Receive data value
     };
 
     // Transmit data register
-    struct _TDR : Register<USART6_BASE + 0x28, ReadWrite, _TDR> {
+    struct _TDR : Register<USARTx_BASE + 0x28, ReadWrite, _TDR> {
         using TDR = Field<_TDR, 0, 9>; // Transmit data value
     };
 
-}; // struct USART6
+}; // struct USARTx
+
 
 // --------------------------------------------
 // USART1: 
 // Base address: 0x40011000
 // --------------------------------------------
+using USART1 = USART<0x40011000>;
 
-struct USART1 {
-    static constexpr uint32_t USART1_BASE = 0x40011000;
-
-}; // struct USART1
+// --------------------------------------------
+// USART6:
+// Base address: 0x40011400
+// --------------------------------------------
+using USART6 = USART<0x40011400>;
 
 // --------------------------------------------
 // USART3: 
 // Base address: 0x40004800
 // --------------------------------------------
-
-struct USART3 {
-    static constexpr uint32_t USART3_BASE = 0x40004800;
-
-}; // struct USART3
+using USART3 = USART<0x40004800>;
 
 // --------------------------------------------
 // USART2: 
 // Base address: 0x40004400
 // --------------------------------------------
-
-struct USART2 {
-    static constexpr uint32_t USART2_BASE = 0x40004400;
-
-}; // struct USART2
+using USART2 = USART<0x40004400>;
 
 // --------------------------------------------
 // UART5: 
 // Base address: 0x40005000
 // --------------------------------------------
-
-struct UART5 {
-    static constexpr uint32_t UART5_BASE = 0x40005000;
-
-}; // struct UART5
+using UART5 = USART<0x40005000>;
 
 // --------------------------------------------
 // UART4: 
 // Base address: 0x40004C00
 // --------------------------------------------
-
-struct UART4 {
-    static constexpr uint32_t UART4_BASE = 0x40004C00;
-
-}; // struct UART4
+using UART4 = USART<0x40004C00>;
 
 // --------------------------------------------
 // UART8: 
 // Base address: 0x40007C00
 // --------------------------------------------
-
-struct UART8 {
-    static constexpr uint32_t UART8_BASE = 0x40007C00;
-
-}; // struct UART8
+using UART8 = USART<0x40007C00>;
 
 // --------------------------------------------
 // UART7: 
 // Base address: 0x40007800
 // --------------------------------------------
-
-struct UART7 {
-    static constexpr uint32_t UART7_BASE = 0x40007800;
-
-}; // struct UART7
+using UART7 = USART<0x40007800>;
 
 // --------------------------------------------
 // OTG_FS_GLOBAL: USB on the go full speed

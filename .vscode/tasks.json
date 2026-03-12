@@ -90,7 +90,7 @@
                 "-f",
                 "target/stm32f7x.cfg",
                 "-c",
-                "program C:/Users/doomt/Documents/GitHub/MCORE/build/STM32F767.bin 0x08000000 verify reset exit"
+                "program C:/Users/AkimovMA/Documents/GitHub/MCORE/build/STM32F767.bin 0x08000000 verify reset exit"
             ],
             "command": "openocd",
             "label": "Flash MCU",

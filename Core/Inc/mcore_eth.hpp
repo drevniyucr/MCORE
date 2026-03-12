@@ -142,7 +142,8 @@ enum class ETH_Status:uint8_t {
 	PHY_RESET_FAULT = 2,
 	PHY_AUTONEG_FAULT = 3,
 	PHY_LINK_DOWN = 4,
-	PHY_ID_FAULT = 5
+	PHY_ID_FAULT = 5,
+	UNEXPECT_FAULT = 6
 };
 
 struct ETH_DMADescStruct{
@@ -174,7 +175,10 @@ struct ETH_RxDescListStruct{
 	uint32_t BuffLen;
 };
 
-
+struct ETH_LinkState {
+	    uint8_t speed;     // 0=10M,1=100M
+	    uint8_t duplex;    // 0=half,1=full
+};
 
 
 extern ETH_TxDescListStruct TxDescList;
@@ -188,7 +192,7 @@ void ETH_RxWorker(void);
 bool ETH_SendFrame(uint32_t len);
 bool ETH_IsTxBufferAvailable(void);
 
-ETH_Status PHY_Init(void);
+ETH_Status PHY_Init(ETH_LinkState *lnk);
 bool PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue);
 bool PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue);
 void PHY_SetMDIOClock(void);

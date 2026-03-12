@@ -385,4 +385,12 @@ public:
     {
         return (Reg::read() & mask) != 0U;
     }
+    [[gnu::always_inline]]
+    inline static uint32_t Val2Mask(uint32_t Val) noexcept
+    requires(!std::is_same_v<access, WriteOnly> && !std::is_same_v<access, ReadOnly>)
+    {
+        return (Val & BitMskNoShft) << pos;
+    }
+
 };
+
