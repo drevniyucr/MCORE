@@ -22,3 +22,4 @@
 #include "mcore_tim.hpp"
 #include "mcore_adc.hpp"
 #include "mcore_dma.hpp"
+#include "mcore_ws2812.hpp"

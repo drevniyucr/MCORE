@@ -305,6 +305,19 @@ struct UartHandle {
 		return UartStatus::Success;
 	}
 
+	template<auto& hdma>
+	static inline UartStatus UartRxDMA(uint8_t* pData, uint16_t Size) {
+
+		auto& h = hdma;
+		if (h.state != DmaState::READY)
+			return UartStatus::Error;
+
+		if (DMA_StartIT<hdma>(USARTx::_RDR::address, reinterpret_cast<uint32_t>(pData), Size) != DmaState::COMPLETE) {
+			return UartStatus::Error;
+		}
+		return UartStatus::Success;
+	}
+
 	/** Send a single byte (polling) */
 	static inline UartStatus sendByte(uint8_t byte, uint32_t timeout = 100000) {
 		uint32_t t = timeout;

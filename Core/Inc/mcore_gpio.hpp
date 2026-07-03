@@ -182,7 +182,6 @@ struct inputs {
 	using IN11 = Pin<GPIOC,3>;
 	using IN12 = Pin<GPIOC,0>;
 	using IN13 = Pin<GPIOD,3>;
-	using IN14 = Pin<GPIOD,4>;
 	using IN15 = Pin<GPIOG,2>;
 	using IN16 = Pin<GPIOG,3>;
 	using IN17 = Pin<GPIOE,2>;
@@ -198,7 +197,7 @@ struct inputs {
 	IN1, IN2, IN3, IN4,
 	IN5, IN6, IN7, IN8,
 	IN9, IN10, IN11, IN12,
-	IN13, IN14, IN15, IN16,
+	IN13,IN15, IN16,
 	IN17, IN18, IN19, IN20,
 	IN21, IN22, IN23, IN24
 	>;
@@ -227,6 +226,7 @@ struct outputs {
 	using RLY3 = Pin<GPIOC,8>;
 
 	using MEM_WP = Pin<GPIOC,9>;
+	//using RS485_RE_DE = Pin<GPIOD,7>;
 
 	using group = PinGroup<
 	OUT1_H, OUT2_H, OUT3_H, OUT4_H,
@@ -266,8 +266,8 @@ struct i2c1 {
 struct rs485 {
 	using USART2_RX = Pin<GPIOD,6>;
 	using USART2_TX = Pin<GPIOD,5>;
-	using RS485_RE_DE = Pin<GPIOD,7>;
-	using group = PinGroup<USART2_RX, USART2_TX>;
+	using USART2_RE_DE = Pin<GPIOD,4>;
+	using group = PinGroup<USART2_RX, USART2_TX,USART2_RE_DE>;
 };
 
 struct can1 {

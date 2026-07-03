@@ -269,6 +269,7 @@ struct Eeprom47L16 {
 
 	/* Write bytes to EEPROM */
 	static bool write(uint16_t memAddr, const uint8_t* data, size_t len) {
+
 		uint8_t buf[2 + len];
 
 		buf[0] = static_cast<uint8_t>(memAddr >> 8);
