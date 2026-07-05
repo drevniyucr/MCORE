@@ -1,0 +1,54 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same toolchain version as local dev (Arm GNU Toolchain 15.2.rel1)
+      - name: Cache Arm GNU Toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/arm-toolchain
+          key: arm-gnu-toolchain-15.2.rel1-linux-x64
+
+      - name: Download Arm GNU Toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/arm-toolchain
+          curl -sL "https://developer.arm.com/-/media/Files/downloads/gnu/15.2.rel1/binrel/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi.tar.xz" \
+            | tar -xJ -C ~/arm-toolchain --strip-components=1
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: >
+          cmake -G Ninja -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DSTM32_TOOLCHAIN_PATH=$HOME/arm-toolchain
+
+      - name: Build
+        run: cmake --build build --target STM32F767
+
+      - name: Firmware size
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ~/arm-toolchain/bin/arm-none-eabi-size build/STM32F767 | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            build/STM32F767
+            build/STM32F767.bin
