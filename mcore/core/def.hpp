@@ -14,26 +14,26 @@
 #endif
 
 [[gnu::always_inline]] 
-inline static void __DSB(void) {
+inline static void __DSB() {
     __asm volatile ("dsb 0xF" ::: "memory");
 }
 
 [[gnu::always_inline]] 
-inline static void __ISB(void) {
+inline static void __ISB() {
     __asm volatile ("isb 0xF" ::: "memory");
 }
 
 [[gnu::always_inline]] 
-inline static void __DMB(void) {
+inline static void __DMB() {
     __asm volatile ("dmb 0xF" ::: "memory");
 }
 
 [[gnu::always_inline]] 
-inline static void __NOP(void) {
+inline static void __NOP() {
     __asm volatile ("nop" ::: "memory");
 }
 [[gnu::always_inline]] 
-inline static void SCB_EnableICache (void)                             
+inline static void SCB_EnableICache ()                             
 {
     __DSB();
     __ISB();
@@ -46,7 +46,7 @@ inline static void SCB_EnableICache (void)
 }
 
 [[gnu::always_inline]] 
-inline static void SCB_EnableDCache (void)
+inline static void SCB_EnableDCache ()
 {
     uint32_t sets,ways;
  

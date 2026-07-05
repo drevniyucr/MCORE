@@ -50,13 +50,13 @@ struct NVIC_API
     }
 
     [[gnu::always_inline]] 
-    static void EnableIRQGlobal(void)
+    static void EnableIRQGlobal()
     {
         asm volatile("cpsie i" : : : "memory");
     }
 
     [[gnu::always_inline]] 
-    static void DisableIRQGlobal(void)
+    static void DisableIRQGlobal()
     {
         asm volatile("cpsid i" : : : "memory");
     }

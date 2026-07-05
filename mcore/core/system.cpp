@@ -135,30 +135,30 @@ uint32_t SysTick_Config(uint32_t ticks) {
 
 extern "C" void NMI_Handler(void) {
 
-	while (1) {
+	while (true) {
 	}
 }
 
 extern "C" void HardFault_Handler(void) {
 
-	while (1) {
+	while (true) {
 	}
 }
 
 extern "C" void MemManage_Handler(void) {
 
-	while (1) {
+	while (true) {
 	}
 }
 
 extern "C" void BusFault_Handler(void) {
-	while (1) {
+	while (true) {
 	}
 }
 
 extern "C" void UsageFault_Handler(void) {
 
-	while (1) {
+	while (true) {
 	}
 }
 

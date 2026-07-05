@@ -14,7 +14,7 @@
 #define  MPU_HFNMI_PRIVDEF           ((uint32_t)0x00000006U)
 // MPU region constants moved into enums below (we keep only device-specific helpers/macros from CMSIS)
 
-void MPU_Config(void);
+void MPU_Config();
 namespace _MPU {
 
 enum class regionNumber : uint8_t {
