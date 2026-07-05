@@ -347,10 +347,10 @@ void uart_init() {
 			.Baud = 115200,
 			.AssertTime = 4,
 			.DeAssertTime = 4,
-			.EnableDE = true,
-			.DEPolarityHigh = false,
 			.UseDMARx = true,
-			.UseDMATx = true};
+			.UseDMATx = true,
+			.EnableDE = true,
+			.DEPolarityHigh = false};
 	USARTStatus status = USART_Init<USART2, cfg>();
 	if (status != USARTStatus::Success) Error_Handler();
 
