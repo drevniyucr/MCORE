@@ -3,13 +3,14 @@
   "cmake.configureEnvironment": {
     "CMAKE_EXPORT_COMPILE_COMMANDS": "on"
   },
-  // ---- C/C++ IntelliSense ----
-  "C_Cpp.default.intelliSenseMode": "gcc-arm",
-  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-  "C_Cpp.default.compilerPath": "arm-none-eabi-gcc",
-  "C_Cpp.default.cppStandard": "gnu++20",
-  "C_Cpp.default.cStandard": "gnu17",
-  "C_Cpp.intelliSenseEngine": "default",
+  // ---- clangd (единственный движок IntelliSense) ----
+  // query-driver: разрешает clangd опросить arm-none-eabi-g++ о реальных
+  // системных инклюдах (libstdc++/newlib) и target
+  "clangd.arguments": [
+    "--query-driver=**/arm-none-eabi-*"
+  ],
+  // ---- C/C++ (cpptools): IntelliSense выключен, чтобы не дублировать clangd ----
+  "C_Cpp.intelliSenseEngine": "disabled",
   "C_Cpp.autocompleteAddParentheses": true,
   "C_Cpp.errorSquiggles": "enabled",
   "C_Cpp.intelliSenseUpdateDelay": 2000,
