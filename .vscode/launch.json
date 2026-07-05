@@ -13,10 +13,10 @@
         
             // Конфигурационные файлы OpenOCD
              "configFiles": [
-                "${workspaceFolder}/MCORE_Debug.cfg",
+                "${workspaceFolder}/debug/MCORE_Debug.cfg",
              ],
              "searchDir": [
-                 "${workspaceFolder}/OpenOCD"
+                 "${workspaceFolder}/debug/openocd"
              ],
             
            // Настройки SWO
@@ -48,7 +48,7 @@
             
             // Дополнительные настройки
             "runToEntryPoint": "main",
-            "svdFile": "${workspaceFolder}/STM32F767.svd"
+            "svdFile": "${workspaceFolder}/debug/STM32F767.svd"
         }
     ]
 }

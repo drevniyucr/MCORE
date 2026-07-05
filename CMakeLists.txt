@@ -60,21 +60,21 @@ set(C_FLAGS ${CPU_FLAGS} -Os -ffunction-sections -fdata-sections -Wall -Wextra)
 set(CXX_FLAGS ${C_FLAGS} -fno-rtti -fno-exceptions -std=c++20)
 
 # Linker
-set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/STM32F767ZITX_FLASH.ld)
+set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/platform/STM32F767ZITX_FLASH.ld)
 
 # Исходники
-file(GLOB SRC
-   Core/Src/*.c
-   Core/Src/*.cpp
-    Core/Startup/startup_stm32f767zitx.s
+file(GLOB_RECURSE SRC
+    mcore/*.cpp
+    app/*.c
+    app/*.cpp
 )
+list(APPEND SRC platform/startup_stm32f767zitx.s)
 
 add_executable(${PROJECT_NAME} ${SRC})
 
-target_include_directories(${PROJECT_NAME} PRIVATE STM32F767xx
-    Core/Inc
-  # Drivers/CMSIS/Device/ST/STM32F7xx/Include
-   # Drivers/CMSIS/Include
+target_include_directories(${PROJECT_NAME} PRIVATE
+    mcore
+    app
 )
 
 set(LINKER_MAP_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")

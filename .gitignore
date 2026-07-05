@@ -5,7 +5,6 @@ config_default/
 Release
 
 # --- IDE / tooling caches ---
-.settings
 .cache
 tools
 .vscode/browse.vc.db
@@ -16,9 +15,3 @@ tools
 # --- Python ---
 __pycache__/
 *.pyc
-
-# --- STM32CubeIDE / CubeMX leftovers ---
-/.mxproject
-/stinfo.txt
-/mcore Debug.launch
-/mcore Debug.cfg

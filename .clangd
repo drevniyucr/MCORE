@@ -6,8 +6,8 @@ CompileFlags:
     - -mfpu=fpv5-d16
     - -mfloat-abi=hard
     - -std=c++20
-    - -I${workspaceFolder}/Core/Inc
-    - -I${workspaceFolder}/Core/Src
+    - -I${workspaceFolder}/mcore
+    - -I${workspaceFolder}/app
     - -D__ARM_ARCH_7EM__=1
     - -D__CORTEX_M7=1
     - -D__THUMBEL__=1
