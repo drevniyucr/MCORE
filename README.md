@@ -82,6 +82,7 @@ codegen/
 ├── registers/       SVD → mcore/core/regs.hpp generator (Python)
 └── nvic/            IRQ map generator (Python)
 debug/               openocd/ configs, MCORE_Debug.cfg, STM32F767.svd
+tests/               host-side unit tests for the network stack (doctest)
 CMakeLists.txt       cross-build (arm-none-eabi)
 ```
 
@@ -98,6 +99,24 @@ Toolchain discovery: pass `-DSTM32_TOOLCHAIN_PATH=...` or set the `STM32_TOOLCHA
 
 Flash/debug: OpenOCD (`debug/MCORE_Debug.cfg`) or the provided VS Code tasks.
 
+## Testing
+
+The network stack (checksums, RX dispatch, ARP/ICMP/UDP handlers, the full
+TCP state machine) is unit-tested **on the host** — no board needed. The real
+stack sources are compiled with the native compiler; the ETH driver, tick
+counter and ISN entropy are replaced by test stubs (`tests/stubs.cpp`).
+
+```sh
+cmake -S tests -B build-tests -G Ninja
+cmake --build build-tests
+ctest --test-dir build-tests --output-on-failure
+```
+
+Covered scenarios include the TCP three-way handshake, in-order/out-of-order
+data, passive close, RST handling, retransmission with controlled time,
+keepalive probing and connection-table exhaustion. Tests also run in CI on
+every push.
+
 ## Regenerating the register layer
 
 ```sh
@@ -109,8 +128,8 @@ python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 
 ## Roadmap
 
-- [ ] CI (GitHub Actions: build + clang-tidy)
-- [ ] Host-side unit tests for the network stack (header parsing, checksums, TCP FSM)
+- [x] CI (GitHub Actions: firmware build + host tests)
+- [x] Host-side unit tests for the network stack (header parsing, checksums, TCP FSM)
 - [ ] Finish CAN, add SPI, IWDG, RTC
 - [ ] DHCP client, ARP cache
 - [ ] HardFault handler with register dump

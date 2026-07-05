@@ -52,3 +52,20 @@ jobs:
           path: |
             build/STM32F767
             build/STM32F767.bin
+
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: cmake -S tests -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build build-tests
+
+      - name: Run tests
+        run: ctest --test-dir build-tests --output-on-failure
