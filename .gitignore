@@ -1,15 +1,24 @@
-.settings
-build
+# --- Build directories ---
+build/
+config_default/
 /Debug
-.cache
 Release
+
+# --- IDE / tooling caches ---
+.settings
+.cache
 tools
+.vscode/browse.vc.db
+.vscode/BROWSE.VC.DB
+.vscode/BROWSE.VC.DB-shm
+.vscode/BROWSE.VC.DB-wal
+
+# --- Python ---
+__pycache__/
+*.pyc
+
+# --- STM32CubeIDE / CubeMX leftovers ---
+/.mxproject
 /stinfo.txt
 /mcore Debug.launch
 /mcore Debug.cfg
-/.mxproject
-/.vscode/browse.vc.db
-/.cache
-/.vscode/BROWSE.VC.DB-shm
-/.vscode/BROWSE.VC.DB-wal
-/.vscode/BROWSE.VC.DB
