@@ -385,7 +385,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		conn->rcv_next = client_seq + 1;  // SYN consumes 1 sequence number
 		conn->client_window = client_window;
 		conn->window_size = SOCKET_RX_BUFF_LEN;
-		conn->tcp_my_seq = SysTick::_STCVR::read();
+		conn->tcp_my_seq = NET_Entropy();
 		conn->snd_unack = conn->tcp_my_seq;
 		conn->state = tcp_state_t::TCP_SYN_RCVD;
 		

@@ -139,3 +139,8 @@ int  NET_TCP_ClientAdd(void);
 void NET_TCP_ClientRemove(uint8_t idx);
 
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
+
+// Entropy source for the initial sequence number (ISN).
+// Firmware implementation reads SysTick (mcore/net/port.cpp);
+// host tests provide a deterministic stub.
+uint32_t NET_Entropy(void);

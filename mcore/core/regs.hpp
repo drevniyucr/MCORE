@@ -1,6 +1,12 @@
 #pragma once
 #include "core/utils.hpp"
 
+// Host builds: mingw's _mingw.h defines UNALIGNED, which collides with the
+// SCB CFSR field name below. Hide the macro while this header is parsed.
+#pragma push_macro("UNALIGNED")
+#undef UNALIGNED
+
+
 
 /*------------------------------------------------------------------------------
 ------------------------ Coretex-M7 Register Descripton ------------------------
@@ -19072,3 +19078,4 @@ struct DBGMCU {
 --------------------------------------------------------------------------------    
 */
 
+#pragma pop_macro("UNALIGNED")
