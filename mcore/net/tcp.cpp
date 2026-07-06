@@ -560,16 +560,30 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 				// Process payload if present
 				if (data_len > 0) {
 					const uint8_t *payload = reinterpret_cast<const uint8_t*>(tcp) + tcp_hdr_len;
-					uint16_t free_space = SOCKET_RX_BUFF_LEN - conn->soc_rx_buff_pos;
+					const uint16_t free_space = SOCKET_RX_BUFF_LEN - conn->rx_count;
 
-					// Copy as much data as fits in buffer
+					// Copy as much data as fits into the RX ring
 					uint16_t copy_len = (data_len <= free_space) ? data_len : free_space;
 					if (copy_len > 0) {
-						memcpy(&conn->socket_rx_buff[conn->soc_rx_buff_pos], payload, copy_len);
-						conn->soc_rx_buff_pos += copy_len;
+						uint16_t first = SOCKET_RX_BUFF_LEN - conn->rx_head;
+						if (first > copy_len) {
+							first = copy_len;
+						}
+						memcpy(&conn->socket_rx_buff[conn->rx_head], payload, first);
+						if (copy_len > first) {
+							memcpy(&conn->socket_rx_buff[0], payload + first,
+									copy_len - first);
+						}
+						conn->rx_head = static_cast<uint16_t>(
+								(conn->rx_head + copy_len) % SOCKET_RX_BUFF_LEN);
+						conn->rx_count += copy_len;
 						conn->rcv_next += copy_len;
 					}
-					// Note: If copy_len < data_len, data is dropped (buffer full)
+					// Note: If copy_len < data_len, the tail is dropped (buffer
+					// full); the missing ACK makes the peer retransmit it
+
+					// Update the window BEFORE advertising it in the ACK
+					conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
 
 					// Send ACK
 					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
@@ -577,7 +591,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 				}
 
 				// Always update receive window (even if no data)
-				conn->window_size = SOCKET_RX_BUFF_LEN - conn->soc_rx_buff_pos;
+				conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
 			}
 		} else {
 			// Out-of-order or duplicate packet - send ACK with current rcv_next
@@ -640,6 +654,46 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 	default:
 		break;
 	}
+}
+
+uint16_t NET_TCP_Available(tcp_conn_t *conn) {
+	return (conn != nullptr) ? conn->rx_count : 0;
+}
+
+int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen) {
+	if (conn == nullptr || dst == nullptr) {
+		return -1;
+	}
+
+	uint16_t n = (conn->rx_count < maxlen) ? conn->rx_count : maxlen;
+	if (n == 0) {
+		return 0;
+	}
+
+	// Copy out of the ring (up to two chunks across the wrap point)
+	uint16_t first = SOCKET_RX_BUFF_LEN - conn->rx_tail;
+	if (first > n) {
+		first = n;
+	}
+	memcpy(dst, &conn->socket_rx_buff[conn->rx_tail], first);
+	if (n > first) {
+		memcpy(dst + first, &conn->socket_rx_buff[0], n - first);
+	}
+	conn->rx_tail = static_cast<uint16_t>((conn->rx_tail + n) % SOCKET_RX_BUFF_LEN);
+	conn->rx_count -= n;
+
+	const uint16_t old_window = conn->window_size;
+	conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
+
+	// The peer saw a (nearly) closed window: announce that it reopened,
+	// otherwise it may never learn it can transmit again
+	if (conn->state == tcp_state_t::TCP_ESTABLISHED &&
+	    old_window < conn->peer_mss && conn->window_size >= conn->peer_mss) {
+		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
+					NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+	}
+
+	return n;
 }
 
 void NET_TCP_Close(tcp_conn_t *conn) {

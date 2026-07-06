@@ -82,10 +82,13 @@ TEST_CASE("TCP: in-order data lands in the socket buffer and is ACKed") {
 	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1, TCP_ACK | TCP_PSH,
 			payload, sizeof(payload));
 
-	CHECK(conn->soc_rx_buff_pos == sizeof(payload));
-	CHECK(memcmp(conn->socket_rx_buff, payload, sizeof(payload)) == 0);
+	CHECK(NET_TCP_Available(conn) == sizeof(payload));
+	uint8_t out[16] = {};
+	CHECK(NET_TCP_Read(conn, out, sizeof(out)) == sizeof(payload));
+	CHECK(memcmp(out, payload, sizeof(payload)) == 0);
+	CHECK(NET_TCP_Available(conn) == 0);
 	CHECK(conn->rcv_next == CSEQ + 1 + sizeof(payload));
-	CHECK(conn->window_size == SOCKET_RX_BUFF_LEN - sizeof(payload));
+	CHECK(conn->window_size == SOCKET_RX_BUFF_LEN);  // restored by the read
 
 	REQUIRE(g_tx_frames.size() == 1);
 	const tcp_hdr_t *tcp = captured_tcp(g_tx_frames[0]);
@@ -104,7 +107,7 @@ TEST_CASE("TCP: out-of-order segment is not buffered, duplicate ACK is sent") {
 	inject_tcp(CPORT, SPORT, CSEQ + 50 /*gap*/, TEST_ISN + 1, TCP_ACK,
 			payload, sizeof(payload));
 
-	CHECK(conn->soc_rx_buff_pos == 0);
+	CHECK(NET_TCP_Available(conn) == 0);
 	CHECK(conn->rcv_next == CSEQ + 1);              // unchanged
 	REQUIRE(g_tx_frames.size() == 1);               // duplicate ACK
 	const tcp_hdr_t *tcp = captured_tcp(g_tx_frames[0]);
@@ -190,6 +193,75 @@ TEST_CASE("TCP MSS: SYN|ACK advertises our MSS option") {
 	CHECK(opt[0] == 2);
 	CHECK(opt[1] == 4);
 	CHECK(((opt[2] << 8) | opt[3]) == TCP_OUR_MSS);
+}
+
+TEST_CASE("TCP RX ring: data survives wrap-around of the ring buffer") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+
+	// Sequential byte pattern so any reordering/corruption is visible
+	static uint8_t chunk[1000];
+	uint8_t out[1000];
+	uint32_t seq = CSEQ + 1;
+	uint32_t pattern = 0;
+	uint32_t verify = 0;
+
+	// Fill 5 KB, read 4 KB, fill 3 KB more (write crosses the wrap point)
+	for (int i = 0; i < 5; i++) {
+		for (auto &b : chunk) b = static_cast<uint8_t>(pattern++);
+		inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK, chunk, sizeof(chunk));
+		seq += sizeof(chunk);
+	}
+	REQUIRE(NET_TCP_Available(conn) == 5000);
+	for (int i = 0; i < 4; i++) {
+		REQUIRE(NET_TCP_Read(conn, out, sizeof(out)) == 1000);
+		for (auto b : out) REQUIRE(b == static_cast<uint8_t>(verify++));
+	}
+	for (int i = 0; i < 3; i++) {
+		for (auto &b : chunk) b = static_cast<uint8_t>(pattern++);
+		inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK, chunk, sizeof(chunk));
+		seq += sizeof(chunk);
+	}
+	REQUIRE(NET_TCP_Available(conn) == 4000);
+	for (int i = 0; i < 4; i++) {
+		REQUIRE(NET_TCP_Read(conn, out, sizeof(out)) == 1000);
+		for (auto b : out) REQUIRE(b == static_cast<uint8_t>(verify++));
+	}
+	CHECK(NET_TCP_Available(conn) == 0);
+}
+
+TEST_CASE("TCP RX window: closes when full, reading sends a window update") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+
+	// Fill the whole 5120-byte buffer
+	static uint8_t chunk[1280];
+	uint32_t seq = CSEQ + 1;
+	for (int i = 0; i < 4; i++) {
+		inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK, chunk, sizeof(chunk));
+		seq += sizeof(chunk);
+	}
+	CHECK(conn->window_size == 0);
+	// The last in-band ACK must already advertise the zero window
+	REQUIRE(!g_tx_frames.empty());
+	CHECK(bswap16(captured_tcp(g_tx_frames.back())->window) == 0);
+
+	// Data beyond the closed window is dropped and NOT acked forward
+	g_tx_frames.clear();
+	inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK, chunk, sizeof(chunk));
+	CHECK(conn->rcv_next == seq);                   // nothing consumed
+	CHECK(NET_TCP_Available(conn) == SOCKET_RX_BUFF_LEN);
+
+	// Reading reopens the window and emits exactly one window-update ACK
+	g_tx_frames.clear();
+	static uint8_t sink[SOCKET_RX_BUFF_LEN];
+	CHECK(NET_TCP_Read(conn, sink, sizeof(sink)) == SOCKET_RX_BUFF_LEN);
+	REQUIRE(g_tx_frames.size() == 1);
+	const tcp_hdr_t *upd = captured_tcp(g_tx_frames[0]);
+	CHECK(upd->flags == TCP_ACK);
+	CHECK(bswap16(upd->window) == SOCKET_RX_BUFF_LEN);
 }
 
 TEST_CASE("TCP active close: FIN|ACK -> FIN_WAIT_2 -> TIME_WAIT -> released") {

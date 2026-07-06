@@ -77,7 +77,9 @@ struct tcp_conn_t {
 	uint16_t window_size;         // Our receive window size
 	uint16_t client_window;       // Client's advertised window size
 	uint16_t peer_mss;            // Peer's MSS from SYN option (or default)
-	uint16_t soc_rx_buff_pos;     // RX buffer write position
+	uint16_t rx_head;             // RX ring: write position
+	uint16_t rx_tail;             // RX ring: read position
+	uint16_t rx_count;            // RX ring: bytes buffered
 	uint16_t soc_tx_buff_pos;     // TX buffer position (for retransmission)
 	
 	// === 8-bit fields and small arrays ===
@@ -153,6 +155,12 @@ void NET_TCP_StopListen(uint16_t port);
 void NET_TCP_Close(tcp_conn_t *conn);
 
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
+
+// Received-data access: bytes buffered / consume up to maxlen bytes.
+// Reading reopens the receive window; a window-update ACK is sent when
+// the window grows from below the peer's MSS back to a usable size.
+uint16_t NET_TCP_Available(tcp_conn_t *conn);
+int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen);
 
 // Entropy source for the initial sequence number (ISN).
 // Firmware implementation reads SysTick (mcore/net/port.cpp);
