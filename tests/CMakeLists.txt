@@ -18,6 +18,7 @@ add_executable(net_tests
     test_net.cpp
     test_tcp.cpp
     test_dhcp.cpp
+    test_scheduler.cpp
     # Real stack sources under test (system.cpp/eth.cpp are NOT linked —
     # their symbols are provided by stubs.cpp)
     ${MCORE_ROOT}/mcore/net/eth_utils.cpp

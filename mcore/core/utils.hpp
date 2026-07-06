@@ -5,12 +5,10 @@
 #include <type_traits>
 #include <utility>
 
-// If you want to use CMSIS intrinsics instead of inline asm,
-// define this macro (e.g., in CMake): -DUSE_CMSIS_ATOMICS=1
-// Then __LDREXW / __STREXW or similar should be available.
-#if defined(USE_CMSIS_ATOMICS)
-#include "cmsis_gcc.h"    // Make sure you have header with LDREX/STREX intrinsics
-#endif
+// Atomic (LDREX/STREX) RMW helper, opt-in via the atomic_mode overloads.
+// Define -DUSE_CMSIS_ATOMICS=1 to use __LDREXW/__STREXW intrinsics instead of
+// inline asm. See core/atomic.hpp.
+#include "core/atomic.hpp"
 
 // ---------------------------
 // Access tags
@@ -179,96 +177,7 @@ private:
     constexpr static uint32_t mask =
         (Width >= 32) ? 0xFFFFFFFFU : (raw_mask_no_shift << Offset);
 
-    // ------------------- atomic impl -------------------
-#if defined(USE_CMSIS_ATOMICS)
-    // If you have CMSIS intrinsics (check names in your environment)
-    [[gnu::always_inline]] 
-    static void write_atomic_impl(uint32_t value) noexcept
-    {
-        volatile uint32_t* addr = Reg::ptr();
-        uint32_t expected, result;
-        const uint32_t set_bits = (value & raw_mask_no_shift) << Offset;
-        const uint32_t clear_mask = mask;
-
-        do
-        {
-            expected = __LDREXW(reinterpret_cast<volatile uint32_t*>(addr));
-            uint32_t tmp = (expected & ~clear_mask) | set_bits;
-            result = __STREXW(tmp, reinterpret_cast<volatile uint32_t*>(addr));
-        } while (result != 0);
-        __DMB();    // Memory barrier
-    }
-
-    [[gnu::always_inline]]
-    inline static void modify_atomic_impl(auto&& f) noexcept
-    {
-        volatile uint32_t* addr = Reg::ptr();
-        uint32_t expected, result;
-        const uint32_t clear_mask = mask;
-        do
-        {
-            expected = __LDREXW(addr);
-            uint32_t field = (expected >> Offset) & raw_mask_no_shift;
-            uint32_t next = static_cast<uint32_t>(f(field)) & raw_mask_no_shift;
-            uint32_t tmp = (expected & ~clear_mask) | ((next << Offset) & clear_mask);
-            result = __STREXW(tmp, addr);
-        } while (result != 0);
-        __DMB();
-    }
-#else
-    // Inline ASM fallback (ARMv7-M style LDREX/STREX)
-    [[gnu::always_inline]] 
-    inline static void write_atomic_impl(uint32_t value) noexcept
-    {
-        volatile uint32_t* addr = Reg::ptr();
-        const uint32_t clear_mask = mask;
-        const uint32_t set_bits = (value & raw_mask_no_shift) << Offset;
-        uint32_t tmp, res;
-
-        do
-        {
-            asm volatile("ldrex %0, [%3]\n"
-                         "bic   %0, %0, %4\n"
-                         "orr   %0, %0, %5\n"
-                         "strex %1, %0, [%3]\n"
-                         : "=&r"(tmp), "=&r"(res)
-                         : "0"(tmp), "r"(addr), "r"(clear_mask), "r"(set_bits)
-                         : "memory");
-        } while (res != 0);
-        asm volatile("dmb" ::: "memory");  // Data memory barrier
-    }
-
-    // Inline ASM fallback
-    [[gnu::always_inline]]
-    inline static void modify_atomic_impl(auto&& f) noexcept
-    {
-        volatile uint32_t* addr = Reg::ptr();
-        const uint32_t clear_mask = mask;
-        uint32_t tmp, res;
-        do
-        {
-            uint32_t expected;
-            asm volatile(
-                "ldrex %0, [%1]\n"
-                : "=&r"(expected)
-                : "r"(addr)
-                : "memory");
-
-            uint32_t field = (expected >> Offset) & raw_mask_no_shift;
-            uint32_t next = static_cast<uint32_t>(f(field)) & raw_mask_no_shift;
-            uint32_t set_bits = (next << Offset) & clear_mask;
-
-            asm volatile(
-                "bic   %0, %0, %2\n"
-                "orr   %0, %0, %3\n"
-                "strex %1, %0, [%4]\n"
-                : "=&r"(tmp), "=&r"(res)
-                : "r"(clear_mask), "r"(set_bits), "r"(addr)
-                : "memory");
-        } while (res != 0);
-        asm volatile("dmb" ::: "memory");  // Data memory barrier
-    }
-#endif
+    // Atomic RMW lives in core/atomic.hpp (RegAtomic); Field just delegates.
 
 public:
     // ------------------- public meta-info -------------------
@@ -295,7 +204,7 @@ public:
         constexpr uint32_t value = static_cast<uint32_t>(Val);
         if constexpr (Mode::value)
         {
-            write_atomic_impl(value);
+            RegAtomic::write_masked(Reg::ptr(), mask, (value << pos) & mask);
         }
         else
         {
@@ -317,7 +226,7 @@ public:
         #endif
         if constexpr (Mode::value)
         {
-            write_atomic_impl(value);
+            RegAtomic::write_masked(Reg::ptr(), mask, (value & BitMskNoShft) << pos);
         }
         else
         {
@@ -335,7 +244,7 @@ public:
     {
         if constexpr (Mode::value)
         {
-            modify_atomic_impl(std::forward<T>(f));
+            RegAtomic::modify_masked(Reg::ptr(), mask, pos, BitMskNoShft, std::forward<T>(f));
         }
         else
         {
@@ -355,7 +264,7 @@ public:
     {
         if constexpr (Mode::value)
         {
-            write_atomic_impl(1U);
+            RegAtomic::write_masked(Reg::ptr(), mask, mask);
         }
         else
         {
@@ -370,7 +279,7 @@ public:
     {
         if constexpr (Mode::value)
         {
-            write_atomic_impl(0U);
+            RegAtomic::write_masked(Reg::ptr(), mask, 0U);
         }
         else
         {

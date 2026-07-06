@@ -10,6 +10,8 @@
 #include "drivers/gpio.hpp"
 #include "core/rcc.hpp"
 #include "core/system.hpp"
+#include "core/profile.hpp"
+#include "core/scheduler.hpp"
 #include "config.hpp"
 #include "core/mpu.hpp"
 #include "core/nvic.hpp"
