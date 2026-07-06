@@ -12,6 +12,7 @@
 #include "core/system.hpp"
 #include "core/profile.hpp"
 #include "core/scheduler.hpp"
+#include "core/ring_buffer.hpp"
 #include "config.hpp"
 #include "core/mpu.hpp"
 #include "core/nvic.hpp"

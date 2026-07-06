@@ -5,8 +5,11 @@
 #include <cstdio>
 bool states[inputs::group::count];
 
-uint32_t adc3_ch[2];
-uint8_t adc_idx = 0;
+// ADC ISR (producer) -> main loop (consumer) over a lock-free SPSC queue.
+struct AdcSample { uint8_t channel; uint16_t value; };
+spsc::RingBuffer<AdcSample, 16> adc_queue;
+uint16_t adc_latest[2] = { 0, 0 };  // last value per rank, drained in the loop
+uint8_t adc_idx = 0;                 // ISR-owned scan position (rank 0 / 1)
 uint8_t hue = 0;
 UartStatus UART_sTATUS;
 uint8_t rx_usart6_buf[100];
@@ -71,6 +74,14 @@ bool   snake_forward = true;
 void task_poll_io() {
 	ETH_RxWorker();
 	inputs_update();
+}
+
+// Every poll: drain ADC samples produced by the ISR into per-rank latest values.
+void task_adc_drain() {
+	AdcSample s;
+	while (adc_queue.pop(s)) {
+		if (s.channel < 2) adc_latest[s.channel] = s.value;
+	}
 }
 
 // Periodic: push test traffic over RS-485 / USART6 and the test TCP client.
@@ -162,8 +173,9 @@ int main() {
 
 	// Main loop: a cooperative scheduler replaces the hand-rolled tick diffs.
 	// Registration order == run order within a poll. period 0 == every pass.
-	sched::Scheduler<4> scheduler;
+	sched::Scheduler<5> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
+	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
 	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
 	scheduler.every(TCP_TIMER_INTERVAL_MS,   task_net_timers);
 	scheduler.every(SNAKE_TIMER_INTERVAL_MS, task_snake);
@@ -428,10 +440,10 @@ void GPIO_Init() {
 }
 
 extern "C" void ADC_IRQHandler() {
-	if (ADC3::_SR::EOC::is_set()) {
-		adc3_ch[adc_idx++] = ADC3::_DR::DATA::read();
-		if (adc_idx > 1)
-			adc_idx = 0;
+	if (ADC3::_SR::EOC::is_set()) {  // reading DR below clears EOC
+		const AdcSample s{ adc_idx, static_cast<uint16_t>(ADC3::_DR::DATA::read()) };
+		adc_queue.push(s);           // ISR never blocks; drop if the loop fell behind
+		adc_idx = (adc_idx + 1) & 1;
 	}
 	if (ADC3::_SR::OVR::is_set()) {
 		ADC3::_SR::OVR::clear();
