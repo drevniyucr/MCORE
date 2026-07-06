@@ -6,7 +6,7 @@
  */
 
 #include "drivers/eth.hpp"
-#include "config.hpp"
+#include "core/mcore_config.hpp"
 #include "core/system.hpp"
 #include "net/tcp.hpp"
 #include "net/net.hpp"

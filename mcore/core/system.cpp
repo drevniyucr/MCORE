@@ -1,6 +1,6 @@
 #include "core/system.hpp"
 #include "core/nvic.hpp"
-#include "config.hpp"
+#include "core/mcore_config.hpp"
 #include <cstdarg>
 #include <cstdio>
 

@@ -84,8 +84,9 @@ frame templates are re-patched and live TCP connections are reset.
 ```
 mcore/               framework (include root: #include "drivers/gpio.hpp")
 ├── mcore.hpp        umbrella header
-├── core/            regs.hpp (source of truth), utils.hpp, def.hpp, system,
-│                    rcc, nvic, nvic_def, mpu
+├── core/            regs.hpp (source of truth), utils.hpp, def.hpp,
+│                    device.hpp (MCU seam), mcore_config.hpp (config contract),
+│                    system, rcc, nvic, nvic_def, mpu
 ├── drivers/         gpio, dma, tim, usart, i2c, adc, can, ws2812, eth
 └── net/             net, tcp, eth_utils, temp_frame
 app/                 application: main.cpp, board.hpp (pin maps),
@@ -98,6 +99,26 @@ debug/               openocd/ configs, MCORE_Debug.cfg, STM32F767.svd
 tests/               host-side unit tests for the network stack (doctest)
 CMakeLists.txt       cross-build (arm-none-eabi)
 ```
+
+## Portability layers
+
+The framework separates generic code from device- and board-specific code:
+
+- **Generic (MCU-agnostic):** `core/utils.hpp` (`Register`/`Field`),
+  `atomic.hpp`, `scheduler.hpp`, `ring_buffer.hpp`, `profile.hpp`, the driver
+  *templates*, and the network stack. These depend only on register/peripheral
+  symbols, never on a specific part number.
+- **Device seam (`core/device.hpp`):** the single place that binds the framework
+  to a concrete register map. Defaults to STM32F767 (`core/regs.hpp`). Porting to
+  another MCU = add an `#elif` branch for its generated map and build with
+  `-DMCORE_DEVICE_<part>`; no other framework file changes.
+- **Config contract (`core/mcore_config.hpp`):** declares the oscillator/clock
+  values the framework consumes (`HSE_VALUE`, `HSI_VALUE`, `LSE_VALUE`,
+  `LSI_VALUE`) with defaults. It pulls the application's `config.hpp` if present
+  (board MAC/PHY, custom crystal, overrides) and fills in the rest — so the
+  framework also compiles standalone (e.g. host unit tests, where `app/` is not
+  on the include path).
+- **Board/app:** `app/board.hpp` (pin maps) and `app/config.hpp` (HSE/MAC/PHY).
 
 ## Build
 

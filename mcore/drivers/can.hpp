@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include "core/regs.hpp"
 #include "core/system.hpp"
-#include "config.hpp"
+#include "core/mcore_config.hpp"
 
  constexpr uint8_t CAN_TIMEOUT_MS = 10; // Timeout for CAN initialization in milliseconds
 
