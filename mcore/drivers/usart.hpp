@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include "core/regs.hpp"
 #include "core/system.hpp"
-#include "config.hpp"
+#include "core/mcore_config.hpp"
 #include "drivers/dma.hpp"
 
 constexpr uint8_t USART_BRR_MIN_OVER16 = 0x10;

@@ -7,11 +7,8 @@
 
 #pragma once
 
-#ifdef USE_CMSIS
-#include <stm32f7xx.h>
-#else
-#include "core/regs.hpp"
-#endif
+// Bind to a concrete MCU register map through the single device-selection seam.
+#include "core/device.hpp"
 
 [[gnu::always_inline]] 
 inline static void __DSB() {

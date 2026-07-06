@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "core/regs.hpp"
 #include "core/system.hpp"
-#include "config.hpp"
+#include "core/mcore_config.hpp"
 
 
 enum class AdcClkPresc : uint8_t{

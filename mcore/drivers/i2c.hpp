@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include "core/regs.hpp"
 #include "core/system.hpp"
-#include "config.hpp"
+#include "core/mcore_config.hpp"
 
 constexpr uint32_t I2C_TIMING_MASK = 0xF0FFFFFF;
 
