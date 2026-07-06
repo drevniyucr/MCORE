@@ -20,6 +20,7 @@
 #include "net/eth_utils.hpp"
 #include "net/tcp.hpp"
 #include "net/dhcp.hpp"
+#include "drivers/common.hpp"
 #include "drivers/usart.hpp"
 #include "drivers/i2c.hpp"
 #include "drivers/can.hpp"
@@ -27,3 +28,4 @@
 #include "drivers/adc.hpp"
 #include "drivers/dma.hpp"
 #include "drivers/ws2812.hpp"
+#include "drivers/devices/eeprom_47l16.hpp"

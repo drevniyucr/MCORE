@@ -1,7 +1,8 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include "core/regs.hpp"
+#include "core/rcc.hpp"
 #include "core/system.hpp"
 #include "core/mcore_config.hpp"
 
@@ -160,10 +161,7 @@ struct AdcWDGConfig {
     bool ITMode = false;
 };
 
-template<typename ADC> inline void ADC_ClkEnable();
-template<> inline void ADC_ClkEnable<ADC1>() { RCC::_APB2ENR::ADC1EN ::set(); }
-template<> inline void ADC_ClkEnable<ADC2>() { RCC::_APB2ENR::ADC2EN::set(); }
-template<> inline void ADC_ClkEnable<ADC3>() { RCC::_APB2ENR::ADC3EN::set(); }
+// Clock enable: unified RccEnable<ADCx> map in core/rcc.hpp.
 
 
 
@@ -191,16 +189,15 @@ struct AdcTraits<ADC3>
     static constexpr bool hasVbat = false;
 };
 
-template <typename ADCx, auto cfg>
+template <typename ADCx, AdcHwConfig cfg>
 void ADC_Config(){
-    static_assert((cfg.NbrOfConversion >= 1 && cfg.NbrOfConversion <= 16),  
+    static_assert((cfg.NbrOfConversion >= 1 && cfg.NbrOfConversion <= 16),
         "NbrOfConversion must be 1..16");
-    
-    ADC_ClkEnable<ADCx>();
+
+    RccEnable<ADCx>::enable();
     //1 clk presc
     ADC_Common::_CCR::ADCPRE::write(static_cast<uint32_t>(cfg.ClockPrescaler));
     //2 adc scan
-    ADC1::_CR1::OVRIE::set();
     ADCx::_CR1::SCAN::write(cfg.ScanConvModeEnable ? 1u : 0u);
     //3 adc resolution
     ADCx::_CR1::RES::write(static_cast<uint32_t>(cfg.Resolution));
@@ -229,27 +226,26 @@ void ADC_Config(){
 }
 
 
-template <typename ADCx, auto cfg>
+template <typename ADCx, AdcWDGConfig cfg>
 void ADC_AWDConfig(){
-    
-    ADCx::_CR1::AWDIE::write(cfg.ITMode ? 1 : 0);
-   
+    static_assert(cfg.HighThreshold <= 4095, "HighThreshold is 12-bit");
+    static_assert(cfg.LowThreshold  <= 4095, "LowThreshold is 12-bit");
+
+    ADCx::_CR1::AWDIE::write(cfg.ITMode ? 1u : 0u);
+
     ADCx::_CR1::clearMask( ADCx::_CR1::AWDSGL::BitMsk
                          | ADCx::_CR1::JAWDEN::BitMsk
                          | ADCx::_CR1::AWDEN::BitMsk);
 
     ADCx::_CR1::setMask(static_cast<uint32_t>(cfg.WatchdogMode));
-    
-    static_assert(cfg.HighThreshold <= 4095 && cfg.HighThreshold >= 0);
+
     ADCx::_HTR::HT::write(static_cast<uint32_t>(cfg.HighThreshold));
-    
-    static_assert(cfg.LowThreshold <= 4095 && cfg.LowThreshold >= 0);
     ADCx::_LTR::LT::write(static_cast<uint32_t>(cfg.LowThreshold));
 
     ADCx::_CR1::AWDCH::write(static_cast<uint32_t>(cfg.Channel));
 }
 
-template <typename ADCx, auto cfg, AdcChnl ch>
+template <typename ADCx, AdcChannel cfg, AdcChnl ch>
 void ADC_ChannelConfig()
 {
     uint32_t shft,mask;

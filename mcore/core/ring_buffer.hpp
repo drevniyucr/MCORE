@@ -62,7 +62,7 @@ public:
         return true;
     }
 
-    bool empty() const noexcept {
+     bool empty() const noexcept {
         return head_.load(std::memory_order_acquire) ==
                tail_.load(std::memory_order_acquire);
     }

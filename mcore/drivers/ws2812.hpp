@@ -1,5 +1,6 @@
 #pragma once
-#include <stdint.h>
+#include <cstdint>
+#include <cstddef>
 #include "drivers/tim.hpp"
 #include "drivers/dma.hpp"
 
@@ -32,40 +33,8 @@ public:
 		return dma.state == DmaState::READY;
 	}
 
-	static void fill_rgb_gradient(uint8_t offset) {
-		if (!ready())
-			return;
-
-		for (size_t i = 0; i < LED_COUNT; i++) {
-			// вычисляем позицию в цветовом круге (0.0 - 255.0)
-			float hue = (static_cast<float>(i) / LED_COUNT) * 255.0f;
-			hue += static_cast<float>(offset);
-			if (hue >= 255.0f)
-				hue -= 255.0f;
-
-			uint8_t r, g, b;
-
-			if (hue < 85.0f) {
-				r = static_cast<uint8_t>(255.0f - hue * 3.0f);
-				g = static_cast<uint8_t>(hue * 3.0f);
-				b = 0;
-			} else if (hue < 170.0f) {
-				hue -= 85.0f;
-				r = 0;
-				g = static_cast<uint8_t>(255.0f - hue * 3.0f);
-				b = static_cast<uint8_t>(hue * 3.0f);
-			} else {
-				hue -= 170.0f;
-				r = static_cast<uint8_t>(hue * 3.0f);
-				g = 0;
-				b = static_cast<uint8_t>(255.0f - hue * 3.0f);
-			}
-
-			leds[i].r = r;
-			leds[i].g = g;
-			leds[i].b = b;
-		}
-	}
+	// Animations (rainbow etc.) are application code — see app/main.cpp.
+	// The driver only exposes the pixel buffer (leds) and show()/ready().
 
 	static void show() {
 		if (!ready())
@@ -86,7 +55,12 @@ private:
 	static constexpr uint32_t DATA_SLOTS = LED_COUNT * LED_BITS;
 	static constexpr uint32_t TOTAL_SLOTS = DATA_SLOTS + RESET_SLOTS;
 
-	static inline volatile uint16_t dma_buffer[TOTAL_SLOTS];
+	// NOT volatile: the CPU only writes this buffer before the transfer starts,
+	// and DMA_StartIT() issues a __DSB() before enabling the stream — that is
+	// what publishes the data to the DMA master. volatile here would only
+	// forbid the compiler from optimising the encode loop (one halfword store
+	// per slot instead of coalesced writes).
+	static inline uint16_t dma_buffer[TOTAL_SLOTS];
 
 	// =========================
 	// Encoding

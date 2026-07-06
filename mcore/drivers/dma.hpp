@@ -1,19 +1,21 @@
 /*
- * mcore_usart.hpp
+ * dma.hpp — DMA stream driver (config, IT transfers, ISR dispatch)
  *
  *  Created on: 26 февр. 2026 г.
  *      Author: AkimovMA
  */
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include "core/regs.hpp"
+#include "core/rcc.hpp"
 #include "core/system.hpp"
 #include "core/mcore_config.hpp"
+#include "drivers/common.hpp"
 
 
 constexpr uint32_t INTRPT_CLR_MASK = 0x3D;
-constexpr uint32_t DMA_TIMEOUT = 5;
+constexpr uint32_t DMA_TIMEOUT_MS = 5;
 
 enum class DmaChannel : uint8_t {
     CHNL_0,
@@ -93,12 +95,14 @@ enum class DmaStream : uint32_t {
     DMA2_Stream_7,
 };
 
+// Stream lifecycle STATE (what the handle is doing right now). Operation
+// RESULTS are reported separately as DrvStatus — the old COMPLETE value lived
+// in this enum only as a return sentinel and is gone.
 enum class DmaState : uint8_t {
     RESET,
     READY,
     BUSY,
     HALF,
-    COMPLETE,
     ERROR
 };
 
@@ -146,13 +150,7 @@ struct DmaHwConfig {
 };
 
 
-template<typename DMA>
-inline void DMA_ClkEnable();
-
-template<>
-inline void DMA_ClkEnable<DMA1>() { RCC::_AHB1ENR::DMA1EN::set(); }
-template<>
-inline void DMA_ClkEnable<DMA2>() { RCC::_AHB1ENR::DMA2EN::set(); }
+// Clock enable: unified RccEnable<DMAx> map in core/rcc.hpp.
 
 
 
@@ -338,7 +336,7 @@ static inline DmaState DMA_Wait()
 {
     uint32_t starttick = get_tick();
     while (DmaHandle<Stream>::state == DmaState::BUSY) {
-        if (get_tick() - starttick > DMA_TIMEOUT) {
+        if (get_tick() - starttick > DMA_TIMEOUT_MS) {
             return DmaState::ERROR;
         };
     }
@@ -346,37 +344,37 @@ static inline DmaState DMA_Wait()
 }
 
 template<DmaStream Stream>
-static inline DmaState DMA_Stop()
+static inline DrvStatus DMA_Stop()
 {
     DmaTraits<Stream>::CR::EN::clear();
     uint32_t starttick = get_tick();
     while (DmaTraits<Stream>::CR::EN::is_set()) {
-        if (get_tick() - starttick > DMA_TIMEOUT) {
-            return DmaState::ERROR;
+        if (get_tick() - starttick > DMA_TIMEOUT_MS) {
+            return DrvStatus::Timeout;
         };
     }
     DmaHandle<Stream>::state = DmaState::RESET;
-    return DmaState::COMPLETE;
+    return DrvStatus::Ok;
 }
 
 
 template<auto& Handle, DmaHwConfig cfg>
-DmaState DMA_Config()
+DrvStatus DMA_Config()
 {
     auto& h = Handle;
     using traits = DmaTraits<h.Stream>;
 
-    if (h.state != DmaState::RESET) return DmaState::ERROR;
+    if (h.state != DmaState::RESET) return DrvStatus::Error;
 
 
-    DMA_ClkEnable<typename traits::DMAx>();
+    RccEnable<typename traits::DMAx>::enable();
 
     traits::CR::EN::clear();
     uint32_t starttick = get_tick();
 
     while (traits::CR::EN::is_set()) {
-        if (get_tick() - starttick > DMA_TIMEOUT) {
-            return DmaState::ERROR;
+        if (get_tick() - starttick > DMA_TIMEOUT_MS) {
+            return DrvStatus::Timeout;
         }
     };
 
@@ -408,10 +406,10 @@ DmaState DMA_Config()
                 switch (cfg.FIFOThreshold) {
                 case  DmaThrhold::FULL_1QUATERS:
                 case  DmaThrhold::FULL_3QUATERS:
-                    if constexpr (cfg.MemBurst > DmaBurst::INC4) return DmaState::ERROR;
+                    if constexpr (cfg.MemBurst > DmaBurst::INC4) return DrvStatus::InvalidArg;
                     break;
                 case  DmaThrhold::FULL_HALF:
-                    if constexpr (cfg.MemBurst == DmaBurst::INC16) return DmaState::ERROR;
+                    if constexpr (cfg.MemBurst == DmaBurst::INC16) return DrvStatus::InvalidArg;
                     break;
                 case  DmaThrhold::FULL:
                 default:
@@ -423,13 +421,13 @@ DmaState DMA_Config()
                 switch (cfg.FIFOThreshold) {
                 case DmaThrhold::FULL_1QUATERS:
                 case DmaThrhold::FULL_3QUATERS:
-                    return DmaState::ERROR;
+                    return DrvStatus::InvalidArg;
                     break;
                 case DmaThrhold::FULL_HALF:
-                    if constexpr (cfg.MemBurst > DmaBurst::INC4) return DmaState::ERROR;
+                    if constexpr (cfg.MemBurst > DmaBurst::INC4) return DrvStatus::InvalidArg;
                     break;
                 case DmaThrhold::FULL:
-                    if constexpr (cfg.MemBurst == DmaBurst::INC16) return DmaState::ERROR;
+                    if constexpr (cfg.MemBurst == DmaBurst::INC16) return DrvStatus::InvalidArg;
                     break;
                 default:
                     break;
@@ -441,10 +439,10 @@ DmaState DMA_Config()
                 case DmaThrhold::FULL_1QUATERS:
                 case DmaThrhold::FULL_HALF:
                 case DmaThrhold::FULL_3QUATERS:
-                    return DmaState::ERROR;
+                    return DrvStatus::InvalidArg;
                     break;
                 case  DmaThrhold::FULL:
-                    if constexpr (cfg.MemBurst > DmaBurst::INC4) return DmaState::ERROR;
+                    if constexpr (cfg.MemBurst > DmaBurst::INC4) return DrvStatus::InvalidArg;
                     break;
                 default:
                     break;
@@ -460,16 +458,16 @@ DmaState DMA_Config()
 
     h.state = DmaState::READY;
 
-    return DmaState::COMPLETE;
+    return DrvStatus::Ok;
 }
 
 template<auto& Handle>
-DmaState DMA_SetTransfer(uint32_t src, uint32_t dst, uint16_t len)
+DrvStatus DMA_SetTransfer(uint32_t src, uint32_t dst, uint16_t len)
 {
     auto& h = Handle;
     using traits = DmaTraits<h.Stream>;
 
-    if (h.state != DmaState::READY) return DmaState::ERROR;
+    if (h.state != DmaState::READY) return DrvStatus::Busy;
 
     h.state = DmaState::BUSY;
 
@@ -487,20 +485,20 @@ DmaState DMA_SetTransfer(uint32_t src, uint32_t dst, uint16_t len)
         traits::PAR::PA::write(src);
         traits::M0AR::M0A::write(dst);
     }
-    return DmaState::COMPLETE;
+    return DrvStatus::Ok;
 }
 
 
 template<auto& Handle>
-DmaState DMA_StartIT(uint32_t ScrAddr, uint32_t DstAddr, uint16_t DataLen) {
+DrvStatus DMA_StartIT(uint32_t ScrAddr, uint32_t DstAddr, uint16_t DataLen) {
 
     auto& h = Handle;
     using traits = DmaTraits<h.Stream>;
 
     traits::IFCR::setMask(INTRPT_CLR_MASK << traits::intrpt_idx);
 
-    if (DMA_SetTransfer<Handle>(ScrAddr, DstAddr, DataLen) == DmaState::ERROR)
-        return DmaState::ERROR;
+    if (DrvStatus st = DMA_SetTransfer<Handle>(ScrAddr, DstAddr, DataLen); st != DrvStatus::Ok)
+        return st;
 
     h.src = ScrAddr;
     h.dst = DstAddr;
@@ -520,7 +518,7 @@ DmaState DMA_StartIT(uint32_t ScrAddr, uint32_t DstAddr, uint16_t DataLen) {
     __DSB();
     traits::CR::EN::set();
 
-    return DmaState::COMPLETE;
+    return DrvStatus::Ok;
 }
 
 

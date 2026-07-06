@@ -1,15 +1,18 @@
 /*
- * mcore_usart.hpp
+ * usart.hpp — U(S)ART driver (init, polling and DMA transfers)
  *
  *  Created on: 26 февр. 2026 г.
  *      Author: AkimovMA
  */
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
+#include <cstddef>
 #include "core/regs.hpp"
+#include "core/rcc.hpp"
 #include "core/system.hpp"
 #include "core/mcore_config.hpp"
+#include "drivers/common.hpp"
 #include "drivers/dma.hpp"
 
 constexpr uint8_t USART_BRR_MIN_OVER16 = 0x10;
@@ -96,52 +99,41 @@ struct UartHwConfig {
 	bool DEPolarityHigh = false;      // DE polarity: true for active high, false for active low
 };
 
-enum class USARTStatus : uint32_t {
-	Success = 0, BaudOutOfRange = 1, Error = 2, Timeout = 3
-};
-
-
+// Kernel clock SOURCE selection (DKCFGR2). Bus clock enable is the unified
+// RccEnable<USARTx> map in core/rcc.hpp.
 template<typename USARTx>
-static inline void USART_ClkSel(UartClockSrc src);
+static inline void USART_ClkSrcSel(UartClockSrc src);
 template <>
-inline void USART_ClkSel<USART1>(UartClockSrc src) {
+inline void USART_ClkSrcSel<USART1>(UartClockSrc src) {
 	RCC::_DKCFGR2::USART1SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB2ENR::USART1EN::set();
 }
 template <>
-inline void USART_ClkSel<USART2>(UartClockSrc src) {
+inline void USART_ClkSrcSel<USART2>(UartClockSrc src) {
 	RCC::_DKCFGR2::USART2SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::USART2EN::set();
 }
 template <>
-inline void USART_ClkSel<USART3>(UartClockSrc src) {
+inline void USART_ClkSrcSel<USART3>(UartClockSrc src) {
 	RCC::_DKCFGR2::USART3SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::USART3EN::set();
 }
 template <>
-inline void USART_ClkSel<USART6>(UartClockSrc src) {
+inline void USART_ClkSrcSel<USART6>(UartClockSrc src) {
 	RCC::_DKCFGR2::USART6SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB2ENR::USART6EN::set();
 }
 template <>
-inline void USART_ClkSel<UART4>(UartClockSrc src) {
+inline void USART_ClkSrcSel<UART4>(UartClockSrc src) {
 	RCC::_DKCFGR2::UART4SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART4EN::set();
 }
 template <>
-inline void USART_ClkSel<UART5>(UartClockSrc src) {
+inline void USART_ClkSrcSel<UART5>(UartClockSrc src) {
 	RCC::_DKCFGR2::UART5SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART5EN::set();
 }
 template <>
-inline void USART_ClkSel<UART7>(UartClockSrc src) {
+inline void USART_ClkSrcSel<UART7>(UartClockSrc src) {
 	RCC::_DKCFGR2::UART7SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART7ENR::set();
 }
 template <>
-inline void USART_ClkSel<UART8>(UartClockSrc src) {
+inline void USART_ClkSrcSel<UART8>(UartClockSrc src) {
 	RCC::_DKCFGR2::UART8SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART8ENR::set();
 }
 
 template <typename T>
@@ -167,9 +159,10 @@ template <> struct usart_bus<UART8> { static constexpr bool apb2 = false; };
 
 
 template<typename USARTx, UartHwConfig cfg>
-static inline USARTStatus USART_Init() {
-	/* 0. Clock enable */
-	USART_ClkSel<USARTx>(cfg.ClockSource);
+static inline DrvStatus USART_Init() {
+	/* 0. Clock enable + kernel clock source */
+	RccEnable<USARTx>::enable();
+	USART_ClkSrcSel<USARTx>(cfg.ClockSource);
 
 	/* 1. Disable USART */
 	USARTx::_CR1::UE::clear();
@@ -255,11 +248,11 @@ static inline USARTStatus USART_Init() {
 			USARTx::_BRR::overwrite(static_cast<uint16_t>(UsartDiv));
 		}
 		else {
-			return USARTStatus::BaudOutOfRange;	// Handle error: baud rate out of range
+			return DrvStatus::InvalidArg;	// Handle error: baud rate out of range
 		}
 	}
 	else {
-		return USARTStatus::BaudOutOfRange;	// Handle error: baud rate out of range
+		return DrvStatus::InvalidArg;	// Handle error: baud rate out of range
 	}
 	/* 6. Enable USART */
 	USARTx::_CR1::UE::set();
@@ -268,94 +261,81 @@ static inline USARTStatus USART_Init() {
 	uint32_t tickstart = get_tick();
 	while (!USARTx::_ISR::TEACK::is_set()) {
 		if ((get_tick() - tickstart) > USART_TIMEOUT_MS) {
-			return USARTStatus::Timeout; // Handle error: USART initialization timeout
+			return DrvStatus::Timeout; // Handle error: USART initialization timeout
 		}
 	}
 	tickstart = get_tick();
 	while (!USARTx::_ISR::REACK::is_set()) {
 		if ((get_tick() - tickstart) > USART_TIMEOUT_MS) {
-			return USARTStatus::Timeout; // Handle error: USART initialization timeout
+			return DrvStatus::Timeout; // Handle error: USART initialization timeout
 		}
 	}
 
-	return USARTStatus::Success;
+	return DrvStatus::Ok;
 }
-
-
-enum class UartStatus : uint32_t {
-	Success = 0,
-	Timeout = 1,
-	Error = 2
-};
 
 
 template<typename USARTx>
 struct UartHandle {
 
 	template<auto& hdma>
-	static inline UartStatus UartTxDMA(uint8_t* pData, uint16_t Size) {
+	static inline DrvStatus UartTxDMA(uint8_t* pData, uint16_t Size) {
 
 		auto& h = hdma;
 		if (h.state != DmaState::READY)
-			return UartStatus::Error;
+			return DrvStatus::Busy;
 
-		if (DMA_StartIT<hdma>(reinterpret_cast<uint32_t>(pData), USARTx::_TDR::address , Size) != DmaState::COMPLETE) {
-			return UartStatus::Error;
-		}
-		return UartStatus::Success;
+		return DMA_StartIT<hdma>(reinterpret_cast<uint32_t>(pData), USARTx::_TDR::address , Size);
 	}
 
 	template<auto& hdma>
-	static inline UartStatus UartRxDMA(uint8_t* pData, uint16_t Size) {
+	static inline DrvStatus UartRxDMA(uint8_t* pData, uint16_t Size) {
 
 		auto& h = hdma;
 		if (h.state != DmaState::READY)
-			return UartStatus::Error;
+			return DrvStatus::Busy;
 
-		if (DMA_StartIT<hdma>(USARTx::_RDR::address, reinterpret_cast<uint32_t>(pData), Size) != DmaState::COMPLETE) {
-			return UartStatus::Error;
-		}
-		return UartStatus::Success;
+		return DMA_StartIT<hdma>(USARTx::_RDR::address, reinterpret_cast<uint32_t>(pData), Size);
 	}
 
-	/** Send a single byte (polling) */
-	static inline UartStatus sendByte(uint8_t byte, uint32_t timeout = 100000) {
-		uint32_t t = timeout;
+	/** Send a single byte (polling, millisecond timeout) */
+	static inline DrvStatus sendByte(uint8_t byte, uint32_t timeout_ms = USART_TIMEOUT_MS) {
+		uint32_t tickstart = get_tick();
 		while (!USARTx::_ISR::TXE::is_set()) {
-			if (--t == 0) return UartStatus::Timeout;
-			if (checkErrors()) return UartStatus::Error;
+			if ((get_tick() - tickstart) > timeout_ms) return DrvStatus::Timeout;
+			if (checkErrors()) return DrvStatus::Error;
 		}
 		USARTx::_TDR::overwrite(byte);
-		return UartStatus::Success;
+		return DrvStatus::Ok;
 	}
 
-	/** Send a buffer (polling) */
-	static inline UartStatus sendBuffer(const uint8_t* buf, size_t len, uint32_t timeout = 100000) {
+	/** Send a buffer (polling, per-byte millisecond timeout) */
+	static inline DrvStatus sendBuffer(const uint8_t* buf, size_t len, uint32_t timeout_ms = USART_TIMEOUT_MS) {
 		for (size_t i = 0; i < len; ++i) {
-			auto status = sendByte(buf[i], timeout);
-			if (status != UartStatus::Success) return status;
+			auto status = sendByte(buf[i], timeout_ms);
+			if (status != DrvStatus::Ok) return status;
 		}
-		return UartStatus::Success;
+		return DrvStatus::Ok;
 	}
 
-	/** Receive a single byte (polling) */
-	static inline UartStatus recvByte(uint8_t& byte, uint32_t timeout = 100000) {
-		uint32_t t = timeout;
+	/** Receive a single byte (polling, millisecond timeout) */
+	static inline DrvStatus recvByte(uint8_t& byte, uint32_t timeout_ms = USART_TIMEOUT_MS) {
+		uint32_t tickstart = get_tick();
 		while (!USARTx::_ISR::RXNE::is_set()) {
-			if (--t == 0) return UartStatus::Timeout;
-			if (checkErrors()) return UartStatus::Error;
+			if ((get_tick() - tickstart) > timeout_ms) return DrvStatus::Timeout;
+			if (checkErrors()) return DrvStatus::Error;
 		}
 		byte = static_cast<uint8_t>(USARTx::_RDR::read());
-		return UartStatus::Success;
+		return DrvStatus::Ok;
 	}
 
-	/** Receive a buffer (polling) */
-	static inline UartStatus recvBuffer(uint8_t* buf, size_t len, uint32_t timeout = 100000) {
+	/** Receive a buffer (polling, per-byte millisecond timeout) */
+	static inline DrvStatus recvBuffer(uint8_t* buf, size_t len, uint32_t timeout_ms = USART_TIMEOUT_MS) {
 		for (size_t i = 0; i < len; ++i) {
-			auto status = recvByte(buf[i], timeout);
-			if (status != UartStatus::Success) return status;
+			auto status = recvByte(buf[i], timeout_ms);
+			if (status != DrvStatus::Ok) return status;
 		}
-		return UartStatus::Success;
+		return DrvStatus::Ok;
 	}
 
 private:

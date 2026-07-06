@@ -1,17 +1,19 @@
 /*
- * mcore_usart.hpp
+ * can.hpp — bxCAN driver (init + polling TX/RX)
  *
  *  Created on: 26 февр. 2026 г.
  *      Author: AkimovMA
  */
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include "core/regs.hpp"
+#include "core/rcc.hpp"
 #include "core/system.hpp"
 #include "core/mcore_config.hpp"
+#include "drivers/common.hpp"
 
- constexpr uint8_t CAN_TIMEOUT_MS = 10; // Timeout for CAN initialization in milliseconds
+constexpr uint8_t CAN_TIMEOUT_MS = 10; // Timeout for CAN initialization in milliseconds
 
 
 enum class CanMode : uint32_t {
@@ -36,28 +38,16 @@ struct CanHwConfig {
     bool FifoPriority = false;
 };
 
-enum class CANStatus : uint32_t {
-	Success = 0, BaudOutOfRange = 1, Error = 2, Timeout = 3
-};
-
-template<typename CANx>
-static inline void CAN_ClkEn();
-template <>
-inline void CAN_ClkEn<CAN1>(){RCC::_APB1ENR::CAN1EN::set();}
-template <>
-inline void CAN_ClkEn<CAN2>(){RCC::_APB1ENR::CAN2EN::set();}
-template <>
-inline void CAN_ClkEn<CAN3>(){RCC::_APB1ENR::CAN3EN::set();}
-
+// Clock enable: unified RccEnable<CANx> map in core/rcc.hpp.
 
 template<typename CANx, CanHwConfig cfg>
-static inline CANStatus CAN_Init() {
+static inline DrvStatus CAN_Init() {
 
     uint32_t tickstart;
     uint32_t temp = 0;
 
 	/* 0. Clock enable */
-	CAN_ClkEn<CANx>();
+	RccEnable<CANx>::enable();
 
 	/* 1. Enter init mode */
 	CANx::_MCR::INRQ::set();
@@ -66,7 +56,7 @@ static inline CANStatus CAN_Init() {
 
     while (!CANx::_MSR::INAK::is_set()) {
         if ((get_tick() - tickstart) > CAN_TIMEOUT_MS) {
-            return CANStatus::Timeout; // Handle error: CAN initialization timeout
+            return DrvStatus::Timeout; // Handle error: CAN initialization timeout
         }
     }
 
@@ -77,7 +67,7 @@ static inline CANStatus CAN_Init() {
 
     while (CANx::_MSR::SLAK::is_set()) {
         if ((get_tick() - tickstart) > CAN_TIMEOUT_MS) {
-            return CANStatus::Timeout; // Handle error: CAN initialization timeout
+            return DrvStatus::Timeout; // Handle error: CAN initialization timeout
         }
     }
     /* Time-triggered communication mode, automatic bus-off management, 
@@ -127,19 +117,13 @@ static inline CANStatus CAN_Init() {
 
 	while (CANx::_MSR::INAK::is_set()) {
         if ((get_tick() - tickstart) > CAN_TIMEOUT_MS) {
-            return CANStatus::Timeout; // Handle error: CAN initialization timeout
+            return DrvStatus::Timeout; // Handle error: CAN initialization timeout
         }
     }
 
-    return CANStatus::Success;
+    return DrvStatus::Ok;
 }
 
-
-enum class CanPollStatus : uint32_t {
-		Success = 0,
-		Timeout = 1,
-		Error   = 2
-};
 
 struct CanFrame {
 	uint32_t id;      // 11-bit
@@ -151,13 +135,13 @@ struct CanFrame {
 template<typename CANx>
 struct CanHandle {
 
-	/** Send a single byte (polling) */
-	static inline CanPollStatus CAN_Send(const CanFrame& f, uint32_t timeout = 100) {
-		
+	/** Send a single frame (polling, millisecond timeout) */
+	static inline DrvStatus CAN_Send(const CanFrame& f, uint32_t timeout_ms = 100) {
+
         uint32_t tickstart = get_tick();
 
 		while (!(CANx::_TSR::TME0::is_set())) {
-			if ((get_tick() - tickstart) > timeout) return CanPollStatus::Timeout;
+			if ((get_tick() - tickstart) > timeout_ms) return DrvStatus::Timeout;
 		}
 	 	
         /* 2. Записываем ID (Standard ID, IDE = 0, RTR = 0) */
@@ -189,16 +173,16 @@ struct CanHandle {
 	    /* 6. Запрос на передачу */
 	    CANx::_TI0R::TXRQ::set();
 
-	return CanPollStatus::Success;
+	return DrvStatus::Ok;
 	}
 
-	/** Send a buffer (polling) */
-	static inline CanPollStatus CAN_Recv(CanFrame& f, uint32_t timeout = 100) {
-		
+	/** Receive a single frame (polling, millisecond timeout) */
+	static inline DrvStatus CAN_Recv(CanFrame& f, uint32_t timeout_ms = 100) {
+
         uint32_t tickstart = get_tick();
-       
+
         while (!CANx::_RF0R::FMP0::is_set()) {
-            if ((get_tick() - tickstart) > timeout) return CanPollStatus::Timeout;
+            if ((get_tick() - tickstart) > timeout_ms) return DrvStatus::Timeout;
         }
         
         f.id = CANx::_RI0R::STID::read();
@@ -218,6 +202,6 @@ struct CanHandle {
 	    f.data[7] = high >> 24;
 
 	    CANx::_RF0R::RFOM0::set(); // release FIFO
-		return CanPollStatus::Success;
+		return DrvStatus::Ok;
 	}
 };

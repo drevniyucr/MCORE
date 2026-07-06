@@ -4,6 +4,8 @@
 #include "board.hpp"
 #include <cstdio>
 #include <atomic>
+#include <cstring>
+
 bool states[inputs::group::count];
 
 // ADC ISR (producer) -> main loop (consumer) over a lock-free SPSC queue.
@@ -12,7 +14,7 @@ spsc::RingBuffer<AdcSample, 16> adc_queue;
 uint16_t adc_latest[2] = { 0, 0 };  // last value per rank, drained in the loop
 uint8_t adc_idx = 0;                 // ISR-owned scan position (rank 0 / 1)
 uint8_t hue = 0;
-UartStatus UART_sTATUS;
+DrvStatus UART_sTATUS;
 uint8_t rx_usart6_buf[100];
 uint8_t rx_usart2_buf[100];
 
@@ -98,13 +100,40 @@ void task_tcp_send() {
 	}
 }
 
+// Rainbow animation over a WS2812 strip's pixel buffer. Application code
+// (moved out of the driver); integer math instead of the old float version —
+// the hue wheel is 256 wide, three sectors of 85 steps (3*85 ≈ 255).
+template<typename Strip>
+void fill_rainbow(uint8_t offset) {
+	if (!Strip::ready())
+		return;
+
+	constexpr size_t n = sizeof(Strip::leds) / sizeof(Strip::leds[0]);
+	for (size_t i = 0; i < n; i++) {
+		uint8_t h = static_cast<uint8_t>((i * 255u) / n + offset);
+		uint8_t r, g, b;
+		if (h < 85) {
+			r = 255 - h * 3; g = h * 3;       b = 0;
+		} else if (h < 170) {
+			h -= 85;
+			r = 0;           g = 255 - h * 3; b = h * 3;
+		} else {
+			h -= 170;
+			r = h * 3;       g = 0;           b = 255 - h * 3;
+		}
+		Strip::leds[i].r = r;
+		Strip::leds[i].g = g;
+		Strip::leds[i].b = b;
+	}
+}
+
 // Periodic: run TCP/DHCP timers and advance the LED gradient animation.
 void task_net_timers() {
 	NET_TCP_Timers();
 	NET_DHCP_Poll();
 	hue += 12;
-	LedStrip1::fill_rgb_gradient(hue);
-	LedStrip2::fill_rgb_gradient(hue);
+	fill_rainbow<LedStrip1>(hue);
+	fill_rainbow<LedStrip2>(hue);
 	LedStrip1::show();
 	LedStrip2::show();
 }
@@ -132,7 +161,7 @@ void task_snake() {
 }
 
 int main() {
-	SystemInit();
+	//SystemInit(); startup_stm32f767zitx.s calls SystemInit() before main() is entered, so no need to call it here.
 
 	uint32_t init_cycles;
 	{
@@ -168,12 +197,11 @@ int main() {
 	i2cstat &= Eeprom47L16<I2C1>::read(0x0010, rx, sizeof(rx));
 
 	/* Verify */
-	if (i2cstat && rx[0] == 0xDE && rx[1] == 0xAD && rx[2] == 0xBE
-			&& rx[3] == 0xEF) {
-		// EEPROM OK
+	if (memcmp(tx, rx, sizeof(tx)) == 0 && i2cstat) {
+		// Data matches
 	} else {
-		// error
-		//	Error_Handler();
+		// Data does not match
+		Error_Handler();
 	}
 
 	// Main loop: a cooperative scheduler replaces the hand-rolled tick diffs.
@@ -197,6 +225,14 @@ int main() {
 
 namespace {
 void dma_init() {
+
+	constexpr const DmaHwConfig cfg_dma1_s0 = { .Channel = DmaChannel::CHNL_1,
+			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
+			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
+			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::NORMAL,
+			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
+			.FIFOThreshold = DmaThrhold::FULL };
+
 	constexpr const DmaHwConfig cfg_dma1_s5 = { .Channel = DmaChannel::CHNL_4,
 			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
@@ -211,13 +247,12 @@ void dma_init() {
 			.Priority = DmaPrior::VERY_HIGH, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
-	DMA_Config<usart2_rx, cfg_dma1_s5>();
-	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream5_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream5_IRQn>();
-
-	DMA_Config<usart2_tx, cfg_dma1_s6>();
-	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream6_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream6_IRQn>();
+	constexpr const DmaHwConfig cfg_dma1_s7 = { .Channel = DmaChannel::CHNL_1,
+			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
+			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
+			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
+			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
+			.FIFOThreshold = DmaThrhold::FULL };
 
 	constexpr const DmaHwConfig cfg_dma2_s1 = { .Channel = DmaChannel::CHNL_5,
 			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
@@ -226,46 +261,14 @@ void dma_init() {
 			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
-	constexpr const DmaHwConfig cfg_dma2_s7 = { .Channel = DmaChannel::CHNL_5,
-			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
-			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
-			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
-			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
-			.FIFOThreshold = DmaThrhold::FULL };
-
-	DMA_Config<usart6_rx, cfg_dma2_s1>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream1_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream1_IRQn>();
-
-	DMA_Config<usart6_tx, cfg_dma2_s7>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream7_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream7_IRQn>();
-
-	constexpr const DmaHwConfig cfg_dma2_s2_3 = { .Channel = DmaChannel::CHNL_6,
+	constexpr const DmaHwConfig cfg_dma2_s2 = { .Channel = DmaChannel::CHNL_6,
 			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::HALFWORD,
 			.MemDataAlignment = DmaDataAlign::HALFWORD, .Mode = DmaMode::NORMAL,
 			.Priority = DmaPrior::VERY_HIGH, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
-	DMA_Config<tim1_ch1, cfg_dma2_s2_3>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream3_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream3_IRQn>();
-
-	DMA_Config<tim1_ch2, cfg_dma2_s2_3>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream2_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream2_IRQn>();
-
-
-
-	constexpr const DmaHwConfig cfg_dma1_s0 = { .Channel = DmaChannel::CHNL_1,
-			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
-			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
-			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::NORMAL,
-			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
-			.FIFOThreshold = DmaThrhold::FULL };
-
-	constexpr const DmaHwConfig cfg_dma1_s7 = { .Channel = DmaChannel::CHNL_1,
+	constexpr const DmaHwConfig cfg_dma2_s7 = { .Channel = DmaChannel::CHNL_5,
 			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
 			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
@@ -276,10 +279,36 @@ void dma_init() {
 	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream0_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream0_IRQn>();
 
-	DMA_Config<i2c1_rx, cfg_dma1_s7>();
+	DMA_Config<usart2_rx, cfg_dma1_s5>();
+	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream5_IRQn, 0>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream5_IRQn>();
+
+	DMA_Config<usart2_tx, cfg_dma1_s6>();
+	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream6_IRQn, 0>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream6_IRQn>();
+
+	// BUGFIX: was DMA_Config<i2c1_rx, ...> — the TX config (MEM_TO_PERIPH,
+	// stream 7) was applied to the RX handle a second time, and i2c1_tx was
+	// never configured (the second call also failed: state != RESET).
+	DMA_Config<i2c1_tx, cfg_dma1_s7>();
 	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream7_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream7_IRQn>();
 
+	DMA_Config<usart6_rx, cfg_dma2_s1>();
+	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream1_IRQn, 0>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream1_IRQn>();
+
+	DMA_Config<tim1_ch1, cfg_dma2_s2>();
+	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream3_IRQn, 0>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream3_IRQn>();
+
+	DMA_Config<tim1_ch2, cfg_dma2_s2>();
+	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream2_IRQn, 0>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream2_IRQn>();
+
+	DMA_Config<usart6_tx, cfg_dma2_s7>();
+	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream7_IRQn, 0>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream7_IRQn>();
 }
 
 void adc_init() {
@@ -320,7 +349,7 @@ void tim_init() {
 	constexpr const TimOCConfig cfgOC = { .OCMode = TimOCMode::PWM1,
 			.OCPolarity = TimOCPol::NONE, .OCNPolarity = TimOCPol::NONE,
 			.OCIdleState = TimIdleState::NONE, .OCNIdleState =
-					TimIdleState::NONE, .Pulse = 80, .OC_PreloadEnable = true };
+			TimIdleState::NONE, .Pulse = 80, .OC_PreloadEnable = true };
 
 	TIM_BaseConfig<TIM1, cfg>();
 	TIM_BaseConfig<TIM4, cfg2>();
@@ -355,20 +384,21 @@ void tim_init() {
 // 		.FifoPriority = false
 // 	};
 
-// 	CANStatus status = CAN_Init<CAN1, cfg>();
-// 	if (status != CANStatus::Success) {
+// 	DrvStatus status = CAN_Init<CAN1, cfg>();
+// 	if (status != DrvStatus::Ok) {
 // 		Error_Handler(); // Handle initialization error
 // 	}
 // }
 
 void i2c_init() {
-	constexpr const I2CHwConfig cfg = { .Timing = 0x20404768, // Timing value for 400kHz I2C speed with 54MHz PCLK1
+	constexpr const I2CHwConfig cfg = { 
+			.Timing = 0x20404768, // Timing value for 400kHz I2C speed with 54MHz PCLK1
 			.OwnAddres1 = 0x52,   // Example own address
 			.OwnAddres2 = 0x4,   // Example own address
 			.EnAnalogFilter = true };
 
-	I2CStatus status = I2C_Init<I2C1, cfg>();
-	if (status != I2CStatus::Success) {
+	DrvStatus status = I2C_Init<I2C1, cfg>();
+	if (status != DrvStatus::Ok) {
 		Error_Handler(); // Handle initialization error
 	}
 }
@@ -382,8 +412,8 @@ void uart_init() {
 			.UseDMATx = true,
 			.EnableDE = true,
 			.DEPolarityHigh = false};
-	USARTStatus status = USART_Init<USART2, cfg>();
-	if (status != USARTStatus::Success) Error_Handler();
+	DrvStatus status = USART_Init<USART2, cfg>();
+	if (status != DrvStatus::Ok) Error_Handler();
 
 	constexpr const UartHwConfig cfg2 = {
 			.Baud = 115200,
@@ -391,7 +421,7 @@ void uart_init() {
 			.UseDMARx = true,
 			.UseDMATx = true };
 	status = USART_Init<USART6, cfg2>();
-	if (status != USARTStatus::Success) Error_Handler();
+	if (status != DrvStatus::Ok) Error_Handler();
 }
 
 void inputs_update() {
@@ -424,16 +454,16 @@ void GPIO_Init() {
 	// Конфиги пинов заданы как compile-time константы: configure<Cfg>() сворачивает
 	// маски в литералы и делает одну RMW-запись на порт на регистр.
 	// Порядок полей GPIO_Config: { mode, otype, speed, pull, af }.
-	constexpr GPIO_Config eth_cfg    { Mode::Alt, OType::PP, Speed::VeryHigh, Pull::None,   AF::AF11 }; // Ethernet
-	constexpr GPIO_Config in_cfg     { Mode::In,  OType::PP, Speed::Medium,   Pull::None,   AF::AF0  };
-	constexpr GPIO_Config out_cfg    { Mode::Out, OType::PP, Speed::VeryHigh, Pull::None,   AF::AF0  };
-	constexpr GPIO_Config rs485_cfg  { Mode::Alt, OType::PP, Speed::VeryHigh, Pull::PullUp, AF::AF7  }; // USART2
-	constexpr GPIO_Config can1_cfg   { Mode::Alt, OType::PP, Speed::VeryHigh, Pull::None,   AF::AF9  };
-	constexpr GPIO_Config usart6_cfg { Mode::Alt, OType::PP, Speed::VeryHigh, Pull::None,   AF::AF8  };
-	constexpr GPIO_Config tim1_cfg   { Mode::Alt, OType::PP, Speed::VeryHigh, Pull::None,   AF::AF1  };
-	constexpr GPIO_Config tim4_cfg   { Mode::Alt, OType::PP, Speed::VeryHigh, Pull::None,   AF::AF2  };
-	constexpr GPIO_Config adc3_cfg   { Mode::Ang, OType::PP, Speed::VeryHigh, Pull::None,   AF::AF0  };
-	constexpr GPIO_Config i2c1_cfg   { Mode::Alt, OType::OD, Speed::VeryHigh, Pull::None,   AF::AF4  };
+	constexpr GPIO_Config eth_cfg    { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF11 }; // Ethernet
+	constexpr GPIO_Config in_cfg     { .mode=Mode::In,  .otype=OType::PP, .speed=Speed::Medium,   .pull=Pull::None,   .af=AF::AF0  };
+	constexpr GPIO_Config out_cfg    { .mode=Mode::Out, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF0  };
+	constexpr GPIO_Config rs485_cfg  { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::PullUp, .af=AF::AF7  }; // USART2
+	constexpr GPIO_Config can1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF9  };
+	constexpr GPIO_Config usart6_cfg { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF8  };
+	constexpr GPIO_Config tim1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF1  };
+	constexpr GPIO_Config tim4_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF2  };
+	constexpr GPIO_Config adc3_cfg   { .mode=Mode::Ang, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF0  };
+	constexpr GPIO_Config i2c1_cfg   { .mode=Mode::Alt, .otype=OType::OD, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF4  };
 
 	eth::group::configure<eth_cfg>();
 	inputs::group::configure<in_cfg>();
@@ -450,7 +480,10 @@ void GPIO_Init() {
 
 extern "C" void ADC_IRQHandler() {
 	if (ADC3::_SR::EOC::is_set()) {  // reading DR below clears EOC
-		const AdcSample s{ adc_idx, static_cast<uint16_t>(ADC3::_DR::DATA::read()) };
+		const AdcSample s{ 
+			.channel=adc_idx, 
+			.value=static_cast<uint16_t>(ADC3::_DR::DATA::read()) };
+
 		adc_queue.push(s);           // ISR never blocks; drop if the loop fell behind
 		adc_idx = (adc_idx + 1) & 1;
 	}
@@ -477,12 +510,6 @@ extern "C" void DMA2_Stream4_IRQHandler() {}
 extern "C" void DMA2_Stream5_IRQHandler() {}
 extern "C" void DMA2_Stream6_IRQHandler() {}
 extern "C" void DMA2_Stream7_IRQHandler() {DMA_IRQHandler<usart6_tx>();}
-
-
-
-
-
-
 
 
 extern "C" void TIM1_CC_IRQHandler() {

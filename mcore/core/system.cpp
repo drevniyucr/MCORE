@@ -66,7 +66,7 @@ inline static void DWT_Init()
 }
 
 
-void SystemInit() {
+extern "C" void SystemInit() {
 	/* FPU settings ------------------------------------------------------------*/
 	SCB::_CPACR::setMask(SCB::_CPACR::CP10::BitMsk | SCB::_CPACR::CP11::BitMsk); /* set CP10 and CP11 Full Access */
 	NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();

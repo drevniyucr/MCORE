@@ -15,7 +15,7 @@ static inline void RCC_GPIOGEN() { RCC::_AHB1ENR::GPIOGEN::set(); }
 static inline void RCC_TIM2EN()  { RCC::_APB1ENR::TIM2EN::set(); }
 static inline void RCC_TIM3EN()  { RCC::_APB1ENR::TIM3EN::set(); }
 
-static inline void RCC_GPIO_ALLEN() { 
+static inline void RCC_GPIO_ALLEN() {
 	RCC::_AHB1ENR::setMask
 	   <RCC::_AHB1ENR::GPIOAEN::BitMsk |
 		RCC::_AHB1ENR::GPIOBEN::BitMsk |
@@ -25,6 +25,55 @@ static inline void RCC_GPIO_ALLEN() {
 		RCC::_AHB1ENR::GPIOFEN::BitMsk |
 		RCC::_AHB1ENR::GPIOGEN::BitMsk >();
 }
+
+// ---------------------------------------------------------------------------
+// RccEnable<Periph> — the single peripheral -> bus-clock-enable map.
+// Every driver enables its clock through this table instead of a per-driver
+// XXX_ClkEnable/ClkSel/ClkEn function. Unmapped peripherals fail to compile.
+// (Kernel-clock *source* selection, where it exists — USART/I2C via DKCFGR2 —
+// stays in the driver: it is not a bus-enable concern.)
+// ---------------------------------------------------------------------------
+template<typename Periph> struct RccEnable;
+
+template<> struct RccEnable<TIM1>  { static inline void enable() { RCC::_APB2ENR::TIM1EN::set(); } };
+template<> struct RccEnable<TIM2>  { static inline void enable() { RCC::_APB1ENR::TIM2EN::set(); } };
+template<> struct RccEnable<TIM3>  { static inline void enable() { RCC::_APB1ENR::TIM3EN::set(); } };
+template<> struct RccEnable<TIM4>  { static inline void enable() { RCC::_APB1ENR::TIM4EN::set(); } };
+template<> struct RccEnable<TIM5>  { static inline void enable() { RCC::_APB1ENR::TIM5EN::set(); } };
+template<> struct RccEnable<TIM6>  { static inline void enable() { RCC::_APB1ENR::TIM6EN::set(); } };
+template<> struct RccEnable<TIM7>  { static inline void enable() { RCC::_APB1ENR::TIM7EN::set(); } };
+template<> struct RccEnable<TIM8>  { static inline void enable() { RCC::_APB2ENR::TIM8EN::set(); } };
+template<> struct RccEnable<TIM9>  { static inline void enable() { RCC::_APB2ENR::TIM9EN::set(); } };
+template<> struct RccEnable<TIM10> { static inline void enable() { RCC::_APB2ENR::TIM10EN::set(); } };
+template<> struct RccEnable<TIM11> { static inline void enable() { RCC::_APB2ENR::TIM11EN::set(); } };
+template<> struct RccEnable<TIM12> { static inline void enable() { RCC::_APB1ENR::TIM12EN::set(); } };
+template<> struct RccEnable<TIM13> { static inline void enable() { RCC::_APB1ENR::TIM13EN::set(); } };
+template<> struct RccEnable<TIM14> { static inline void enable() { RCC::_APB1ENR::TIM14EN::set(); } };
+
+template<> struct RccEnable<USART1> { static inline void enable() { RCC::_APB2ENR::USART1EN::set(); } };
+template<> struct RccEnable<USART2> { static inline void enable() { RCC::_APB1ENR::USART2EN::set(); } };
+template<> struct RccEnable<USART3> { static inline void enable() { RCC::_APB1ENR::USART3EN::set(); } };
+template<> struct RccEnable<UART4>  { static inline void enable() { RCC::_APB1ENR::UART4EN::set(); } };
+template<> struct RccEnable<UART5>  { static inline void enable() { RCC::_APB1ENR::UART5EN::set(); } };
+template<> struct RccEnable<USART6> { static inline void enable() { RCC::_APB2ENR::USART6EN::set(); } };
+template<> struct RccEnable<UART7>  { static inline void enable() { RCC::_APB1ENR::UART7ENR::set(); } };
+template<> struct RccEnable<UART8>  { static inline void enable() { RCC::_APB1ENR::UART8ENR::set(); } };
+
+template<> struct RccEnable<I2C1> { static inline void enable() { RCC::_APB1ENR::I2C1EN::set(); } };
+template<> struct RccEnable<I2C2> { static inline void enable() { RCC::_APB1ENR::I2C2EN::set(); } };
+template<> struct RccEnable<I2C3> { static inline void enable() { RCC::_APB1ENR::I2C3EN::set(); } };
+template<> struct RccEnable<I2C4> { static inline void enable() { RCC::_APB1ENR::I2C4EN::set(); } };
+
+template<> struct RccEnable<CAN1> { static inline void enable() { RCC::_APB1ENR::CAN1EN::set(); } };
+template<> struct RccEnable<CAN2> { static inline void enable() { RCC::_APB1ENR::CAN2EN::set(); } };
+template<> struct RccEnable<CAN3> { static inline void enable() { RCC::_APB1ENR::CAN3EN::set(); } };
+
+template<> struct RccEnable<ADC1> { static inline void enable() { RCC::_APB2ENR::ADC1EN::set(); } };
+template<> struct RccEnable<ADC2> { static inline void enable() { RCC::_APB2ENR::ADC2EN::set(); } };
+template<> struct RccEnable<ADC3> { static inline void enable() { RCC::_APB2ENR::ADC3EN::set(); } };
+
+template<> struct RccEnable<DMA1> { static inline void enable() { RCC::_AHB1ENR::DMA1EN::set(); } };
+template<> struct RccEnable<DMA2> { static inline void enable() { RCC::_AHB1ENR::DMA2EN::set(); } };
 
 enum class PLL_P : uint8_t {
 	Div2 = 0b00, 

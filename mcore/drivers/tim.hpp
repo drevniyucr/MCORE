@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "core/regs.hpp"
 #include "core/rcc.hpp"
+#include "drivers/common.hpp"
 #include "drivers/dma.hpp"
 
 // ------------------- ENUMS -------------------
@@ -67,50 +68,7 @@ struct TimOCConfig {
     bool FastEnable = false;
 };
 
-// ------------------- TIMER CLOCK -------------------
-template<typename TIMx> inline void TIM_ClkEnable();
-template<> inline void TIM_ClkEnable<TIM1>() {
-    RCC::_APB2ENR::TIM1EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM2>() {
-    RCC::_APB1ENR::TIM2EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM3>() {
-    RCC::_APB1ENR::TIM3EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM4>() {
-    RCC::_APB1ENR::TIM4EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM5>() {
-    RCC::_APB1ENR::TIM5EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM6>() {
-    RCC::_APB1ENR::TIM6EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM7>() {
-    RCC::_APB1ENR::TIM7EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM8>() {
-    RCC::_APB2ENR::TIM8EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM9>() {
-    RCC::_APB2ENR::TIM9EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM10>() {
-    RCC::_APB2ENR::TIM10EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM11>() {
-    RCC::_APB2ENR::TIM11EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM12>() {
-    RCC::_APB1ENR::TIM12EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM13>() {
-    RCC::_APB1ENR::TIM13EN::set();
-}
-template<> inline void TIM_ClkEnable<TIM14>() {
-    RCC::_APB1ENR::TIM14EN::set();
-}
+// Clock enable: unified RccEnable<TIMx> map in core/rcc.hpp.
 
 // ------------------- TIMER PROPERTIES (битовая маска) -------------------
 struct TIM_properties {
@@ -170,7 +128,11 @@ struct TimChannelTraits {
     static_assert(TimCh::None != TimFlags<TIMx>::f.chnl, "This timer does not support channels ");
     static_assert(ch <= TimFlags<TIMx>::f.chnl, "This timer does not have the requested channel");
     static_assert(ch != TimCh::None, "Channel must be specified");
-    // Выбор типа CCMR
+    // Выбор типа CCMR. Возврат ОБЪЕКТА из if constexpr здесь намеренный:
+    // std::conditional_t не подходит — он требует, чтобы _CCMR3_Output
+    // существовал у ВСЕХ таймеров (имена всех веток инстанцируются),
+    // а у не-advanced таймеров его нет. Отброшенная ветка if constexpr
+    // имён не инстанцирует.
     template<TimCh Ch>
     static auto getCCMRType() {
         if constexpr (Ch <= TimCh::CH2)
@@ -181,81 +143,33 @@ struct TimChannelTraits {
             return typename TIMx::_CCMR3_Output{ };
     }
 
-    template<TimCh Ch>
-    struct PolarityMaskHelper {
-        static constexpr uint32_t value = [] {
-            if constexpr (Ch == TimCh::CH1)
-                return TIMx::_CCER::CC1P::BitMsk;
-            else if constexpr (Ch == TimCh::CH2)
-                return TIMx::_CCER::CC2P::BitMsk;
-            else if constexpr (Ch == TimCh::CH3)
-                return TIMx::_CCER::CC3P::BitMsk;
-            else if constexpr (Ch == TimCh::CH4)
-                return TIMx::_CCER::CC4P::BitMsk;
-            else if constexpr (Ch == TimCh::CH5)
-                return TIMx::_CCER::CC5P::BitMsk;
-            else if constexpr (Ch == TimCh::CH6)
-                return TIMx::_CCER::CC6P::BitMsk;
-            else
-                return uint32_t(0);
-            }();
-    };
+    // Все канальные константы (CCER-полярность/enable, DIER-DMA, адрес CCR)
+    // одной ленивой цепочкой if constexpr — вместо четырёх почти одинаковых
+    // helper-структур. Ленивость важна: инстанцируется только взятая ветка,
+    // поэтому таймеры без CH5/CH6 или без CCxDE-битов продолжают собираться.
+    struct ChConsts { uint32_t pol; uint32_t en; uint32_t dma; uint32_t ccr; };
 
-    template<TimCh Ch>
-    struct CCRAddressHelper {
-        static constexpr uint32_t value = [] {
-            if constexpr (Ch == TimCh::CH1)
-                return TIMx::_CCR1::address;
-            else if constexpr (Ch == TimCh::CH2)
-                return TIMx::_CCR2::address;
-            else if constexpr (Ch == TimCh::CH3)
-                return TIMx::_CCR3::address;
-            else if constexpr (Ch == TimCh::CH4)
-                return TIMx::_CCR4::address;
-            else if constexpr (Ch == TimCh::CH5)
-                return TIMx::_CCR5::address;
-            else if constexpr (Ch == TimCh::CH6)
-                return TIMx::_CCR6::address;
-            else
-                return uint32_t(0);
-            }();
-    };
-
-    template<TimCh Ch>
-    struct CCxDMAHelper {
-        static constexpr uint32_t value = [] {
-            if constexpr (Ch == TimCh::CH1)
-                return TIMx::_DIER::CC1DE::BitMsk;
-            else if constexpr (Ch == TimCh::CH2)
-                return TIMx::_DIER::CC2DE::BitMsk;
-            else if constexpr (Ch == TimCh::CH3)
-                return TIMx::_DIER::CC3DE::BitMsk;
-            else if constexpr (Ch == TimCh::CH4)
-                return TIMx::_DIER::CC4DE::BitMsk;
-            else
-                return uint32_t(0);
-            }();
-    };
-
-    template<TimCh Ch>
-    struct EnableMaskHelper {
-        static constexpr uint32_t value = [] {
-            if constexpr (Ch == TimCh::CH1)
-                return TIMx::_CCER::CC1E::BitMsk;
-            else if constexpr (Ch == TimCh::CH2)
-                return TIMx::_CCER::CC2E::BitMsk;
-            else if constexpr (Ch == TimCh::CH3)
-                return TIMx::_CCER::CC3E::BitMsk;
-            else if constexpr (Ch == TimCh::CH4)
-                return TIMx::_CCER::CC4E::BitMsk;
-            else if constexpr (Ch == TimCh::CH5)
-                return TIMx::_CCER::CC5E::BitMsk;
-            else if constexpr (Ch == TimCh::CH6)
-                return TIMx::_CCER::CC6E::BitMsk;
-            else
-                return uint32_t(0);
-            }();
-    };
+    static consteval ChConsts ch_consts() {
+        if constexpr (ch == TimCh::CH1)
+            return { TIMx::_CCER::CC1P::BitMsk, TIMx::_CCER::CC1E::BitMsk,
+                     TIMx::_DIER::CC1DE::BitMsk, TIMx::_CCR1::address };
+        else if constexpr (ch == TimCh::CH2)
+            return { TIMx::_CCER::CC2P::BitMsk, TIMx::_CCER::CC2E::BitMsk,
+                     TIMx::_DIER::CC2DE::BitMsk, TIMx::_CCR2::address };
+        else if constexpr (ch == TimCh::CH3)
+            return { TIMx::_CCER::CC3P::BitMsk, TIMx::_CCER::CC3E::BitMsk,
+                     TIMx::_DIER::CC3DE::BitMsk, TIMx::_CCR3::address };
+        else if constexpr (ch == TimCh::CH4)
+            return { TIMx::_CCER::CC4P::BitMsk, TIMx::_CCER::CC4E::BitMsk,
+                     TIMx::_DIER::CC4DE::BitMsk, TIMx::_CCR4::address };
+        else if constexpr (ch == TimCh::CH5)
+            return { TIMx::_CCER::CC5P::BitMsk, TIMx::_CCER::CC5E::BitMsk,
+                     0, TIMx::_CCR5::address };  // CH5/CH6: нет DMA-запроса
+        else
+            return { TIMx::_CCER::CC6P::BitMsk, TIMx::_CCER::CC6E::BitMsk,
+                     0, TIMx::_CCR6::address };
+    }
+    static constexpr ChConsts chc = ch_consts();
 
     using CCMR = decltype(getCCMRType<ch>());
 
@@ -271,12 +185,12 @@ struct TimChannelTraits {
     static constexpr uint32_t fast_en_mask =
     (ch == TimCh::CH1 || ch == TimCh::CH3 || ch == TimCh::CH5) ? ( 1 << 2) : (1 << 10);
 
-    // Маски включения и полярности
-    static constexpr uint32_t enable_mask = EnableMaskHelper<ch>::value;
-    static constexpr uint32_t polarity_mask = PolarityMaskHelper<ch>::value;
-    static constexpr uint32_t dma_enable_mask = CCxDMAHelper<ch>::value;
+    // Маски включения и полярности (см. ChConsts выше)
+    static constexpr uint32_t enable_mask     = chc.en;
+    static constexpr uint32_t polarity_mask   = chc.pol;
+    static constexpr uint32_t dma_enable_mask = chc.dma;
 
-    static constexpr uint32_t ccr_address = CCRAddressHelper<ch>::value;
+    static constexpr uint32_t ccr_address     = chc.ccr;
 
     // Запись в CCR
     static inline void write_ccr(uint32_t v) {
@@ -318,55 +232,45 @@ struct TimChannelTraits {
         }
     }
 
-    // Настройка idle state
+    // Настройка idle state. Канал — параметр шаблона, поэтому выбор
+    // OISx-поля делается через if constexpr (одна ветка на инстанс),
+    // runtime остаётся только проверка "задан ли idle в конфиге".
     static inline void set_idle(uint32_t& cr2, TimIdleState s,
         TimIdleState sn) {
         if constexpr (TimFlags<TIMx>::f.isAdvanced) {
-            uint32_t val = static_cast<uint32_t>(s);
-            uint32_t valn = static_cast<uint32_t>(sn);
+            const uint32_t val  = static_cast<uint32_t>(s);
+            const uint32_t valn = static_cast<uint32_t>(sn);
 
-            if (ch == TimCh::CH1 && s != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS1::BitMsk)
-                    | (val << TIMx::_CR2::OIS1::pos);
+            if constexpr (ch == TimCh::CH1) {
+                if (s != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS1::BitMsk)  | (val  << TIMx::_CR2::OIS1::pos);
+                if (sn != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS1N::BitMsk) | (valn << TIMx::_CR2::OIS1N::pos);
             }
-            if (ch == TimCh::CH1 && sn != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS1N::BitMsk)
-                    | (valn << TIMx::_CR2::OIS1N::pos);
+            else if constexpr (ch == TimCh::CH2) {
+                if (s != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS2::BitMsk)  | (val  << TIMx::_CR2::OIS2::pos);
+                if (sn != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS2N::BitMsk) | (valn << TIMx::_CR2::OIS2N::pos);
             }
-
-            if (ch == TimCh::CH2 && s != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS2::BitMsk)
-                    | (val << TIMx::_CR2::OIS2::pos);
+            else if constexpr (ch == TimCh::CH3) {
+                if (s != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS3::BitMsk)  | (val  << TIMx::_CR2::OIS3::pos);
+                if (sn != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS3N::BitMsk) | (valn << TIMx::_CR2::OIS3N::pos);
             }
-            if (ch == TimCh::CH2 && sn != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS2N::BitMsk)
-                    | (valn << TIMx::_CR2::OIS2N::pos);
+            else if constexpr (ch == TimCh::CH4) {
+                if (s != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS4::BitMsk)  | (val  << TIMx::_CR2::OIS4::pos);
             }
-
-            if (ch == TimCh::CH3 && s != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS3::BitMsk)
-                    | (val << TIMx::_CR2::OIS3::pos);
+            else if constexpr (ch == TimCh::CH5) {
+                if (s != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS5::BitMsk)  | (val  << TIMx::_CR2::OIS5::pos);
             }
-            if (ch == TimCh::CH3 && sn != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS3N::BitMsk)
-                    | (valn << TIMx::_CR2::OIS3N::pos);
+            else if constexpr (ch == TimCh::CH6) {
+                if (s != TimIdleState::NONE)
+                    cr2 = (cr2 & ~TIMx::_CR2::OIS6::BitMsk)  | (val  << TIMx::_CR2::OIS6::pos);
             }
-
-            if (ch == TimCh::CH4 && s != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS4::BitMsk)
-                    | (val << TIMx::_CR2::OIS4::pos);
-            }
-
-            if (ch == TimCh::CH5 && s != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS5::BitMsk)
-                    | (val << TIMx::_CR2::OIS5::pos);
-            }
-
-            if (ch == TimCh::CH6 && s != TimIdleState::NONE) {
-                cr2 = (cr2 & ~TIMx::_CR2::OIS6::BitMsk)
-                    | (val << TIMx::_CR2::OIS6::pos);
-            }
-
         }
     }
 };
@@ -375,7 +279,7 @@ struct TimChannelTraits {
 template<typename TIMx, TimBaseConfig cfg>
 void TIM_BaseConfig() {
 
-    TIM_ClkEnable<TIMx>();
+    RccEnable<TIMx>::enable();
 
     TIMx::_CR1::CEN::clear();
 
@@ -481,7 +385,7 @@ static inline void TIM_PWM_ChannelDMAEnable(uint32_t pData, uint16_t Size) {
     //TIMx::_DIER::UDE::set();
 
     if (DMA_StartIT<hdma>(pData, Traits::ccr_address, Size)
-        != DmaState::COMPLETE) {
+        != DrvStatus::Ok) {
         return;
     }
 

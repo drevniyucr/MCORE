@@ -19,6 +19,6 @@ void SystemCoreClockUpdate();
 void delay_ms(uint32_t ms);
 bool delay_us(uint32_t us);
 uint32_t get_tick();
-void SystemInit();
+extern "C" void SystemInit();
 uint32_t SysTick_Config(uint32_t ticks);
 void print(const char *fmt, ...);
