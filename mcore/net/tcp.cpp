@@ -601,92 +601,93 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		}
 		break;
 
-	case tcp_state_t::TCP_ESTABLISHED:
+	case tcp_state_t::TCP_ESTABLISHED: {
 		conn->last_activity = get_tick();
 		conn->keep_alive_count = 0;
 
 		// Validate sequence number is acceptable (in-order packets only for now)
-		if (is_seq_acceptable(client_seq, conn->rcv_next)) {
-
-			if (client_flags & TCP_FIN) {
-				// FIN received - start graceful close
-				conn->rcv_next += 1;  // FIN consumes 1 sequence number
-				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_ACK, nullptr, 0);
-
-				NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
-				conn->state = tcp_state_t::TCP_LAST_ACK;
-			} else if (client_flags & TCP_ACK) {
-				// Update acknowledged sequence; ACKs beyond what we sent
-				// (or old duplicates) must not move snd_unack
-				bool data_acked = is_ack_acceptable(client_ack,
-						conn->snd_unack, conn->tcp_my_seq);
-				if (data_acked) {
-					conn->snd_unack = client_ack;
-					// Release the TX slots covered by this ACK
-					tx_release_acked(conn, client_ack);
-				}
-
-				// Extract TCP header length and validate
-				uint16_t tcp_hdr_len = (tcp->offset_reserved >> 4) * 4;
-				if (tcp_hdr_len < TCP_MIN_HDR_LEN || tcp_hdr_len > TCP_MAX_HDR_LEN) {
-					break;  // Invalid TCP header length
-				}
-
-				// Calculate and validate data length
-				uint16_t data_len = static_cast<uint16_t>(
-					frame->ip_len - frame->ip_hdr_len - tcp_hdr_len);
-				
-				// Validate data length is reasonable (not larger than frame)
-//				if (data_len > (frame->ip_len - frame->ip_hdr_len)) {
-//					break;  // Invalid data length
-//				}
-
-				// Process payload if present
-				if (data_len > 0) {
-					const uint8_t *payload = reinterpret_cast<const uint8_t*>(tcp) + tcp_hdr_len;
-					const uint16_t free_space = SOCKET_RX_BUFF_LEN - conn->rx_count;
-
-					// Copy as much data as fits into the RX ring
-					uint16_t copy_len = (data_len <= free_space) ? data_len : free_space;
-					if (copy_len > 0) {
-						uint16_t first = SOCKET_RX_BUFF_LEN - conn->rx_head;
-						if (first > copy_len) {
-							first = copy_len;
-						}
-						memcpy(&conn->socket_rx_buff[conn->rx_head], payload, first);
-						if (copy_len > first) {
-							memcpy(&conn->socket_rx_buff[0], payload + first,
-									copy_len - first);
-						}
-						conn->rx_head = static_cast<uint16_t>(
-								(conn->rx_head + copy_len) % SOCKET_RX_BUFF_LEN);
-						conn->rx_count += copy_len;
-						conn->rcv_next += copy_len;
-					}
-					// Note: If copy_len < data_len, the tail is dropped (buffer
-					// full); the missing ACK makes the peer retransmit it
-
-					// Update the window BEFORE advertising it in the ACK
-					conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
-
-					// Send ACK
-					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-								TCP_ACK, nullptr, 0);
-				}
-
-				// Always update receive window (even if no data)
-				conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
-			}
-		} else {
+		if (!is_seq_acceptable(client_seq, conn->rcv_next)) {
 			// Out-of-order or duplicate packet - send ACK with current rcv_next
 			// This helps the sender recover from packet loss
 			if (client_flags & TCP_ACK) {
 				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
 							TCP_ACK, nullptr, 0);
 			}
+			break;
 		}
+
+		// 1) ACK bookkeeping first: a FIN segment normally carries an ACK
+		// too, and the TX slots it releases may be needed right below to
+		// queue our own FIN|ACK. ACKs beyond what we sent (or old
+		// duplicates) must not move snd_unack.
+		if ((client_flags & TCP_ACK) &&
+		    is_ack_acceptable(client_ack, conn->snd_unack, conn->tcp_my_seq)) {
+			conn->snd_unack = client_ack;
+			tx_release_acked(conn, client_ack);
+		}
+
+		// Extract TCP header length and validate
+		const uint16_t tcp_hdr_len = (tcp->offset_reserved >> 4) * 4;
+		if (tcp_hdr_len < TCP_MIN_HDR_LEN || tcp_hdr_len > TCP_MAX_HDR_LEN) {
+			break;  // Invalid TCP header length
+		}
+
+		// 2) Consume the payload. Data may arrive on a FIN segment too -
+		// the FIN logically FOLLOWS the data (RFC 793), so the bytes are
+		// processed the same way as on a plain data segment.
+		const uint16_t data_len = static_cast<uint16_t>(
+				frame->ip_len - frame->ip_hdr_len - tcp_hdr_len);
+		uint16_t copy_len = 0;
+		if (data_len > 0) {
+			const uint8_t *payload = reinterpret_cast<const uint8_t*>(tcp) + tcp_hdr_len;
+			const uint16_t free_space = SOCKET_RX_BUFF_LEN - conn->rx_count;
+
+			// Copy as much data as fits into the RX ring
+			copy_len = (data_len <= free_space) ? data_len : free_space;
+			if (copy_len > 0) {
+				uint16_t first = SOCKET_RX_BUFF_LEN - conn->rx_head;
+				if (first > copy_len) {
+					first = copy_len;
+				}
+				memcpy(&conn->socket_rx_buff[conn->rx_head], payload, first);
+				if (copy_len > first) {
+					memcpy(&conn->socket_rx_buff[0], payload + first,
+							copy_len - first);
+				}
+				conn->rx_head = static_cast<uint16_t>(
+						(conn->rx_head + copy_len) % SOCKET_RX_BUFF_LEN);
+				conn->rx_count += copy_len;
+				conn->rcv_next += copy_len;
+			}
+			// Note: If copy_len < data_len, the tail is dropped (buffer
+			// full); the missing ACK makes the peer retransmit it
+
+			// Update the window BEFORE advertising it in the ACK
+			conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
+		}
+
+		// 3) FIN - but only if its sequence position was actually reached,
+		// i.e. every payload byte before it fit into the RX ring. If the
+		// tail was dropped, stay ESTABLISHED: the peer retransmits the
+		// remaining data together with the FIN.
+		if ((client_flags & TCP_FIN) && copy_len == data_len) {
+			conn->rcv_next += 1;  // FIN consumes 1 sequence number
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
+						TCP_ACK, nullptr, 0);
+
+			NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
+			conn->state = tcp_state_t::TCP_LAST_ACK;
+		} else if (data_len > 0) {
+			// Plain data segment (or a FIN we could not take yet): ack
+			// what was consumed
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
+						TCP_ACK, nullptr, 0);
+		}
+
+		// Always update receive window (even if no data)
+		conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
 		break;
+	}
 
 	case tcp_state_t::TCP_FIN_WAIT_1:
 		if ((client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq)) {

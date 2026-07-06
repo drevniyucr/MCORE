@@ -308,10 +308,11 @@ void NET_SendUDP(const UDP_SendFrameStruct& SendFrame) {
 	
 	// Copy payload
 	memcpy(&udp_hdr[UDP_HDR_LEN], SendFrame.pDataBuff, SendFrame.DataBuffLen);
-	
-	// Calculate UDP checksum
-	udp_checksum(IP_ADDR, SendFrame.DstIP, udp_hdr, &udp_hdr[UDP_HDR_LEN], udp_len);
-	
+
+	// UDP checksum: left 0 in the template - the MAC inserts it in hardware
+	// (every TX descriptor sets CIC_TCPUDPICMP_FULL, see ETH_SendFrame).
+	// A software udp_checksum() call sat here with its result discarded.
+
 	// Send frame
 	ETH_SendFrame(SendFrame.DataBuffLen + UDP_TEMPLATE_FRAME_LEN);
 }
