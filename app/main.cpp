@@ -36,6 +36,7 @@ constexpr uint32_t TCP_SEND_INTERVAL_MS = 5000;
 constexpr uint32_t TCP_TIMER_INTERVAL_MS = 100;
 constexpr uint32_t SNAKE_TIMER_INTERVAL_MS = 400;
 constexpr uint8_t TEST_CLIENT_INDEX = 9;  // Specific client for testing
+constexpr uint16_t TCP_LISTEN_PORT = 5001;  // server port for incoming connections
 
 uint8_t test_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
 uint8_t txData1[] = "Hello, USART! Hello, USART! Hello, USART! "
@@ -82,6 +83,7 @@ int main() {
 	}
 
 	NET_TCP_Init();
+	NET_TCP_Listen(TCP_LISTEN_PORT);
 	UartHandle<USART2>::UartRxDMA<usart2_rx>(rx_usart2_buf,sizeof(rx_usart2_buf));
 	UartHandle<USART6>::UartRxDMA<usart6_rx>(rx_usart6_buf,sizeof(rx_usart6_buf));
 

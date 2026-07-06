@@ -58,7 +58,14 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 
 ### 5. Custom network stack (`mcore/net/`)
 
-Hand-written ARP / ICMP / UDP / **TCP** on top of the own ETH DMA driver: connection state machine, retransmission queue, keepalive, up to 10 simultaneous connections. No lwIP.
+Hand-written ARP / ICMP / UDP / **TCP** on top of the own ETH DMA driver. No lwIP.
+
+The TCP server supports: listening ports (`NET_TCP_Listen`, multiple clients
+per port), MSS negotiation, a receive ring buffer with a socket-style read API
+(`NET_TCP_Read` / `NET_TCP_Available`, window reopens as data is consumed),
+sliding-window transmit (up to 3 segments in flight, MSS-sized segmentation,
+per-segment retransmission), keepalive probing, in-sequence RST validation,
+active/passive close with TIME_WAIT, up to 10 simultaneous connections.
 
 ### 6. Debug & profiling
 
@@ -132,6 +139,7 @@ python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 - [x] Host-side unit tests for the network stack (header parsing, checksums, TCP FSM)
 - [ ] Finish CAN, add SPI, IWDG, RTC
 - [ ] DHCP client, ARP cache
+- [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
 - [ ] HardFault handler with register dump
 - [x] Split framework / board / application layers
 - [ ] Make svd2reg a standalone tool (any STM32 from its SVD)
