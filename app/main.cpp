@@ -3,6 +3,7 @@
 #include "main.hpp"
 #include "board.hpp"
 #include <cstdio>
+#include <atomic>
 bool states[inputs::group::count];
 
 // ADC ISR (producer) -> main loop (consumer) over a lock-free SPSC queue.
@@ -17,6 +18,10 @@ uint8_t rx_usart2_buf[100];
 
 DmaHandle<DmaStream::DMA2_Stream_1> usart6_rx;
 DmaHandle<DmaStream::DMA2_Stream_7> usart6_tx;
+
+// Completed USART6 DMA-TX transfers, incremented from the DMA ISR via the
+// on_complete callback (observable via debugger). Demonstrates event-driven DMA.
+std::atomic<uint32_t> usart6_tx_count{ 0 };
 
 DmaHandle<DmaStream::DMA1_Stream_5> usart2_rx;
 DmaHandle<DmaStream::DMA1_Stream_6> usart2_tx;
@@ -106,7 +111,7 @@ void task_net_timers() {
 
 // Periodic: "snake" sweep across the digital outputs + a USART6 DMA burst.
 void task_snake() {
-	if (usart6_tx.state == DmaState::READY) {
+	if (usart6_tx.ready()) {
 		UartHandle<USART6>::UartTxDMA<usart6_tx>(txData1, sizeof(txData1));
 	}
 	if (snake_forward) {
@@ -173,6 +178,10 @@ int main() {
 
 	// Main loop: a cooperative scheduler replaces the hand-rolled tick diffs.
 	// Registration order == run order within a poll. period 0 == every pass.
+	// Event-driven DMA: fire a callback from the ISR on each USART6 TX complete
+	// instead of only polling usart6_tx.ready() in the snake task.
+	usart6_tx.on_complete([] { usart6_tx_count.fetch_add(1, std::memory_order_relaxed); });
+
 	sched::Scheduler<5> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
