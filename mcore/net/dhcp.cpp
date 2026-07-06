@@ -214,7 +214,7 @@ void dhcp_apply_ack(const uint8_t *bootp, const uint8_t *opts, uint16_t opts_len
 
 } // namespace
 
-void NET_DHCP_Start(void) {
+void NET_DHCP_Start() {
 	memset(&dhcp_client, 0, sizeof(dhcp_client));
 	memcpy(dhcp_client.static_ip, IP_ADDR, IP_ADDR_LEN);
 	NET_SetIPAddr(ZERO_IP);                        // no address while acquiring
@@ -287,7 +287,7 @@ void NET_DHCP_ProcessRx(ipv4_frame *frame) {
 	}
 }
 
-void NET_DHCP_Poll(void) {
+void NET_DHCP_Poll() {
 	dhcp_client_t &c = dhcp_client;
 	const uint32_t now = get_tick();
 

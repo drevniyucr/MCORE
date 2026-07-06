@@ -20,5 +20,5 @@
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #pragma once
-void Error_Handler(void);
+void Error_Handler();
 
