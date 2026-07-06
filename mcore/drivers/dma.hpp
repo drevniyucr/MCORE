@@ -114,6 +114,19 @@ struct DmaHandle
     static inline void (*tc_callback)() = nullptr;
     static inline void (*ht_callback)() = nullptr;
     static inline void (*err_callback)() = nullptr;
+
+    // --- Async completion API -------------------------------------------
+    // Register callbacks fired from the DMA ISR (see DMA_IRQHandler): on
+    // transfer-complete, half-transfer, and transfer-error. This replaces
+    // polling `state == DmaState::READY` at call sites with event-driven flow.
+    // Callbacks run in interrupt context — keep them short.
+    static void on_complete(void (*cb)()) noexcept { tc_callback = cb; }
+    static void on_half(void (*cb)())     noexcept { ht_callback = cb; }
+    static void on_error(void (*cb)())    noexcept { err_callback = cb; }
+
+    // --- State queries (so callers need not compare the raw DmaState) ---
+    static bool ready() noexcept { return state == DmaState::READY; }
+    static bool busy()  noexcept { return state == DmaState::BUSY; }
 };
 
 
