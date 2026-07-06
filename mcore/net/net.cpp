@@ -7,6 +7,7 @@
 #include <cstring>
 #include "net/tcp.hpp"
 #include "net/net.hpp"
+#include "net/dhcp.hpp"
 #include "net/eth_utils.hpp"
 #include "drivers/eth.hpp"
 
@@ -127,11 +128,15 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 		return;
 	}
 
-	// Early destination IP check - filter before expensive parsing
-	// Use direct memory comparison for better performance
+	// Early destination IP check - filter before expensive parsing.
+	// Limited broadcast (255.255.255.255) is accepted too: DHCP replies
+	// arrive that way before we even have an address.
 	const uint8_t* const dst_ip = &rx_buff[DST_ADDR_POS];
-	if (dst_ip[0] != IP_ADDR[0] || dst_ip[1] != IP_ADDR[1] ||
-	    dst_ip[2] != IP_ADDR[2] || dst_ip[3] != IP_ADDR[3]) {
+	const bool is_broadcast = (dst_ip[0] == 255 && dst_ip[1] == 255 &&
+	                           dst_ip[2] == 255 && dst_ip[3] == 255);
+	if (!is_broadcast &&
+	    (dst_ip[0] != IP_ADDR[0] || dst_ip[1] != IP_ADDR[1] ||
+	     dst_ip[2] != IP_ADDR[2] || dst_ip[3] != IP_ADDR[3])) {
 		return;  // Not for us
 	}
 
@@ -166,6 +171,7 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 	ip_frame.ip_hdr = const_cast<uint8_t*>(ip_hdr);
 	ip_frame.ip_hdr_len = ip_hdr_len;
 	ip_frame.ip_len = ip_len;
+	ip_frame.is_broadcast = is_broadcast ? 1 : 0;
 	ip_frame.scr_addr = const_cast<uint8_t*>(&rx_buff[SCR_ADDR_POS]);
 	ip_frame.scr_mac = const_cast<uint8_t*>(&rx_buff[6]);
 
@@ -193,15 +199,31 @@ void NET_ProcessUDP(ipv4_frame* frame) {
 	
 	// Extract destination port (network byte order)
 	const uint16_t dst_port = static_cast<uint16_t>((udp_hdr[2] << 8) | udp_hdr[3]);
-	
+
+	if (dst_port == DHCP_CLIENT_PORT) {
+		NET_DHCP_ProcessRx(frame);
+		return;
+	}
+
 	if (dst_port != UDP_DST_PORT) {
-		// Port not for us - send ICMP unreachable
-		NET_SendICMP_Unreachable(frame);
+		// Port not for us - send ICMP unreachable.
+		// Never answer broadcast datagrams (RFC 1122).
+		if (!frame->is_broadcast) {
+			NET_SendICMP_Unreachable(frame);
+		}
 		return;
 	}
 
 	// TODO: Route to UDP handler based on port
 	// send_UDP_echo(RxDesc);
+}
+
+void NET_SetIPAddr(const uint8_t *ip) {
+	memcpy(IP_ADDR, ip, IP_ADDR_LEN);
+	// Frame templates bake the source IP at static init - patch them
+	memcpy(&UDPsendFrameTemplate[SCR_ADDR_POS], ip, IP_ADDR_LEN);
+	memcpy(&icmp_port_unrchble_template[SCR_ADDR_POS], ip, IP_ADDR_LEN);
+	memcpy(&TCPsendFrameTemplate[SCR_ADDR_POS], ip, IP_ADDR_LEN);
 }
 
 /**

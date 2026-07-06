@@ -67,6 +67,12 @@ sliding-window transmit (up to 3 segments in flight, MSS-sized segmentation,
 per-segment retransmission), keepalive probing, in-sequence RST validation,
 active/passive close with TIME_WAIT, up to 10 simultaneous connections.
 
+**DHCP client** (RFC 2131): DISCOVER/OFFER/REQUEST/ACK with exponential
+backoff, lease renewal at T1 (unicast) and rebinding at T2 (broadcast),
+restart on expiry or NAK. If no server answers, the device falls back to
+its static IP and keeps retrying in the background. On address change the
+frame templates are re-patched and live TCP connections are reset.
+
 ### 6. Debug & profiling
 
 - `print()` over **ITM/SWO** (`mcore/core/system.cpp`)
@@ -138,7 +144,8 @@ python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 - [x] CI (GitHub Actions: firmware build + host tests)
 - [x] Host-side unit tests for the network stack (header parsing, checksums, TCP FSM)
 - [ ] Finish CAN, add SPI, IWDG, RTC
-- [ ] DHCP client, ARP cache
+- [x] DHCP client
+- [ ] ARP cache, DNS
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
 - [ ] HardFault handler with register dump
 - [x] Split framework / board / application layers

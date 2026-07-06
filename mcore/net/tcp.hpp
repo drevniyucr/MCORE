@@ -175,7 +175,6 @@ int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
 uint16_t NET_TCP_Available(tcp_conn_t *conn);
 int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen);
 
-// Entropy source for the initial sequence number (ISN).
-// Firmware implementation reads SysTick (mcore/net/port.cpp);
-// host tests provide a deterministic stub.
-uint32_t NET_Entropy(void);
+// Defined in temp_frame.hpp (one TU: tcp.cpp); NET_SetIPAddr patches
+// its baked-in source IP when DHCP changes the address
+extern uint8_t TCPsendFrameTemplate[TCP_TEMPLATE_FRAME_LEN];

@@ -84,6 +84,7 @@ int main() {
 
 	NET_TCP_Init();
 	NET_TCP_Listen(TCP_LISTEN_PORT);
+	NET_DHCP_Start();  // falls back to the static IP if no server answers
 	UartHandle<USART2>::UartRxDMA<usart2_rx>(rx_usart2_buf,sizeof(rx_usart2_buf));
 	UartHandle<USART6>::UartRxDMA<usart6_rx>(rx_usart6_buf,sizeof(rx_usart6_buf));
 
@@ -127,9 +128,10 @@ int main() {
 
 		}
 
-		// Run TCP timers
+		// Run TCP/DHCP timers
 		if ((get_tick() - tcp_timer_tick) >= TCP_TIMER_INTERVAL_MS) {
 			NET_TCP_Timers();
+			NET_DHCP_Poll();
 			tcp_timer_tick = get_tick();
 			hue += 12;
 			LedStrip1::fill_rgb_gradient(hue);

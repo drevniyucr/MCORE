@@ -16,6 +16,7 @@
 #include "net/net.hpp"
 #include "net/eth_utils.hpp"
 #include "net/tcp.hpp"
+#include "net/dhcp.hpp"
 #include "drivers/usart.hpp"
 #include "drivers/i2c.hpp"
 #include "drivers/can.hpp"

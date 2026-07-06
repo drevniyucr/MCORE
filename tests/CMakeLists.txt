@@ -17,11 +17,13 @@ add_executable(net_tests
     test_eth_utils.cpp
     test_net.cpp
     test_tcp.cpp
+    test_dhcp.cpp
     # Real stack sources under test (system.cpp/eth.cpp are NOT linked —
     # their symbols are provided by stubs.cpp)
     ${MCORE_ROOT}/mcore/net/eth_utils.cpp
     ${MCORE_ROOT}/mcore/net/net.cpp
     ${MCORE_ROOT}/mcore/net/tcp.cpp
+    ${MCORE_ROOT}/mcore/net/dhcp.cpp
 )
 
 target_include_directories(net_tests PRIVATE
