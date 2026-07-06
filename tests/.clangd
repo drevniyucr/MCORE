@@ -1,0 +1,4 @@
+# Host tests are built into build-tests/ with the native compiler;
+# without this clangd would infer firmware flags (-fno-exceptions etc.)
+CompileFlags:
+  CompilationDatabase: ../build-tests

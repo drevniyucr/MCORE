@@ -64,11 +64,13 @@ inline void process_rx(uint8_t *frame, uint16_t len, uint32_t desc4) {
 }
 
 // Builds a TCP segment (client -> us) and injects it into NET_ProcessTCP.
+// opts, if given, must be a multiple of 4 bytes (TCP option words).
 inline void inject_tcp(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack,
 		uint8_t flags, const uint8_t *payload = nullptr, uint16_t plen = 0,
-		uint16_t window = 1024) {
+		uint16_t window = 1024,
+		const uint8_t *opts = nullptr, uint8_t opts_len = 0) {
 	static uint8_t buf[ETH_MAX_PACKET_SIZE];
-	const uint16_t l4_len = TCP_HDR_LEN + plen;
+	const uint16_t l4_len = TCP_HDR_LEN + opts_len + plen;
 	uint8_t *l4 = build_ipv4(buf, IP_PROTO_TCP, l4_len);
 
 	tcp_hdr_t *tcp = reinterpret_cast<tcp_hdr_t*>(l4);
@@ -76,11 +78,14 @@ inline void inject_tcp(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ac
 	tcp->dst_port = bswap16(dport);
 	tcp->seq_num = bswap32(seq);
 	tcp->ack_num = bswap32(ack);
-	tcp->offset_reserved = 0x50;                    // data offset 5 words
+	tcp->offset_reserved = static_cast<uint8_t>((5 + opts_len / 4) << 4);
 	tcp->flags = flags;
 	tcp->window = bswap16(window);
+	if (opts_len > 0 && opts != nullptr) {
+		memcpy(l4 + TCP_HDR_LEN, opts, opts_len);
+	}
 	if (plen > 0 && payload != nullptr) {
-		memcpy(l4 + TCP_HDR_LEN, payload, plen);
+		memcpy(l4 + TCP_HDR_LEN + opts_len, payload, plen);
 	}
 
 	ipv4_frame f = make_ipv4_frame(buf, l4_len);

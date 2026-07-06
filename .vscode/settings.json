@@ -7,7 +7,7 @@
   // query-driver: разрешает clangd опросить arm-none-eabi-g++ о реальных
   // системных инклюдах (libstdc++/newlib) и target
   "clangd.arguments": [
-    "--query-driver=**/arm-none-eabi-*"
+    "--query-driver=**/arm-none-eabi-*,**/g++*"
   ],
   // ---- C/C++ (cpptools): IntelliSense выключен, чтобы не дублировать clangd ----
   "C_Cpp.intelliSenseEngine": "disabled",

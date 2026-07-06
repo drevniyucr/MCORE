@@ -17,6 +17,16 @@ constexpr uint16_t CPORT = 40000;   // client (remote) port
 constexpr uint16_t SPORT = 5001;    // server (our) port
 constexpr uint32_t CSEQ = 100;      // client initial sequence number
 
+// SYN|ACK now carries a 4-byte MSS option
+constexpr size_t SYNACK_FRAME_LEN = TCP_TEMPLATE_FRAME_LEN + 4;
+
+// Fresh stack listening on SPORT
+void setup() {
+	test_reset();
+	NET_TCP_Init();
+	NET_TCP_Listen(SPORT);
+}
+
 // SYN -> (SYN|ACK) -> ACK. Returns the established connection.
 tcp_conn_t* do_handshake(uint16_t cport = CPORT) {
 	inject_tcp(cport, SPORT, CSEQ, 0, TCP_SYN);
@@ -27,8 +37,7 @@ tcp_conn_t* do_handshake(uint16_t cport = CPORT) {
 } // namespace
 
 TEST_CASE("TCP handshake: SYN gets SYN|ACK and creates SYN_RCVD connection") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 
 	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN);
 
@@ -41,7 +50,7 @@ TEST_CASE("TCP handshake: SYN gets SYN|ACK and creates SYN_RCVD connection") {
 
 	REQUIRE(g_tx_frames.size() == 1);
 	const auto &f = g_tx_frames[0];
-	REQUIRE(f.data.size() == TCP_TEMPLATE_FRAME_LEN);
+	REQUIRE(f.data.size() == SYNACK_FRAME_LEN);
 	CHECK(memcmp(&f.data[0], CLIENT_MAC, 6) == 0);
 	const tcp_hdr_t *tcp = captured_tcp(f);
 	CHECK(tcp->flags == (TCP_SYN | TCP_ACK));
@@ -53,8 +62,7 @@ TEST_CASE("TCP handshake: SYN gets SYN|ACK and creates SYN_RCVD connection") {
 }
 
 TEST_CASE("TCP handshake: final ACK establishes the connection") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
@@ -65,8 +73,7 @@ TEST_CASE("TCP handshake: final ACK establishes the connection") {
 }
 
 TEST_CASE("TCP: in-order data lands in the socket buffer and is ACKed") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
@@ -88,8 +95,7 @@ TEST_CASE("TCP: in-order data lands in the socket buffer and is ACKed") {
 }
 
 TEST_CASE("TCP: out-of-order segment is not buffered, duplicate ACK is sent") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
@@ -107,8 +113,7 @@ TEST_CASE("TCP: out-of-order segment is not buffered, duplicate ACK is sent") {
 }
 
 TEST_CASE("TCP passive close: FIN -> ACK+FIN|ACK -> LAST_ACK -> closed") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
@@ -127,9 +132,8 @@ TEST_CASE("TCP passive close: FIN -> ACK+FIN|ACK -> LAST_ACK -> closed") {
 	CHECK(find_conn(CPORT) == nullptr);
 }
 
-TEST_CASE("TCP: RST from peer tears the connection down") {
-	test_reset();
-	NET_TCP_Init();
+TEST_CASE("TCP: in-sequence RST tears the connection down") {
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 
@@ -137,26 +141,139 @@ TEST_CASE("TCP: RST from peer tears the connection down") {
 	CHECK(find_conn(CPORT) == nullptr);
 }
 
-TEST_CASE("TCP: SYN to a port already in use gets RST") {
-	test_reset();
-	NET_TCP_Init();
-	REQUIRE(do_handshake() != nullptr);
+TEST_CASE("TCP: out-of-sequence RST is ignored (anti-spoofing)") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+
+	inject_tcp(CPORT, SPORT, CSEQ + 999, TEST_ISN + 1, TCP_RST);
+	REQUIRE(find_conn(CPORT) != nullptr);
+	CHECK(conn->state == tcp_state_t::TCP_ESTABLISHED);
+}
+
+TEST_CASE("TCP: forged ACK beyond snd_next does not move snd_unack") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+	const uint32_t unack_before = conn->snd_unack;
+
+	// ACK for data we never sent
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 5000, TCP_ACK);
+	CHECK(conn->snd_unack == unack_before);
+}
+
+TEST_CASE("TCP MSS: option parsed from SYN, default without it") {
+	setup();
+	// SYN carrying MSS = 1400
+	const uint8_t mss_opt[4] = { 2, 4, 0x05, 0x78 };
+	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN, nullptr, 0, 1024,
+			mss_opt, sizeof(mss_opt));
+	tcp_conn_t *conn = find_conn(CPORT);
+	REQUIRE(conn != nullptr);
+	CHECK(conn->peer_mss == 1400);
+
+	// SYN without options -> RFC default
+	inject_tcp(CPORT + 1, SPORT, CSEQ, 0, TCP_SYN);
+	REQUIRE(find_conn(CPORT + 1) != nullptr);
+	CHECK(find_conn(CPORT + 1)->peer_mss == TCP_DEFAULT_PEER_MSS);
+}
+
+TEST_CASE("TCP MSS: SYN|ACK advertises our MSS option") {
+	setup();
+	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN);
+
+	REQUIRE(g_tx_frames.size() == 1);
+	const auto &f = g_tx_frames[0];
+	const tcp_hdr_t *tcp = captured_tcp(f);
+	CHECK((tcp->offset_reserved >> 4) == 6);        // 20B header + 4B options
+	const uint8_t *opt = f.data.data() + ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN;
+	CHECK(opt[0] == 2);
+	CHECK(opt[1] == 4);
+	CHECK(((opt[2] << 8) | opt[3]) == TCP_OUR_MSS);
+}
+
+TEST_CASE("TCP active close: FIN|ACK -> FIN_WAIT_2 -> TIME_WAIT -> released") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
 
-	inject_tcp(CPORT + 1, SPORT, 777, 0, TCP_SYN);  // second client, same port
+	NET_TCP_Close(conn);
+	CHECK(conn->state == tcp_state_t::TCP_FIN_WAIT_1);
+	REQUIRE(g_tx_frames.size() == 1);
+	CHECK(captured_tcp(g_tx_frames[0])->flags == (TCP_FIN | TCP_ACK));
+	CHECK(bswap32(captured_tcp(g_tx_frames[0])->seq_num) == TEST_ISN + 1);
 
-	CHECK(find_conn(CPORT + 1) == nullptr);
+	// Peer ACKs our FIN (ack = FIN seq + 1)
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 2, TCP_ACK);
+	CHECK(conn->state == tcp_state_t::TCP_FIN_WAIT_2);
+
+	// Peer sends its FIN -> we ACK and enter TIME_WAIT
+	g_tx_frames.clear();
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 2, TCP_FIN | TCP_ACK);
+	CHECK(conn->state == tcp_state_t::TCP_TIME_WAIT);
+	REQUIRE(g_tx_frames.size() == 1);
+	CHECK(captured_tcp(g_tx_frames[0])->flags == TCP_ACK);
+	CHECK(bswap32(captured_tcp(g_tx_frames[0])->ack_num) == CSEQ + 2);
+
+	// Retransmitted FIN in TIME_WAIT is re-ACKed
+	g_tx_frames.clear();
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 2, TCP_FIN | TCP_ACK);
+	REQUIRE(g_tx_frames.size() == 1);
+	CHECK(captured_tcp(g_tx_frames[0])->flags == TCP_ACK);
+
+	// Slot survives TIME_WAIT and is released by the timer
+	NET_TCP_Timers();
+	CHECK(find_conn(CPORT) != nullptr);
+	g_test_now += TCP_TIME_WAIT_TIMEOUT + 1;
+	NET_TCP_Timers();
+	CHECK(find_conn(CPORT) == nullptr);
+}
+
+TEST_CASE("TCP listen: second client on the same port also connects") {
+	setup();
+	REQUIRE(do_handshake(CPORT) != nullptr);
+
+	tcp_conn_t *second = do_handshake(CPORT + 1);
+	REQUIRE(second != nullptr);
+	CHECK(second->state == tcp_state_t::TCP_ESTABLISHED);
+	CHECK(find_conn(CPORT)->state == tcp_state_t::TCP_ESTABLISHED);
+}
+
+TEST_CASE("TCP listen: SYN to a non-listening port gets RST|ACK") {
+	setup();
+	g_tx_frames.clear();
+
+	inject_tcp(CPORT, SPORT + 1, 777, 0, TCP_SYN);  // nobody listens there
+
+	CHECK(find_conn(CPORT) == nullptr);
+	REQUIRE(g_tx_frames.size() == 1);
+	const tcp_hdr_t *tcp = captured_tcp(g_tx_frames[0]);
+	CHECK(tcp->flags == (TCP_RST | TCP_ACK));
+	CHECK(bswap32(tcp->ack_num) == 778);
+	CHECK(bswap16(tcp->src_port) == SPORT + 1);
+	CHECK(bswap16(tcp->dst_port) == CPORT);
+}
+
+TEST_CASE("TCP: non-SYN segment to unknown connection gets RST") {
+	setup();
+	g_tx_frames.clear();
+
+	inject_tcp(CPORT, SPORT, 500, 12345, TCP_ACK);  // no such connection
+
 	REQUIRE(g_tx_frames.size() == 1);
 	const tcp_hdr_t *tcp = captured_tcp(g_tx_frames[0]);
 	CHECK(tcp->flags == TCP_RST);
-	CHECK(bswap32(tcp->ack_num) == 778);
-	CHECK(bswap16(tcp->src_port) == SPORT);
-	CHECK(bswap16(tcp->dst_port) == CPORT + 1);
+	CHECK(bswap32(tcp->seq_num) == 12345);  // seq = incoming ack
+
+	// ...but an RST to an unknown connection must NOT be answered
+	g_tx_frames.clear();
+	inject_tcp(CPORT, SPORT, 500, 12345, TCP_RST);
+	CHECK(g_tx_frames.empty());
 }
 
 TEST_CASE("TCP send: NET_TCP_SendUser emits PSH|ACK and blocks until ACKed") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
@@ -182,8 +299,7 @@ TEST_CASE("TCP send: NET_TCP_SendUser emits PSH|ACK and blocks until ACKed") {
 }
 
 TEST_CASE("TCP send: rejected when not established or oversized for window") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 
@@ -197,8 +313,7 @@ TEST_CASE("TCP send: rejected when not established or oversized for window") {
 }
 
 TEST_CASE("TCP retransmit: unACKed data is resent, then RST after max retries") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
@@ -236,8 +351,7 @@ TEST_CASE("TCP retransmit: unACKed data is resent, then RST after max retries") 
 }
 
 TEST_CASE("TCP keepalive: idle established connection gets probed") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
@@ -248,22 +362,20 @@ TEST_CASE("TCP keepalive: idle established connection gets probed") {
 	REQUIRE(g_tx_frames.size() == 1);
 	const tcp_hdr_t *tcp = captured_tcp(g_tx_frames[0]);
 	CHECK(tcp->flags == TCP_ACK);
-	// Keepalive probe uses seq = snd_next - 1
+	// Keepalive probe uses seq = snd_next - 1 and acks what we expect next
 	CHECK(bswap32(tcp->seq_num) == conn->tcp_my_seq - 1);
+	CHECK(bswap32(tcp->ack_num) == conn->rcv_next);
 	CHECK(conn->keep_alive_count == 1);
 }
 
 TEST_CASE("TCP: connection table exhaustion answers SYN with RST|ACK") {
-	test_reset();
-	NET_TCP_Init();
+	setup();
 	for (uint16_t i = 0; i < TCP_MAX_CONNECTIONS; i++) {
-		// Different server ports so port-in-use check doesn't fire
-		inject_tcp(static_cast<uint16_t>(CPORT + i), static_cast<uint16_t>(SPORT + i),
-				CSEQ, 0, TCP_SYN);
+		inject_tcp(static_cast<uint16_t>(CPORT + i), SPORT, CSEQ, 0, TCP_SYN);
 	}
 	g_tx_frames.clear();
 
-	inject_tcp(CPORT + 100, SPORT + 100, CSEQ, 0, TCP_SYN);
+	inject_tcp(CPORT + 100, SPORT, CSEQ, 0, TCP_SYN);
 
 	CHECK(find_conn(CPORT + 100) == nullptr);
 	REQUIRE(g_tx_frames.size() == 1);

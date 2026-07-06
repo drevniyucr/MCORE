@@ -9,10 +9,16 @@
 #include "net/net.hpp"
 
 #define TCP_MAX_CONNECTIONS 10
+#define TCP_MAX_LISTEN_PORTS 4
 
 #define TCP_KEEPALIVE_TIMEOUT 20000
 #define TCP_KEEPALIVE_MAX_COUNT 3
 #define TCP_KEEPALIVE_INTERVAL 1000
+
+#define TCP_TIME_WAIT_TIMEOUT 10000 // ms (scaled-down 2*MSL)
+
+#define TCP_DEFAULT_PEER_MSS 536  // RFC 1122 default when no MSS option
+#define TCP_OUR_MSS 1460          // advertised in SYN|ACK
 
 #define TCP_RETRANSMIT_MAX_BUFF_SIZE 512
 #define TCP_RETRANSMISSION_MAX_COUNT 3
@@ -70,6 +76,7 @@ struct tcp_conn_t {
 	uint16_t server_port;         // Server port number
 	uint16_t window_size;         // Our receive window size
 	uint16_t client_window;       // Client's advertised window size
+	uint16_t peer_mss;            // Peer's MSS from SYN option (or default)
 	uint16_t soc_rx_buff_pos;     // RX buffer write position
 	uint16_t soc_tx_buff_pos;     // TX buffer position (for retransmission)
 	
@@ -123,7 +130,8 @@ struct tcp_hdr_t {
 extern tcp_conn_t tcp_clients[TCP_MAX_CONNECTIONS];
 
 void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags, uint8_t retransmit,
-		const uint8_t *data, uint16_t data_len);
+		const uint8_t *data, uint16_t data_len,
+		const uint8_t *opts = nullptr, uint8_t opts_len = 0);
 
 void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 		uint32_t seq, uint32_t ack, uint8_t flags);
@@ -132,11 +140,17 @@ void NET_SendRetransmitTCP(tcp_conn_t *conn);
 
 void NET_ProcessTCP(ipv4_frame *frame);
 void NET_TCP_Timers(void);
-void NET_TCP_RetransmitCheck(void);
 
 void NET_TCP_Init(void);
 int  NET_TCP_ClientAdd(void);
 void NET_TCP_ClientRemove(uint8_t idx);
+
+// Server ports: only SYNs to listening ports create connections
+bool NET_TCP_Listen(uint16_t port);
+void NET_TCP_StopListen(uint16_t port);
+
+// Active close: FIN|ACK from ESTABLISHED, completes via FIN_WAIT/TIME_WAIT
+void NET_TCP_Close(tcp_conn_t *conn);
 
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
 

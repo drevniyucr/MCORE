@@ -48,6 +48,38 @@ namespace {
 		// ACK must be greater than oldest unacknowledged and <= next to send
 		return (ack > snd_unack && ack <= tcp_my_seq);
 	}
+
+	/**
+	 * @brief Extract the MSS option (kind 2) from a SYN segment
+	 *
+	 * @return Peer's MSS, or TCP_DEFAULT_PEER_MSS if absent/malformed
+	 */
+	uint16_t parse_mss_option(const tcp_hdr_t *tcp) {
+		const uint8_t hdr_len = (tcp->offset_reserved >> 4) * 4;
+		if (hdr_len <= TCP_MIN_HDR_LEN) {
+			return TCP_DEFAULT_PEER_MSS;
+		}
+		const uint8_t *opt = reinterpret_cast<const uint8_t*>(tcp) + TCP_MIN_HDR_LEN;
+		const uint8_t *const end = reinterpret_cast<const uint8_t*>(tcp) + hdr_len;
+		while (opt < end) {
+			const uint8_t kind = opt[0];
+			if (kind == 0) {
+				break;  // end of option list
+			}
+			if (kind == 1) {
+				opt++;  // NOP padding
+				continue;
+			}
+			if (opt + 1 >= end || opt[1] < 2 || opt + opt[1] > end) {
+				break;  // malformed option
+			}
+			if (kind == 2 && opt[1] == 4) {
+				return static_cast<uint16_t>((opt[2] << 8) | opt[3]);
+			}
+			opt += opt[1];
+		}
+		return TCP_DEFAULT_PEER_MSS;
+	}
 }
 
 tcp_conn_t tcp_clients[TCP_MAX_CONNECTIONS] = { };
@@ -59,14 +91,52 @@ uint8_t free_top = 0;
 
 uint8_t **ppTxBuff = NULL;
 
+uint16_t listen_ports[TCP_MAX_LISTEN_PORTS] = { };
+
 void NET_TCP_Init() {
 	memset(tcp_clients, 0, sizeof(tcp_clients));
+	memset(listen_ports, 0, sizeof(listen_ports));
 	free_top = 0;
 	active_conn = 0;
 	ppTxBuff = &TxDescList.pBuff;
 	for (uint8_t i = 0; i < TCP_MAX_CONNECTIONS; i++) {
 		free_list[free_top++] = i;
 	}
+}
+
+bool NET_TCP_Listen(uint16_t port) {
+	if (port == 0) {
+		return false;
+	}
+	for (uint16_t p : listen_ports) {
+		if (p == port) {
+			return true;  // already listening
+		}
+	}
+	for (uint16_t &p : listen_ports) {
+		if (p == 0) {
+			p = port;
+			return true;
+		}
+	}
+	return false;  // no free listen slots
+}
+
+void NET_TCP_StopListen(uint16_t port) {
+	for (uint16_t &p : listen_ports) {
+		if (p == port) {
+			p = 0;
+		}
+	}
+}
+
+static bool NET_TCP_IsListening(uint16_t port) {
+	for (uint16_t p : listen_ports) {
+		if (p != 0 && p == port) {
+			return true;
+		}
+	}
+	return false;
 }
 
 int NET_TCP_ClientAdd() {
@@ -118,22 +188,6 @@ static tcp_conn_t* NET_TCP_FindConnection(uint32_t client_ip, uint16_t client_po
 		}
 	}
 	return nullptr;
-}
-
-/**
- * @brief Check if server port is already in use
- * 
- * @param server_port Server port to check
- * @return true if port is in use, false otherwise
- */
-static bool NET_TCP_IsPortInUse(uint16_t server_port) {
-	for (int i = 0; i < active_conn; i++) {
-		uint8_t idx = active_list[i];
-		if (tcp_clients[idx].server_port == server_port) {
-			return true;
-		}
-	}
-	return false;
 }
 
 /**
@@ -222,13 +276,20 @@ void NET_SendRetransmitTCP(tcp_conn_t *conn) {
  * Optimized frame construction with proper error handling
  */
 void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
-		uint8_t retransmit, const uint8_t *data, uint16_t data_len) {
-	
+		uint8_t retransmit, const uint8_t *data, uint16_t data_len,
+		const uint8_t *opts, uint8_t opts_len) {
+
+	// Options must keep the header 32-bit aligned
+	if ((opts_len & 0x3) != 0 || opts_len > 40) {
+		return;
+	}
+
 	// Validate data length
-	if (data_len > (ETH_MAX_PACKET_SIZE - ETH_HDR_LEN - IP_HDR_LEN - TCP_HDR_LEN)) {
+	if (data_len > (ETH_MAX_PACKET_SIZE - ETH_HDR_LEN - IP_HDR_LEN - TCP_HDR_LEN - opts_len)) {
 		return;  // Frame too large
 	}
 
+	const uint16_t tcp_hdr_total = TCP_HDR_LEN + opts_len;
 
 	uint8_t* tx_buf = *ppTxBuff;
 	eth_hdr_t *eth = reinterpret_cast<eth_hdr_t*>(tx_buf);
@@ -237,14 +298,14 @@ void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 
 	// Copy template
 	memcpy(eth, TCPsendFrameTemplate, TCP_TEMPLATE_FRAME_LEN);
-	
+
 	// Update Ethernet destination MAC
 	memcpy(eth->dst, conn->client_mac, MAC_ADDR_LEN);
-	
+
 	// Update IP header
-	ip->tot_len = bswap16(IP_HDR_LEN + TCP_HDR_LEN + data_len);
+	ip->tot_len = bswap16(IP_HDR_LEN + tcp_hdr_total + data_len);
 	ip->dst_ip = bswap32(conn->client_ip);
-	
+
 	// Update TCP header
 	tcp->src_port = bswap16(conn->server_port);
 	tcp->dst_port = bswap16(conn->client_port);
@@ -252,17 +313,22 @@ void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 	tcp->ack_num = bswap32(ack);
 	tcp->window = bswap16(conn->window_size);
 	tcp->flags = flags;
-	tcp->offset_reserved = 0x50;  // Data offset = 5 (20 bytes)
+	tcp->offset_reserved = static_cast<uint8_t>((5 + opts_len / 4) << 4);
 	tcp->urgent_ptr = 0;
+
+	// Copy options if present
+	if (opts_len > 0 && opts != nullptr) {
+		memcpy(reinterpret_cast<uint8_t*>(tcp) + TCP_HDR_LEN, opts, opts_len);
+	}
 
 	// Copy payload if present
 	if (data_len > 0 && data != nullptr) {
-		memcpy(reinterpret_cast<uint8_t*>(tcp) + TCP_HDR_LEN, data, data_len);
+		memcpy(reinterpret_cast<uint8_t*>(tcp) + tcp_hdr_total, data, data_len);
 	}
 
 	// Save for retransmission if requested
 	if (retransmit == SAVE_FOR_RETRANSMIT) {
-		const uint16_t tcp_total_len = TCP_HDR_LEN + data_len;
+		const uint16_t tcp_total_len = tcp_hdr_total + data_len;
 		if (tcp_total_len <= SOCKET_TX_BUFF_LEN) {
 			memcpy(conn->socket_tx_buff, tcp, tcp_total_len);
 			conn->soc_tx_buff_pos = tcp_total_len;
@@ -272,7 +338,7 @@ void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 	}
 
 	// Send frame
-	if (!ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN + data_len)) {
+	if (!ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + tcp_hdr_total + data_len)) {
 		// TX failed - frame dropped
 		// If retransmit was requested, it won't be saved
 		if (retransmit == SAVE_FOR_RETRANSMIT) {
@@ -293,6 +359,14 @@ void NET_TCP_Timers() {
 	for (int i = active_conn - 1; i >= 0; i--) {
 		idx = active_list[i];
 		conn = &tcp_clients[idx];
+
+		// TIME_WAIT: release the slot after 2*MSL, nothing else to do
+		if (conn->state == tcp_state_t::TCP_TIME_WAIT) {
+			if ((get_tick() - conn->last_activity) > TCP_TIME_WAIT_TIMEOUT) {
+				NET_TCP_ClientRemove(idx);
+			}
+			continue;
+		}
 
 		// Check retransmission timeout
 		if (conn->retransmit_timer &&
@@ -326,7 +400,7 @@ void NET_TCP_Timers() {
 				}
 
 				// Send keepalive (ACK with seq-1)
-				NET_SendTCP(conn, conn->tcp_my_seq - 1, conn->tcp_client_seq,
+				NET_SendTCP(conn, conn->tcp_my_seq - 1, conn->rcv_next,
 							TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
 
 				conn->keep_alive_count++;
@@ -351,20 +425,23 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 	// Find existing connection
 	tcp_conn_t *conn = NET_TCP_FindConnection(client_ip, client_port, server_port);
 
-	// Handle RST flag
+	// Handle RST flag: only accept an in-sequence RST (anti-spoofing, RFC 793)
 	if (conn && (client_flags & TCP_RST)) {
-		NET_TCP_ClientRemove(conn->socket_tag);
-		return;
-	}
-
-	// Check if port is in use by another connection
-	if (!conn && NET_TCP_IsPortInUse(server_port)) {
-		NET_SendTCP_RST(frame, server_port, client_port, 0, client_seq + 1, TCP_RST);
+		if (client_seq == conn->rcv_next) {
+			NET_TCP_ClientRemove(conn->socket_tag);
+		}
 		return;
 	}
 
 	// Handle new connection (SYN)
 	if (!conn && (client_flags & TCP_SYN)) {
+		// Only listening ports accept connections
+		if (!NET_TCP_IsListening(server_port)) {
+			NET_SendTCP_RST(frame, server_port, client_port, 0, client_seq + 1,
+							TCP_RST | TCP_ACK);
+			return;
+		}
+
 		int num = NET_TCP_ClientAdd();
 		if (num == -1) {
 			// No free connections - send RST
@@ -385,19 +462,28 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		conn->rcv_next = client_seq + 1;  // SYN consumes 1 sequence number
 		conn->client_window = client_window;
 		conn->window_size = SOCKET_RX_BUFF_LEN;
+		conn->peer_mss = parse_mss_option(tcp);
 		conn->tcp_my_seq = NET_Entropy();
 		conn->snd_unack = conn->tcp_my_seq;
 		conn->state = tcp_state_t::TCP_SYN_RCVD;
-		
-		// Send SYN+ACK
+
+		// Send SYN+ACK advertising our MSS
+		const uint8_t mss_opt[4] = { 2, 4,
+				static_cast<uint8_t>(TCP_OUR_MSS >> 8),
+				static_cast<uint8_t>(TCP_OUR_MSS & 0xFF) };
 		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-					TCP_SYN | TCP_ACK, SAVE_FOR_RETRANSMIT, nullptr, 0);
+					TCP_SYN | TCP_ACK, SAVE_FOR_RETRANSMIT, nullptr, 0,
+					mss_opt, sizeof(mss_opt));
 		conn->tcp_my_seq += 1;  // SYN consumes 1 sequence number
 		return;
 	}
 
-	// No connection found for this packet
+	// Segment for a non-existent connection: reset the sender (RFC 793).
+	// Never answer an RST with an RST.
 	if (!conn) {
+		if (!(client_flags & TCP_RST)) {
+			NET_SendTCP_RST(frame, server_port, client_port, client_ack, 0, TCP_RST);
+		}
 		return;
 	}
 
@@ -432,12 +518,6 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 
 		// Validate sequence number is acceptable (in-order packets only for now)
 		if (is_seq_acceptable(client_seq, conn->rcv_next)) {
-			
-			// Validate ACK number if ACK flag is set
-//			if ((client_flags & TCP_ACK) && !is_ack_acceptable(client_ack, conn->snd_unack, conn->tcp_my_seq)) {
-//				// Invalid ACK - ignore packet (could be old duplicate)
-//				break;
-//			}
 
 			if (client_flags & TCP_FIN) {
 				// FIN received - start graceful close
@@ -450,8 +530,10 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 				conn->tcp_my_seq += 1;  // FIN consumes 1 sequence number
 				conn->state = tcp_state_t::TCP_LAST_ACK;
 			} else if (client_flags & TCP_ACK) {
-				// Update acknowledged sequence (validated above)
-				bool data_acked = (client_ack > conn->snd_unack);
+				// Update acknowledged sequence; ACKs beyond what we sent
+				// (or old duplicates) must not move snd_unack
+				bool data_acked = is_ack_acceptable(client_ack,
+						conn->snd_unack, conn->tcp_my_seq);
 				if (data_acked) {
 					conn->snd_unack = client_ack;
 					// Clear retransmission state since data was acknowledged
@@ -516,11 +598,12 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 			conn->retransmit_count = 0;
 
 			if (client_flags & TCP_FIN) {
-				// Simultaneous close - send ACK and close
+				// Simultaneous close - ACK the FIN and wait out TIME_WAIT
 				conn->rcv_next++;
 				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
 							TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
-				NET_TCP_ClientRemove(conn->socket_tag);
+				conn->last_activity = get_tick();
+				conn->state = tcp_state_t::TCP_TIME_WAIT;
 				return;
 			}
 			conn->state = tcp_state_t::TCP_FIN_WAIT_2;
@@ -532,8 +615,17 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 			conn->rcv_next += 1;
 			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
 						NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
-			NET_TCP_ClientRemove(conn->socket_tag);
+			conn->last_activity = get_tick();
+			conn->state = tcp_state_t::TCP_TIME_WAIT;
 			return;
+		}
+		break;
+
+	case tcp_state_t::TCP_TIME_WAIT:
+		// Peer retransmitted its FIN (our ACK was lost) - re-ACK it
+		if (client_flags & TCP_FIN) {
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
+						NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
 		}
 		break;
 
@@ -552,8 +644,9 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 
 void NET_TCP_Close(tcp_conn_t *conn) {
 	if (conn->state == tcp_state_t::TCP_ESTABLISHED) {
-		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_FIN,
+		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_FIN | TCP_ACK,
 					SAVE_FOR_RETRANSMIT, nullptr, 0);
+		conn->tcp_my_seq += 1;  // FIN consumes 1 sequence number
 		conn->state = tcp_state_t::TCP_FIN_WAIT_1;
 	}
 }
