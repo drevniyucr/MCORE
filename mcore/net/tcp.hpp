@@ -20,18 +20,19 @@
 #define TCP_DEFAULT_PEER_MSS 536  // RFC 1122 default when no MSS option
 #define TCP_OUR_MSS 1460          // advertised in SYN|ACK
 
-#define TCP_RETRANSMIT_MAX_BUFF_SIZE 512
 #define TCP_RETRANSMISSION_MAX_COUNT 3
-#define TCP_RETRANSMIT_MAX_QUEUE 3
 #define TCP_RETRANSMIT_TIMEOUT 2500 // ms
-#define SAVE_FOR_RETRANSMIT 1
-#define NOT_SAVE_FOR_RETRANSMIT 0
 #define TCP_TEMPLATE_FRAME_LEN 54  // 14 (ETH) + 20 (IP) + 20 (TCP)
 
 #define TCP_LAST_ACK_WAIT_TO_CLOSE 5000
 
+// TX sliding window: up to TCP_TX_QUEUE_SLOTS segments in flight,
+// each carrying at most TCP_TX_SLOT_LEN payload bytes
+#define TCP_TX_QUEUE_SLOTS 3
+#define TCP_TX_SLOT_LEN 1200
+
 #define SOCKET_RX_BUFF_LEN 5120
-#define SOCKET_TX_BUFF_LEN 1200
+#define SOCKET_TX_BUFF_LEN (TCP_TX_QUEUE_SLOTS * TCP_TX_SLOT_LEN)
 
 #define TCP_FIN 0x01
 #define TCP_SYN 0x02
@@ -51,8 +52,22 @@ enum class tcp_state_t : uint8_t {
 };
 
 /**
+ * @brief One in-flight TX segment (payload lives in socket_tx_buff slot)
+ */
+struct tcp_tx_seg_t {
+	uint32_t seq;        // first sequence number of the segment
+	uint32_t sent_at;    // tick of the last (re)transmission
+	uint16_t len;        // payload length (0 for control segments)
+	uint8_t retries;     // retransmission attempts so far
+	uint8_t flags;       // TCP flags to rebuild the header
+	uint8_t opts[4];     // TCP options (SYN|ACK carries MSS)
+	uint8_t opts_len;
+	bool used;
+};
+
+/**
  * @brief TCP connection structure
- * 
+ *
  * Optimized memory layout:
  * - 32-bit fields grouped together (minimizes padding)
  * - 16-bit fields grouped together
@@ -68,7 +83,6 @@ struct tcp_conn_t {
 	uint32_t rcv_next;            // Expected next receive sequence number
 	uint32_t snd_unack;           // Sent but not acknowledged sequence number
 	uint32_t last_activity;       // Last packet activity timestamp
-	uint32_t retransmit_timer;    // Retransmission timer timestamp
 	uint32_t last_keepalive;      // Last keepalive sent timestamp
 	
 	// === 16-bit fields (ports, windows, buffer positions) ===
@@ -80,18 +94,19 @@ struct tcp_conn_t {
 	uint16_t rx_head;             // RX ring: write position
 	uint16_t rx_tail;             // RX ring: read position
 	uint16_t rx_count;            // RX ring: bytes buffered
-	uint16_t soc_tx_buff_pos;     // TX buffer position (for retransmission)
-	
+
+	// === TX sliding window ===
+	tcp_tx_seg_t tx_queue[TCP_TX_QUEUE_SLOTS];  // in-flight segment metadata
+
 	// === 8-bit fields and small arrays ===
 	uint8_t socket_tag;           // Connection identifier/index
-	uint8_t retransmit_count;     // Number of retransmission attempts
 	uint8_t keep_alive_count;     // Keepalive probe count
 	uint8_t client_mac[MAC_ADDR_LEN];  // Client MAC address
 	tcp_state_t state;            // Current TCP state
 	
 	// === Large buffers (at end to minimize struct size impact) ===
-	uint8_t socket_rx_buff[SOCKET_RX_BUFF_LEN];  // Receive buffer
-	uint8_t socket_tx_buff[SOCKET_TX_BUFF_LEN];  // Retransmission buffer
+	uint8_t socket_rx_buff[SOCKET_RX_BUFF_LEN];  // Receive ring buffer
+	uint8_t socket_tx_buff[SOCKET_TX_BUFF_LEN];  // TX slot arena (payloads)
 };
 
 #pragma pack(push,1)
@@ -131,14 +146,12 @@ struct tcp_hdr_t {
 
 extern tcp_conn_t tcp_clients[TCP_MAX_CONNECTIONS];
 
-void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags, uint8_t retransmit,
+void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 		const uint8_t *data, uint16_t data_len,
 		const uint8_t *opts = nullptr, uint8_t opts_len = 0);
 
 void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 		uint32_t seq, uint32_t ack, uint8_t flags);
-
-void NET_SendRetransmitTCP(tcp_conn_t *conn);
 
 void NET_ProcessTCP(ipv4_frame *frame);
 void NET_TCP_Timers(void);

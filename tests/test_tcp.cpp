@@ -344,14 +344,14 @@ TEST_CASE("TCP: non-SYN segment to unknown connection gets RST") {
 	CHECK(g_tx_frames.empty());
 }
 
-TEST_CASE("TCP send: NET_TCP_SendUser emits PSH|ACK and blocks until ACKed") {
+TEST_CASE("TCP send: SendUser emits PSH|ACK segments through the TX queue") {
 	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
 
 	const uint8_t data[] = { 'p', 'i', 'n', 'g' };
-	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == 0);
+	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == sizeof(data));
 
 	REQUIRE(g_tx_frames.size() == 1);
 	const auto &f = g_tx_frames[0];
@@ -361,37 +361,82 @@ TEST_CASE("TCP send: NET_TCP_SendUser emits PSH|ACK and blocks until ACKed") {
 	CHECK(memcmp(captured_tcp_payload(f), data, sizeof(data)) == 0);
 	CHECK(conn->tcp_my_seq == TEST_ISN + 1 + sizeof(data));
 
-	// Second send must be refused until the first is acknowledged
-	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == -2);
-
-	// Peer ACKs our data -> sending unblocks
-	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + sizeof(data), TCP_ACK);
-	CHECK(conn->snd_unack == TEST_ISN + 1 + sizeof(data));
-	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == 0);
-}
-
-TEST_CASE("TCP send: rejected when not established or oversized for window") {
-	setup();
-	tcp_conn_t *conn = do_handshake();
-	REQUIRE(conn != nullptr);
-
-	const uint8_t data[] = { 'x' };
+	// Invalid arguments are rejected
 	CHECK(NET_TCP_SendUser(conn, nullptr, 1) == -1);
 	CHECK(NET_TCP_SendUser(conn, data, 0) == -1);
-
-	// client_window is 1024 (set by inject_tcp default)
-	uint8_t big[1100] = {};
-	CHECK(NET_TCP_SendUser(conn, big, sizeof(big)) == -1);
 }
 
-TEST_CASE("TCP retransmit: unACKed data is resent, then RST after max retries") {
+TEST_CASE("TCP send: payload larger than MSS is split into segments") {
+	setup();
+	// Handshake advertising a peer MSS of 1000 and a large window
+	const uint8_t mss_opt[4] = { 2, 4, 0x03, 0xE8 };  // MSS 1000
+	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN, nullptr, 0, 65535,
+			mss_opt, sizeof(mss_opt));
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1, TCP_ACK, nullptr, 0, 65535);
+	tcp_conn_t *conn = find_conn(CPORT);
+	REQUIRE(conn != nullptr);
+	g_tx_frames.clear();
+
+	static uint8_t big[2500];
+	for (size_t i = 0; i < sizeof(big); i++) big[i] = static_cast<uint8_t>(i);
+	CHECK(NET_TCP_SendUser(conn, big, sizeof(big)) == sizeof(big));
+
+	REQUIRE(g_tx_frames.size() == 3);               // 1000 + 1000 + 500
+	CHECK(bswap32(captured_tcp(g_tx_frames[0])->seq_num) == TEST_ISN + 1);
+	CHECK(bswap32(captured_tcp(g_tx_frames[1])->seq_num) == TEST_ISN + 1001);
+	CHECK(bswap32(captured_tcp(g_tx_frames[2])->seq_num) == TEST_ISN + 2001);
+	// Byte-exact continuation across segment boundaries
+	CHECK(captured_tcp_payload(g_tx_frames[1])[0] == big[1000]);
+	CHECK(captured_tcp_payload(g_tx_frames[2])[0] == big[2000]);
+	CHECK(conn->tcp_my_seq == TEST_ISN + 1 + sizeof(big));
+}
+
+TEST_CASE("TCP send: peer window limits how much goes in flight") {
+	setup();
+	tcp_conn_t *conn = do_handshake();  // client window 1024, peer MSS 536
+	REQUIRE(conn != nullptr);
+	g_tx_frames.clear();
+
+	// 2000 bytes: 536 fits, second chunk would exceed the 1024 window
+	static uint8_t big[2000] = {};
+	CHECK(NET_TCP_SendUser(conn, big, sizeof(big)) == 536);
+	CHECK(g_tx_frames.size() == 1);
+
+	// ACK opens the window again -> next chunk goes out
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + 536, TCP_ACK);
+	CHECK(NET_TCP_SendUser(conn, big, 536) == 536);
+}
+
+TEST_CASE("TCP send: TX queue slots cap the number of in-flight segments") {
+	setup();
+	// Small MSS so slots run out before the window does
+	const uint8_t mss_opt[4] = { 2, 4, 0x00, 0x64 };  // MSS 100
+	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN, nullptr, 0, 65535,
+			mss_opt, sizeof(mss_opt));
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1, TCP_ACK, nullptr, 0, 65535);
+	tcp_conn_t *conn = find_conn(CPORT);
+	REQUIRE(conn != nullptr);
+	g_tx_frames.clear();
+
+	static uint8_t data[400] = {};
+	// Only TCP_TX_QUEUE_SLOTS segments fit in flight
+	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == TCP_TX_QUEUE_SLOTS * 100);
+	CHECK(g_tx_frames.size() == TCP_TX_QUEUE_SLOTS);
+	CHECK(NET_TCP_SendUser(conn, data, 100) == 0);   // no free slot
+
+	// ACK of the first segment frees a slot
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + 100, TCP_ACK, nullptr, 0, 65535);
+	CHECK(NET_TCP_SendUser(conn, data, 100) == 100);
+}
+
+TEST_CASE("TCP retransmit: oldest segment resent, then RST after max retries") {
 	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
 
 	const uint8_t data[] = { 'd', 'a', 't', 'a' };
-	REQUIRE(NET_TCP_SendUser(conn, data, sizeof(data)) == 0);
+	REQUIRE(NET_TCP_SendUser(conn, data, sizeof(data)) == sizeof(data));
 	g_tx_frames.clear();
 
 	// Not yet expired
@@ -399,27 +444,39 @@ TEST_CASE("TCP retransmit: unACKed data is resent, then RST after max retries") 
 	NET_TCP_Timers();
 	CHECK(g_tx_frames.empty());
 
-	// Expired -> retransmission of the saved segment
+	// Expired -> retransmission rebuilt from the slot
 	g_test_now += 200;
 	NET_TCP_Timers();
 	REQUIRE(g_tx_frames.size() == 1);
-	CHECK(conn->retransmit_count == 1);
 	const auto &rt = g_tx_frames[0];
 	CHECK(captured_tcp(rt)->flags == (TCP_ACK | TCP_PSH));
+	CHECK(bswap32(captured_tcp(rt)->seq_num) == TEST_ISN + 1);
 	CHECK(memcmp(captured_tcp_payload(rt), data, sizeof(data)) == 0);
 
 	// Exhaust remaining attempts, then expect RST + connection teardown
-	for (int i = 0; i < TCP_RETRANSMISSION_MAX_COUNT - 1; i++) {
+	for (int i = 0; i < TCP_RETRANSMISSION_MAX_COUNT; i++) {
 		g_test_now += TCP_RETRANSMIT_TIMEOUT + 1;
 		NET_TCP_Timers();
 	}
-	CHECK(conn->retransmit_count == TCP_RETRANSMISSION_MAX_COUNT);
-
-	g_test_now += TCP_RETRANSMIT_TIMEOUT + 1;
-	NET_TCP_Timers();
 	CHECK(find_conn(CPORT) == nullptr);
 	REQUIRE(!g_tx_frames.empty());
 	CHECK(captured_tcp(g_tx_frames.back())->flags == TCP_RST);
+}
+
+TEST_CASE("TCP retransmit: duplicate SYN triggers SYN|ACK retransmission") {
+	setup();
+	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN);
+	REQUIRE(find_conn(CPORT) != nullptr);
+	g_tx_frames.clear();
+
+	// Our SYN|ACK was lost - the client repeats its SYN
+	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN);
+	REQUIRE(g_tx_frames.size() == 1);
+	const tcp_hdr_t *tcp = captured_tcp(g_tx_frames[0]);
+	CHECK(tcp->flags == (TCP_SYN | TCP_ACK));
+	CHECK(bswap32(tcp->seq_num) == TEST_ISN);       // same ISN as before
+	// MSS option is preserved on retransmission
+	CHECK((tcp->offset_reserved >> 4) == 6);
 }
 
 TEST_CASE("TCP keepalive: idle established connection gets probed") {

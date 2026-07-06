@@ -17,9 +17,16 @@ namespace {
 	// Constants for TCP processing
 	constexpr uint16_t TCP_MIN_HDR_LEN = 20;  // Minimum TCP header length
 	constexpr uint16_t TCP_MAX_HDR_LEN = 60;  // Maximum TCP header length
-	constexpr uint32_t TCP_INVALID_SEQ = 0xFFFFFFFFU;
 	constexpr uint32_t TCP_MAX_WINDOW = 65535U;  // Maximum TCP window size
-	
+
+	// Serial (mod 2^32) sequence-number comparison, robust across wrap
+	inline bool seq_gt(uint32_t a, uint32_t b) {
+		return static_cast<int32_t>(a - b) > 0;
+	}
+	inline bool seq_lte(uint32_t a, uint32_t b) {
+		return static_cast<int32_t>(a - b) <= 0;
+	}
+
 	/**
 	 * @brief Check if sequence number is within acceptable receive window
 	 * 
@@ -46,7 +53,7 @@ namespace {
 	 */
 	inline bool is_ack_acceptable(uint32_t ack, uint32_t snd_unack, uint32_t tcp_my_seq) {
 		// ACK must be greater than oldest unacknowledged and <= next to send
-		return (ack > snd_unack && ack <= tcp_my_seq);
+		return seq_gt(ack, snd_unack) && seq_lte(ack, tcp_my_seq);
 	}
 
 	/**
@@ -235,39 +242,96 @@ void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 	}
 }
 
-/**
- * @brief Retransmit saved TCP frame
- * 
- * Uses saved frame from connection buffer
- */
-void NET_SendRetransmitTCP(tcp_conn_t *conn) {
-	// Check TX buffer availability
+// ==========================
+// TX sliding window helpers
+// ==========================
+
+// Payload storage of a slot inside the connection's TX arena
+static uint8_t* tx_slot_payload(tcp_conn_t *conn, const tcp_tx_seg_t *seg) {
+	const ptrdiff_t idx = seg - &conn->tx_queue[0];
+	return &conn->socket_tx_buff[idx * TCP_TX_SLOT_LEN];
+}
+
+static tcp_tx_seg_t* tx_slot_alloc(tcp_conn_t *conn) {
+	for (auto &seg : conn->tx_queue) {
+		if (!seg.used) {
+			return &seg;
+		}
+	}
+	return nullptr;
+}
+
+// Oldest (lowest sequence) in-flight segment, nullptr if queue is empty
+static tcp_tx_seg_t* tx_oldest_unacked(tcp_conn_t *conn) {
+	tcp_tx_seg_t *oldest = nullptr;
+	for (auto &seg : conn->tx_queue) {
+		if (seg.used && (oldest == nullptr || seq_gt(oldest->seq, seg.seq))) {
+			oldest = &seg;
+		}
+	}
+	return oldest;
+}
+
+// End sequence of a segment (SYN/FIN consume one sequence number)
+static uint32_t tx_seg_end(const tcp_tx_seg_t *seg) {
+	return seg->seq + seg->len + (((seg->flags & (TCP_SYN | TCP_FIN)) != 0) ? 1 : 0);
+}
+
+// Release every slot fully covered by the cumulative ACK
+static void tx_release_acked(tcp_conn_t *conn, uint32_t ack) {
+	for (auto &seg : conn->tx_queue) {
+		if (seg.used && seq_lte(tx_seg_end(&seg), ack)) {
+			seg.used = false;
+		}
+	}
+}
+
+// Rebuild and resend one saved segment (header is reconstructed,
+// payload comes from the slot arena)
+static void tx_retransmit_slot(tcp_conn_t *conn, tcp_tx_seg_t *seg) {
 	if (!ETH_IsTxBufferAvailable()) {
-		return;  // TX queue full
+		return;  // TX queue full; the timer will retry
+	}
+	NET_SendTCP(conn, seg->seq, conn->rcv_next, seg->flags,
+				(seg->len > 0) ? tx_slot_payload(conn, seg) : nullptr, seg->len,
+				(seg->opts_len > 0) ? seg->opts : nullptr, seg->opts_len);
+}
+
+/**
+ * @brief Send a segment and keep it in the TX queue until ACKed
+ *
+ * Advances tcp_my_seq by the consumed sequence space.
+ * @return true if the segment was queued and handed to the driver
+ */
+static bool NET_TCP_EnqueueSegment(tcp_conn_t *conn, uint8_t flags,
+		const uint8_t *data, uint16_t data_len,
+		const uint8_t *opts = nullptr, uint8_t opts_len = 0) {
+	if (data_len > TCP_TX_SLOT_LEN || opts_len > sizeof(tcp_tx_seg_t::opts)) {
+		return false;
+	}
+	tcp_tx_seg_t *seg = tx_slot_alloc(conn);
+	if (seg == nullptr || !ETH_IsTxBufferAvailable()) {
+		return false;
 	}
 
-	uint8_t* tx_buf = *ppTxBuff;
-	eth_hdr_t *eth = reinterpret_cast<eth_hdr_t*>(tx_buf);
-	ip_hdr_t *ip = reinterpret_cast<ip_hdr_t*>(tx_buf + ETH_HDR_LEN);
-	tcp_hdr_t *tcp = reinterpret_cast<tcp_hdr_t*>(tx_buf + ETH_HDR_LEN + IP_HDR_LEN);
-
-	// Copy Ethernet + IP headers from template
-	memcpy(eth, TCPsendFrameTemplate, ETH_HDR_LEN + IP_HDR_LEN);
-	
-	// Update Ethernet destination MAC
-	memcpy(eth->dst, conn->client_mac, MAC_ADDR_LEN);
-	
-	// Update IP header
-	ip->tot_len = bswap16(IP_HDR_LEN + conn->soc_tx_buff_pos);
-	ip->dst_ip = bswap32(conn->client_ip);
-	
-	// Copy saved TCP header + payload
-	memcpy(tcp, conn->socket_tx_buff, conn->soc_tx_buff_pos);
-
-	// Send frame
-	if (!ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + conn->soc_tx_buff_pos)) {
-		// TX failed - retransmission will be retried on next timer
+	seg->seq = conn->tcp_my_seq;
+	seg->len = data_len;
+	seg->flags = flags;
+	seg->retries = 0;
+	seg->sent_at = get_tick();
+	seg->opts_len = opts_len;
+	if (opts_len > 0) {
+		memcpy(seg->opts, opts, opts_len);
 	}
+	if (data_len > 0) {
+		memcpy(tx_slot_payload(conn, seg), data, data_len);
+	}
+	seg->used = true;
+
+	NET_SendTCP(conn, seg->seq, conn->rcv_next, flags, data, data_len,
+				opts, opts_len);
+	conn->tcp_my_seq = tx_seg_end(seg);
+	return true;
 }
 
 /**
@@ -276,7 +340,7 @@ void NET_SendRetransmitTCP(tcp_conn_t *conn) {
  * Optimized frame construction with proper error handling
  */
 void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
-		uint8_t retransmit, const uint8_t *data, uint16_t data_len,
+		const uint8_t *data, uint16_t data_len,
 		const uint8_t *opts, uint8_t opts_len) {
 
 	// Options must keep the header 32-bit aligned
@@ -326,24 +390,9 @@ void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 		memcpy(reinterpret_cast<uint8_t*>(tcp) + tcp_hdr_total, data, data_len);
 	}
 
-	// Save for retransmission if requested
-	if (retransmit == SAVE_FOR_RETRANSMIT) {
-		const uint16_t tcp_total_len = tcp_hdr_total + data_len;
-		if (tcp_total_len <= SOCKET_TX_BUFF_LEN) {
-			memcpy(conn->socket_tx_buff, tcp, tcp_total_len);
-			conn->soc_tx_buff_pos = tcp_total_len;
-			conn->retransmit_timer = get_tick();
-			conn->retransmit_count = 0;
-		}
-	}
-
-	// Send frame
+	// Send frame (retransmission bookkeeping is the TX queue's job)
 	if (!ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + tcp_hdr_total + data_len)) {
-		// TX failed - frame dropped
-		// If retransmit was requested, it won't be saved
-		if (retransmit == SAVE_FOR_RETRANSMIT) {
-			conn->soc_tx_buff_pos = 0;
-		}
+		// TX failed - frame dropped; queued segments will be retransmitted
 	}
 }
 
@@ -368,18 +417,19 @@ void NET_TCP_Timers() {
 			continue;
 		}
 
-		// Check retransmission timeout
-		if (conn->retransmit_timer &&
-		    (get_tick() - conn->retransmit_timer > TCP_RETRANSMIT_TIMEOUT)) {
+		// Retransmission: resend the oldest unacknowledged segment
+		tcp_tx_seg_t *seg = tx_oldest_unacked(conn);
+		if (seg != nullptr &&
+		    (get_tick() - seg->sent_at > TCP_RETRANSMIT_TIMEOUT)) {
 
-			if (conn->retransmit_count < TCP_RETRANSMISSION_MAX_COUNT) {
-				NET_SendRetransmitTCP(conn);
-				conn->retransmit_timer = get_tick();
-				conn->retransmit_count++;
+			if (seg->retries < TCP_RETRANSMISSION_MAX_COUNT) {
+				tx_retransmit_slot(conn, seg);
+				seg->sent_at = get_tick();
+				seg->retries++;
 			} else {
 				// Max retransmissions reached - send RST and close
 				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_RST, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+							TCP_RST, nullptr, 0);
 				NET_TCP_ClientRemove(idx);
 				continue;
 			}
@@ -394,14 +444,14 @@ void NET_TCP_Timers() {
 				if (conn->keep_alive_count >= TCP_KEEPALIVE_MAX_COUNT) {
 					// Max keepalive attempts - send RST and close
 					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-								TCP_RST, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+								TCP_RST, nullptr, 0);
 					NET_TCP_ClientRemove(idx);
 					continue;
 				}
 
 				// Send keepalive (ACK with seq-1)
 				NET_SendTCP(conn, conn->tcp_my_seq - 1, conn->rcv_next,
-							TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+							TCP_ACK, nullptr, 0);
 
 				conn->keep_alive_count++;
 				conn->last_keepalive = get_tick();
@@ -467,14 +517,13 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		conn->snd_unack = conn->tcp_my_seq;
 		conn->state = tcp_state_t::TCP_SYN_RCVD;
 
-		// Send SYN+ACK advertising our MSS
+		// Send SYN+ACK advertising our MSS (queued for retransmission;
+		// consumes one sequence number)
 		const uint8_t mss_opt[4] = { 2, 4,
 				static_cast<uint8_t>(TCP_OUR_MSS >> 8),
 				static_cast<uint8_t>(TCP_OUR_MSS & 0xFF) };
-		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-					TCP_SYN | TCP_ACK, SAVE_FOR_RETRANSMIT, nullptr, 0,
-					mss_opt, sizeof(mss_opt));
-		conn->tcp_my_seq += 1;  // SYN consumes 1 sequence number
+		NET_TCP_EnqueueSegment(conn, TCP_SYN | TCP_ACK, nullptr, 0,
+				mss_opt, sizeof(mss_opt));
 		return;
 	}
 
@@ -499,16 +548,17 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 				conn->last_activity = get_tick();
 				conn->snd_unack = client_ack;
 				conn->keep_alive_count = 0;
-				conn->retransmit_timer = 0;
-				conn->retransmit_count = 0;
-				conn->soc_tx_buff_pos = 0;
+				tx_release_acked(conn, client_ack);
 				conn->state = tcp_state_t::TCP_ESTABLISHED;
 			}
 		}
 
 		// Retransmit SYN+ACK if SYN received again
 		if ((client_flags & TCP_SYN) && (client_seq + 1 == conn->rcv_next)) {
-			NET_SendRetransmitTCP(conn);
+			tcp_tx_seg_t *synack = tx_oldest_unacked(conn);
+			if (synack != nullptr) {
+				tx_retransmit_slot(conn, synack);
+			}
 		}
 		break;
 
@@ -523,11 +573,9 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 				// FIN received - start graceful close
 				conn->rcv_next += 1;  // FIN consumes 1 sequence number
 				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+							TCP_ACK, nullptr, 0);
 
-				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_FIN | TCP_ACK, SAVE_FOR_RETRANSMIT, nullptr, 0);
-				conn->tcp_my_seq += 1;  // FIN consumes 1 sequence number
+				NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
 				conn->state = tcp_state_t::TCP_LAST_ACK;
 			} else if (client_flags & TCP_ACK) {
 				// Update acknowledged sequence; ACKs beyond what we sent
@@ -536,10 +584,8 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 						conn->snd_unack, conn->tcp_my_seq);
 				if (data_acked) {
 					conn->snd_unack = client_ack;
-					// Clear retransmission state since data was acknowledged
-					conn->soc_tx_buff_pos = 0;
-					conn->retransmit_timer = 0;
-					conn->retransmit_count = 0;
+					// Release the TX slots covered by this ACK
+					tx_release_acked(conn, client_ack);
 				}
 
 				// Extract TCP header length and validate
@@ -587,7 +633,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 
 					// Send ACK
 					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-								TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+								TCP_ACK, nullptr, 0);
 				}
 
 				// Always update receive window (even if no data)
@@ -598,7 +644,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 			// This helps the sender recover from packet loss
 			if (client_flags & TCP_ACK) {
 				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+							TCP_ACK, nullptr, 0);
 			}
 		}
 		break;
@@ -607,15 +653,13 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		if ((client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq)) {
 			conn->last_activity = get_tick();
 			conn->keep_alive_count = 0;
-			conn->soc_tx_buff_pos = 0;
-			conn->retransmit_timer = 0;
-			conn->retransmit_count = 0;
+			tx_release_acked(conn, client_ack);
 
 			if (client_flags & TCP_FIN) {
 				// Simultaneous close - ACK the FIN and wait out TIME_WAIT
 				conn->rcv_next++;
 				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_ACK, NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+							TCP_ACK, nullptr, 0);
 				conn->last_activity = get_tick();
 				conn->state = tcp_state_t::TCP_TIME_WAIT;
 				return;
@@ -628,7 +672,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		if ((client_flags & TCP_FIN) && (client_seq == conn->rcv_next)) {
 			conn->rcv_next += 1;
 			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
-						NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+						nullptr, 0);
 			conn->last_activity = get_tick();
 			conn->state = tcp_state_t::TCP_TIME_WAIT;
 			return;
@@ -639,7 +683,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		// Peer retransmitted its FIN (our ACK was lost) - re-ACK it
 		if (client_flags & TCP_FIN) {
 			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
-						NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+						nullptr, 0);
 		}
 		break;
 
@@ -690,7 +734,7 @@ int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen) {
 	if (conn->state == tcp_state_t::TCP_ESTABLISHED &&
 	    old_window < conn->peer_mss && conn->window_size >= conn->peer_mss) {
 		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
-					NOT_SAVE_FOR_RETRANSMIT, nullptr, 0);
+					nullptr, 0);
 	}
 
 	return n;
@@ -698,39 +742,56 @@ int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen) {
 
 void NET_TCP_Close(tcp_conn_t *conn) {
 	if (conn->state == tcp_state_t::TCP_ESTABLISHED) {
-		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_FIN | TCP_ACK,
-					SAVE_FOR_RETRANSMIT, nullptr, 0);
-		conn->tcp_my_seq += 1;  // FIN consumes 1 sequence number
+		NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
 		conn->state = tcp_state_t::TCP_FIN_WAIT_1;
 	}
 }
 
+/**
+ * @brief Send application data (sliding window)
+ *
+ * Splits the buffer into MSS-sized segments; each takes a TX queue slot
+ * and must fit into the peer's advertised window. Partial sends are
+ * normal - call again for the remainder once ACKs free slots/window.
+ *
+ * @return Number of bytes accepted (0 = no slot/window right now),
+ *         -1 on invalid arguments or connection state
+ */
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len) {
-	if (conn->state != tcp_state_t::TCP_ESTABLISHED) {
+	if (conn == nullptr || conn->state != tcp_state_t::TCP_ESTABLISHED) {
 		return -1;  // Not connected
 	}
-
-	// Validate input
 	if (data == nullptr || len == 0) {
 		return -1;  // Invalid parameters
 	}
 
-	// Check send window (client's receive window)
-	// Use minimum of our send window and client's advertised window
-	uint16_t send_window = (conn->client_window < TCP_MAX_WINDOW) ? 
-	                       conn->client_window : TCP_MAX_WINDOW;
-	
-	if (len > send_window) {
-		return -1;  // Data too large for send window
+	uint16_t mss = (conn->peer_mss < TCP_TX_SLOT_LEN) ? conn->peer_mss
+	                                                  : TCP_TX_SLOT_LEN;
+	if (mss == 0) {
+		mss = TCP_DEFAULT_PEER_MSS;
 	}
 
-	// Check if we can send (only if all previous data was acknowledged)
-	if (conn->tcp_my_seq == conn->snd_unack) {
-		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK | TCP_PSH,
-					SAVE_FOR_RETRANSMIT, data, len);
-		conn->tcp_my_seq += len;
-		return 0;
-	} else {
-		return -2;  // Previous data not acknowledged yet
+	const uint16_t send_window = (conn->client_window < TCP_MAX_WINDOW)
+			? conn->client_window : TCP_MAX_WINDOW;
+
+	uint16_t sent = 0;
+	while (sent < len) {
+		uint16_t chunk = len - sent;
+		if (chunk > mss) {
+			chunk = mss;
+		}
+
+		// Respect the peer's receive window (bytes already in flight count)
+		const uint32_t in_flight = conn->tcp_my_seq - conn->snd_unack;
+		if (in_flight + chunk > send_window) {
+			break;  // window full - retry after ACKs arrive
+		}
+
+		if (!NET_TCP_EnqueueSegment(conn, TCP_ACK | TCP_PSH,
+				data + sent, chunk)) {
+			break;  // no free TX slot / driver queue full
+		}
+		sent += chunk;
 	}
+	return sent;
 }
