@@ -62,8 +62,8 @@ uint16_t checksum(const uint8_t *data, uint16_t len) {
  * @param len Length of UDP payload
  * @return 16-bit checksum in network byte order
  */
-uint16_t udp_checksum(uint8_t *src_ip, uint8_t *dst_ip, uint8_t *udp_hdr,
-		uint8_t *data, uint16_t len) {
+uint16_t udp_checksum(const uint8_t *src_ip, const uint8_t *dst_ip,
+		const uint8_t *udp_hdr, const uint8_t *data, uint16_t len) {
 
 	uint32_t sum = 0;
 	const uint16_t udp_len = UDP_HDR_LEN + len;
@@ -101,8 +101,8 @@ uint16_t udp_checksum(uint8_t *src_ip, uint8_t *dst_ip, uint8_t *udp_hdr,
  * @param tcp_len Total TCP length (header + payload)
  * @return 16-bit checksum in network byte order
  */
-uint16_t tcp_checksum(uint8_t *src_ip, uint8_t *dst_ip, uint8_t *tcp_hdr,
-		uint16_t tcp_len) {
+uint16_t tcp_checksum(const uint8_t *src_ip, const uint8_t *dst_ip,
+		const uint8_t *tcp_hdr, uint16_t tcp_len) {
 
 	uint32_t sum = 0;
 

@@ -6,13 +6,13 @@
 #include "core/def.hpp"
 #include "net/net.hpp"
 
-#define DHCP_CLIENT_PORT 68
-#define DHCP_SERVER_PORT 67
+constexpr uint16_t DHCP_CLIENT_PORT = 68;
+constexpr uint16_t DHCP_SERVER_PORT = 67;
 
-#define DHCP_RETRY_BASE_MS     2000   // exponential backoff: 2/4/8/16 s
-#define DHCP_MAX_RETRIES       4      // DISCOVER/REQUEST attempts before fallback
-#define DHCP_RENEW_RETRY_MS    8000   // resend interval in RENEWING/REBINDING
-#define DHCP_FALLBACK_RETRY_MS 60000  // background DISCOVER period on static IP
+constexpr uint32_t DHCP_RETRY_BASE_MS     = 2000;   // exponential backoff: 2/4/8/16 s
+constexpr uint8_t  DHCP_MAX_RETRIES       = 4;      // DISCOVER/REQUEST attempts before fallback
+constexpr uint32_t DHCP_RENEW_RETRY_MS    = 8000;   // resend interval in RENEWING/REBINDING
+constexpr uint32_t DHCP_FALLBACK_RETRY_MS = 60000;  // background DISCOVER period on static IP
 
 enum class dhcp_state_t : uint8_t {
 	DHCP_IDLE = 0,

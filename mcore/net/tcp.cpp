@@ -1,9 +1,9 @@
 /*
-* mcore_tcp.cpp
-*
-*  Created on: Sep 28, 2025
-*      Author: AkimovMA
-*/
+ * tcp.cpp — TCP server: connection table, FSM, sliding-window TX, RX ring
+ *
+ *  Created on: Sep 28, 2025
+ *      Author: AkimovMA
+ */
 #include <cstddef>
 #include <cstring>
 #include "net/tcp.hpp"
@@ -11,7 +11,42 @@
 #include "core/system.hpp"
 #include "net/eth_utils.hpp"
 #include "drivers/eth.hpp"
-#include "net/temp_frame.hpp"
+
+// TCP frame template (declared extern in tcp.hpp). Lives here — a non-inline
+// definition in a header (the old temp_frame.hpp) is an ODR trap. NET_SetIPAddr
+// patches the baked-in source IP when DHCP changes the address.
+uint8_t TCPsendFrameTemplate[TCP_TEMPLATE_FRAME_LEN] = {
+		// === Ethernet Header (14B) ===
+		0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00,        // Dst MAC (будет подставлен)
+		MAC_ADDR[0], MAC_ADDR[1], MAC_ADDR[2], MAC_ADDR[3], MAC_ADDR[4],
+		MAC_ADDR[5], // Src MAC = мой MAC
+		0x08, 0x00,  // Ethertype = IPv4
+
+		// === IPv4 Header (20B) ===
+		0x45,// Version=4, IHL=5 (20 байт)
+		0x00,        // TOS
+		0x00, 0x00, // Total Length (20 IP + 20 TCP + payload, будет обновляться)
+		0x00, 0x00,  // Identification
+		0x00, 0x00,  // Flags + Fragment offset
+		0x40,        // TTL
+		0x06,        // Protocol = TCP (0x06)
+		0x00, 0x00,  // Header checksum (обнулять перед расчетом)
+		IP_ADDR[0], IP_ADDR[1], IP_ADDR[2], IP_ADDR[3],  // Src IP
+		0x00, 0x00, 0x00, 0x00,  // Dst IP (будет подставлен)
+
+		// === TCP Header (20B, без опций) ===
+		0x13, 0x88,  // Src Port = 5000 (0x1388) (можно менять)
+		0x00, 0x00,  // Dst Port (будет подставлен)
+		0x00, 0x00, 0x00, 0x00,  // Seq Num (будет подставлен)
+		0x00, 0x00, 0x00, 0x00,  // Ack Num (будет подставлен)
+		0x50,        // Data Offset=5 (20 байт), Reserved=0
+		0x02,        // Flags = SYN (0x02), можно менять на ACK/PSH/FIN
+		0x04, 0x00,  // Window size = 1024 (0x0400)
+		0x00, 0x00,  // TCP checksum (обнулять перед расчетом)
+		0x00, 0x00   // Urgent Pointer = 0
+		// Payload идёт сразу после TCP заголовка
+		};
 
 namespace {
 	// Constants for TCP processing
@@ -90,15 +125,19 @@ namespace {
 }
 
 tcp_conn_t tcp_clients[TCP_MAX_CONNECTIONS] = { };
+
+namespace {
+// Connection-table bookkeeping — internal to this TU (was external linkage)
 uint8_t active_list[TCP_MAX_CONNECTIONS] = { };
 uint8_t active_conn = 0;
 
 uint8_t free_list[TCP_MAX_CONNECTIONS];
 uint8_t free_top = 0;
 
-uint8_t **ppTxBuff = NULL;
+uint8_t **ppTxBuff = nullptr;
 
 uint16_t listen_ports[TCP_MAX_LISTEN_PORTS] = { };
+} // namespace
 
 void NET_TCP_Init() {
 	memset(tcp_clients, 0, sizeof(tcp_clients));
@@ -461,7 +500,7 @@ void NET_TCP_Timers() {
 }
 
 void NET_ProcessTCP(ipv4_frame *frame) {
-	tcp_hdr_t *tcp = reinterpret_cast<tcp_hdr_t*>(&frame->ip_hdr[frame->ip_hdr_len]);
+	const tcp_hdr_t *tcp = reinterpret_cast<const tcp_hdr_t*>(&frame->ip_hdr[frame->ip_hdr_len]);
 
 	// Extract TCP header fields (network byte order)
 	uint8_t client_flags = tcp->flags;

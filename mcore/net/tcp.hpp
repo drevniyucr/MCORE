@@ -1,5 +1,5 @@
 /*
- * mcore_tcp.hpp
+ * tcp.hpp — TCP server: connection table, FSM, sliding-window TX, RX ring
  *
  *  Created on: Sep 29, 2025
  *      Author: AkimovMA
@@ -8,38 +8,38 @@
 #include "core/def.hpp"
 #include "net/net.hpp"
 
-#define TCP_MAX_CONNECTIONS 10
-#define TCP_MAX_LISTEN_PORTS 4
+constexpr uint8_t TCP_MAX_CONNECTIONS  = 10;
+constexpr uint8_t TCP_MAX_LISTEN_PORTS = 4;
 
-#define TCP_KEEPALIVE_TIMEOUT 20000
-#define TCP_KEEPALIVE_MAX_COUNT 3
-#define TCP_KEEPALIVE_INTERVAL 1000
+constexpr uint32_t TCP_KEEPALIVE_TIMEOUT   = 20000;  // ms
+constexpr uint8_t  TCP_KEEPALIVE_MAX_COUNT = 3;
+constexpr uint32_t TCP_KEEPALIVE_INTERVAL  = 1000;   // ms
 
-#define TCP_TIME_WAIT_TIMEOUT 10000 // ms (scaled-down 2*MSL)
+constexpr uint32_t TCP_TIME_WAIT_TIMEOUT = 10000;    // ms (scaled-down 2*MSL)
 
-#define TCP_DEFAULT_PEER_MSS 536  // RFC 1122 default when no MSS option
-#define TCP_OUR_MSS 1460          // advertised in SYN|ACK
+constexpr uint16_t TCP_DEFAULT_PEER_MSS = 536;   // RFC 1122 default when no MSS option
+constexpr uint16_t TCP_OUR_MSS          = 1460;  // advertised in SYN|ACK
 
-#define TCP_RETRANSMISSION_MAX_COUNT 3
-#define TCP_RETRANSMIT_TIMEOUT 2500 // ms
-#define TCP_TEMPLATE_FRAME_LEN 54  // 14 (ETH) + 20 (IP) + 20 (TCP)
+constexpr uint8_t  TCP_RETRANSMISSION_MAX_COUNT = 3;
+constexpr uint32_t TCP_RETRANSMIT_TIMEOUT = 2500;    // ms
+constexpr uint16_t TCP_TEMPLATE_FRAME_LEN = 54;      // 14 (ETH) + 20 (IP) + 20 (TCP)
 
-#define TCP_LAST_ACK_WAIT_TO_CLOSE 5000
+constexpr uint32_t TCP_LAST_ACK_WAIT_TO_CLOSE = 5000;
 
 // TX sliding window: up to TCP_TX_QUEUE_SLOTS segments in flight,
 // each carrying at most TCP_TX_SLOT_LEN payload bytes
-#define TCP_TX_QUEUE_SLOTS 3
-#define TCP_TX_SLOT_LEN 1200
+constexpr uint8_t  TCP_TX_QUEUE_SLOTS = 3;
+constexpr uint16_t TCP_TX_SLOT_LEN    = 1200;
 
-#define SOCKET_RX_BUFF_LEN 5120
-#define SOCKET_TX_BUFF_LEN (TCP_TX_QUEUE_SLOTS * TCP_TX_SLOT_LEN)
+constexpr uint16_t SOCKET_RX_BUFF_LEN = 5120;
+constexpr uint16_t SOCKET_TX_BUFF_LEN = TCP_TX_QUEUE_SLOTS * TCP_TX_SLOT_LEN;
 
-#define TCP_FIN 0x01
-#define TCP_SYN 0x02
-#define TCP_RST 0x04
-#define TCP_PSH 0x08
-#define TCP_ACK 0x10
-#define TCP_URG 0x20
+constexpr uint8_t TCP_FIN = 0x01;
+constexpr uint8_t TCP_SYN = 0x02;
+constexpr uint8_t TCP_RST = 0x04;
+constexpr uint8_t TCP_PSH = 0x08;
+constexpr uint8_t TCP_ACK = 0x10;
+constexpr uint8_t TCP_URG = 0x20;
 
 enum class tcp_state_t : uint8_t {
 	TCP_CLOSED = 0,
@@ -175,6 +175,6 @@ int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
 uint16_t NET_TCP_Available(tcp_conn_t *conn);
 int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen);
 
-// Defined in temp_frame.hpp (one TU: tcp.cpp); NET_SetIPAddr patches
-// its baked-in source IP when DHCP changes the address
+// Defined in tcp.cpp; NET_SetIPAddr patches its baked-in source IP when
+// DHCP changes the address
 extern uint8_t TCPsendFrameTemplate[TCP_TEMPLATE_FRAME_LEN];

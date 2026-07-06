@@ -1,9 +1,9 @@
 /*
-* mcore_net.cpp
-*
-*  Created on: Sep 24, 2025
-*      Author: 
-*/
+ * net.cpp — IPv4/ARP/ICMP/UDP layer: RX dispatch and frame builders
+ *
+ *  Created on: Sep 24, 2025
+ *      Author: AkimovMA
+ */
 #include <cstring>
 #include "net/tcp.hpp"
 #include "net/net.hpp"
@@ -108,10 +108,10 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 		}
 		
 		ipv4_frame ip_frame;
-		ip_frame.rx_buff = const_cast<uint8_t*>(rx_buff);
+		ip_frame.rx_buff = rx_buff;
 		ip_frame.tx_buff = &(TxDesc->pBuff);
-		ip_frame.scr_mac = const_cast<uint8_t*>(&rx_buff[22]);  // ARP sender MAC
-		ip_frame.scr_addr = const_cast<uint8_t*>(&rx_buff[28]); // ARP sender IP
+		ip_frame.scr_mac = &rx_buff[22];  // ARP sender MAC
+		ip_frame.scr_addr = &rx_buff[28]; // ARP sender IP
 		ip_frame.frame_len = static_cast<uint16_t>(RxDesc->BuffLen);
 		
 		NET_ProcessARP(&ip_frame);
@@ -166,14 +166,14 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 
 	// Prepare frame structure for protocol handlers
 	ipv4_frame ip_frame;
-	ip_frame.rx_buff = const_cast<uint8_t*>(rx_buff);
+	ip_frame.rx_buff = rx_buff;
 	ip_frame.tx_buff = &(TxDesc->pBuff);
-	ip_frame.ip_hdr = const_cast<uint8_t*>(ip_hdr);
+	ip_frame.ip_hdr = ip_hdr;
 	ip_frame.ip_hdr_len = ip_hdr_len;
 	ip_frame.ip_len = ip_len;
 	ip_frame.is_broadcast = is_broadcast ? 1 : 0;
-	ip_frame.scr_addr = const_cast<uint8_t*>(&rx_buff[SCR_ADDR_POS]);
-	ip_frame.scr_mac = const_cast<uint8_t*>(&rx_buff[6]);
+	ip_frame.scr_addr = &rx_buff[SCR_ADDR_POS];
+	ip_frame.scr_mac = &rx_buff[6];
 
 	// Route to protocol handlers based on hardware-detected protocol
 	const uint8_t ip_protocol = ExtStatus & ETH_DMAPTPRXDESC_IPPT;
@@ -273,7 +273,7 @@ void NET_SendICMP_Unreachable(ipv4_frame* frame) {
  * 
  * Constructs and sends a UDP frame using the template
  */
-void NET_SendUDP(UDP_SendFrameStruct SendFrame) {
+void NET_SendUDP(const UDP_SendFrameStruct& SendFrame) {
 	uint8_t *txBuf = TxDescList.pBuff;
 	const uint16_t udp_len = SendFrame.DataBuffLen + UDP_HDR_LEN;
 	
