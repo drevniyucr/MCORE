@@ -7,6 +7,8 @@
 #include <cstring>
 #include "net/tcp.hpp"
 #include "net/net.hpp"
+#include "net/arp.hpp"
+#include "net/dns.hpp"
 #include "net/dhcp.hpp"
 #include "net/eth_utils.hpp"
 #include "drivers/eth.hpp"
@@ -17,15 +19,17 @@ namespace {
 	constexpr uint16_t ETH_MAX_FRAME_SIZE = 1518;    // Maximum Ethernet frame
 	constexpr uint16_t ETH_HDR_SIZE = 14;            // Ethernet header size
 	constexpr uint16_t IP_MIN_HDR_SIZE = 20;         // Minimum IP header size
-	constexpr uint16_t ARP_FRAME_SIZE = 42;          // ARP frame size
-	constexpr uint16_t ARP_REQUEST_OPCODE = 1;      // ARP request opcode
-	constexpr uint16_t ARP_REPLY_OPCODE = 2;         // ARP reply opcode
 	constexpr uint8_t ICMP_ECHO_REQUEST = 8;        // ICMP echo request type
 	constexpr uint8_t ICMP_ECHO_REPLY = 0;          // ICMP echo reply type
 }
 
 uint8_t MAC_ADDR[MAC_ADDR_LEN] = { 0x02, 0x12, 0x34, 0x56, 0x78, 0x9A };
 uint8_t IP_ADDR[IP_ADDR_LEN] = { 192, 168, 0, 123 };
+// Static routing defaults (DHCP overrides them). No gateway: off-subnet
+// destinations are unreachable until DHCP provides one.
+uint8_t NET_MASK[IP_ADDR_LEN] = { 255, 255, 255, 0 };
+uint8_t NET_GATEWAY[IP_ADDR_LEN] = { 0, 0, 0, 0 };
+uint8_t NET_DNS_SERVER[IP_ADDR_LEN] = { 0, 0, 0, 0 };
 
 uint8_t icmp_port_unrchble_template[ICMP_UNRCHBLE_FRAME_LEN] = {
 		// Ethernet Header (14B)
@@ -102,8 +106,8 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 	const uint16_t ethertype = static_cast<uint16_t>((rx_buff[12] << 8) | rx_buff[13]);
 	
 	// Process ARP frames (0x0806)
-	if (ethertype == 0x0806) {
-		if (RxDesc->BuffLen < ARP_FRAME_SIZE) {
+	if (ethertype == ETH_TYPE_ARP) {
+		if (RxDesc->BuffLen < ARP_FRAME_LEN) {
 			return;  // ARP frame too short
 		}
 		
@@ -204,6 +208,10 @@ void NET_ProcessUDP(ipv4_frame* frame) {
 		NET_DHCP_ProcessRx(frame);
 		return;
 	}
+	if (dst_port == NET_DNS_LocalPort()) {
+		NET_DNS_ProcessRx(frame);
+		return;
+	}
 
 	if (dst_port != UDP_DST_PORT) {
 		// Port not for us - send ICMP unreachable.
@@ -219,6 +227,9 @@ void NET_ProcessUDP(ipv4_frame* frame) {
 }
 
 void NET_SetIPAddr(const uint8_t *ip) {
+	if (memcmp(IP_ADDR, ip, IP_ADDR_LEN) != 0) {
+		NET_ARP_Flush();  // learned on the old address/subnet
+	}
 	memcpy(IP_ADDR, ip, IP_ADDR_LEN);
 	// Frame templates bake the source IP at static init - patch them
 	memcpy(&UDPsendFrameTemplate[SCR_ADDR_POS], ip, IP_ADDR_LEN);
@@ -371,49 +382,11 @@ void NET_ProcessICMP(ipv4_frame* frame) {
 	ETH_SendFrame(frame->ip_len + ETH_HDR_LEN);
 }
 
-/**
- * @brief Process ARP requests and send ARP replies
- * 
- * Handles ARP requests for our IP address and responds with ARP reply
- */
-void NET_ProcessARP(ipv4_frame* frame) {
-	// Validate minimum ARP frame size
-	if (frame->frame_len < ARP_FRAME_SIZE) {
-		return;
+void NET_SetRoute(const uint8_t *mask, const uint8_t *gateway, const uint8_t *dns) {
+	if (memcmp(NET_MASK, mask, IP_ADDR_LEN) != 0 || memcmp(NET_GATEWAY, gateway, IP_ADDR_LEN) != 0) {
+		NET_ARP_Flush();
 	}
-	
-	// Check if it's an ARP request (opcode = 1)
-	if (frame->rx_buff[ETH_HDR_LEN + 7] != ARP_REQUEST_OPCODE) {
-		return;  // Not an ARP request
-	}
-	
-	// Check if they're asking for our IP address
-	if (memcmp(&frame->rx_buff[ETH_HDR_LEN + 24], IP_ADDR, IP_ADDR_LEN) != 0) {
-		return;  // Not asking for our IP
-	}
-	
-	// Prepare ARP reply
-	uint8_t *txBuf = *frame->tx_buff;
-	
-	// Copy ethertype and ARP header from request
-	memcpy(&txBuf[12], &frame->rx_buff[12], frame->frame_len - 12);
-	
-	// Update Ethernet header: swap MAC addresses
-	memcpy(txBuf, frame->scr_mac, MAC_ADDR_LEN);        // dst = src MAC
-	memcpy(&txBuf[6], MAC_ADDR, MAC_ADDR_LEN);           // src = my MAC
-	
-	// Update ARP opcode to reply (2)
-	txBuf[ETH_HDR_LEN + 6] = 0x00;
-	txBuf[ETH_HDR_LEN + 7] = ARP_REPLY_OPCODE;
-	
-	// Update ARP sender fields (our MAC and IP)
-	memcpy(&txBuf[ETH_HDR_LEN + 8], MAC_ADDR, MAC_ADDR_LEN);  // sender MAC = my MAC
-	memcpy(&txBuf[ETH_HDR_LEN + 14], IP_ADDR, IP_ADDR_LEN);  // sender IP = my IP
-	
-	// Update ARP target fields (request sender's MAC and IP)
-	memcpy(&txBuf[ETH_HDR_LEN + 18], frame->scr_mac, MAC_ADDR_LEN);  // target MAC = sender MAC
-	memcpy(&txBuf[ETH_HDR_LEN + 24], frame->scr_addr, IP_ADDR_LEN);   // target IP = sender IP
-	
-	// Send ARP reply
-	ETH_SendFrame(frame->frame_len);
+	memcpy(NET_MASK, mask, IP_ADDR_LEN);
+	memcpy(NET_GATEWAY, gateway, IP_ADDR_LEN);
+	memcpy(NET_DNS_SERVER, dns, IP_ADDR_LEN);
 }

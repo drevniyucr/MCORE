@@ -207,6 +207,8 @@ void dhcp_apply_ack(const uint8_t *bootp, const uint8_t *opts, uint16_t opts_len
 		reset_tcp_connections();
 		NET_SetIPAddr(yiaddr);
 	}
+	// Options the server left out keep the current values
+	NET_SetRoute(memcmp(c.mask, ZERO_IP, 4) != 0 ? c.mask : NET_MASK, c.gw, c.dns);
 	c.lease_start = get_tick();
 	c.retries = 0;
 	c.state = dhcp_state_t::DHCP_BOUND;
@@ -217,6 +219,9 @@ void dhcp_apply_ack(const uint8_t *bootp, const uint8_t *opts, uint16_t opts_len
 void NET_DHCP_Start() {
 	memset(&dhcp_client, 0, sizeof(dhcp_client));
 	memcpy(dhcp_client.static_ip, IP_ADDR, IP_ADDR_LEN);
+	memcpy(dhcp_client.static_mask, NET_MASK, IP_ADDR_LEN);
+	memcpy(dhcp_client.static_gw, NET_GATEWAY, IP_ADDR_LEN);
+	memcpy(dhcp_client.static_dns, NET_DNS_SERVER, IP_ADDR_LEN);
 	NET_SetIPAddr(ZERO_IP);                        // no address while acquiring
 	dhcp_restart_discovery();
 }
@@ -300,6 +305,7 @@ void NET_DHCP_Poll() {
 				// No server: fall back to the saved static address,
 				// keep retrying slowly in the background
 				NET_SetIPAddr(c.static_ip);
+				NET_SetRoute(c.static_mask, c.static_gw, c.static_dns);
 				c.state = dhcp_state_t::DHCP_FALLBACK;
 				c.last_tx = now;
 			} else {

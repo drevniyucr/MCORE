@@ -21,6 +21,8 @@
 #include "net/eth_utils.hpp"
 #include "net/tcp.hpp"
 #include "net/dhcp.hpp"
+#include "net/arp.hpp"
+#include "net/dns.hpp"
 #include "drivers/common.hpp"
 #include "drivers/usart.hpp"
 #include "drivers/i2c.hpp"

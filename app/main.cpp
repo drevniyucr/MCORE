@@ -67,6 +67,11 @@ bool have_last_fault = false;
 volatile uint8_t fault_test = 0;
 volatile int fault_sink;
 
+// DNS demo (see task_dns_demo)
+constexpr const char* DNS_DEMO_HOST = "pool.ntp.org";
+uint8_t dns_demo_ip[4];
+net_result_t dns_demo_result = net_result_t::PENDING;
+
 using LedStrip1 = WS2812<TIM1, TimCh::CH1, tim1_ch1, 13>;
 using LedStrip2 = WS2812<TIM1, TimCh::CH2, tim1_ch2, 13>;
 
@@ -172,6 +177,12 @@ void task_watchdog() {
 	if (!wdg_starve) IWDG_Refresh();
 }
 
+// Periodic: resolve a public host name (DHCP-provided DNS server, through the
+// gateway). Result observable via debugger: dns_demo_ip / dns_demo_result.
+void task_dns_demo() {
+	dns_demo_result = NET_DNS_Resolve(DNS_DEMO_HOST, dns_demo_ip);
+}
+
 // Periodic: provoke the fault requested from the debugger (see fault_test).
 void task_fault_test() {
 	switch (fault_test) {
@@ -222,6 +233,8 @@ void fill_rainbow(uint8_t offset) {
 void task_net_timers() {
 	NET_TCP_Timers();
 	NET_DHCP_Poll();
+	NET_ARP_Poll();
+	NET_DNS_Poll();
 	hue += 12;
 	fill_rainbow<LedStrip1>(hue);
 	fill_rainbow<LedStrip2>(hue);
@@ -317,7 +330,7 @@ int main() {
 
 	spi4_rx.on_complete([] { spi_dma_count.fetch_add(1, std::memory_order_relaxed); });
 
-	sched::Scheduler<10> scheduler;
+	sched::Scheduler<11> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
 	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
@@ -328,6 +341,7 @@ int main() {
 	scheduler.every(RTC_READ_INTERVAL_MS,    task_rtc_read);
 	scheduler.every(WDG_KICK_INTERVAL_MS,    task_watchdog);
 	scheduler.every(WDG_KICK_INTERVAL_MS,    task_fault_test);
+	scheduler.every(RTC_READ_INTERVAL_MS,    task_dns_demo);
 
 	// Last, so the slow init above (LSE start, ETH, EEPROM) cannot trip it.
 	// From here on a hang anywhere in the loop resets the MCU within ~1 s.

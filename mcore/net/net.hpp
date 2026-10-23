@@ -68,6 +68,13 @@ struct ipv4_frame{
 extern uint8_t MAC_ADDR[6];
 extern uint8_t IP_ADDR[4];
 
+// Routing: subnet mask, default gateway (0.0.0.0 = none: off-subnet
+// destinations are unreachable) and DNS server (0.0.0.0 = none).
+// Static defaults in net.cpp; DHCP replaces them with its lease.
+extern uint8_t NET_MASK[4];
+extern uint8_t NET_GATEWAY[4];
+extern uint8_t NET_DNS_SERVER[4];
+
 // Frame templates (defined in net.cpp); NET_SetIPAddr patches their
 // baked-in source IP when the address changes
 extern uint8_t UDPsendFrameTemplate[UDP_TEMPLATE_FRAME_LEN];
@@ -81,10 +88,13 @@ uint32_t NET_Entropy(void);
 // bytes baked into the UDP/ICMP/TCP frame templates.
 void NET_SetIPAddr(const uint8_t *ip);
 
+// Mask, gateway and DNS server; flushes the ARP cache if the route changed.
+void NET_SetRoute(const uint8_t *mask, const uint8_t *gateway, const uint8_t *dns);
+
 void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc);
 
 void NET_ProcessICMP(ipv4_frame* frame);
-void NET_ProcessARP(ipv4_frame*  frame);
+void NET_ProcessARP(ipv4_frame*  frame);  // net/arp.cpp
 void NET_ProcessUDP(ipv4_frame*  frame);
 
 

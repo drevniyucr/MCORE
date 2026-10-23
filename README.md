@@ -73,7 +73,20 @@ active/passive close with TIME_WAIT, up to 10 simultaneous connections.
 backoff, lease renewal at T1 (unicast) and rebinding at T2 (broadcast),
 restart on expiry or NAK. If no server answers, the device falls back to
 its static IP and keeps retrying in the background. On address change the
-frame templates are re-patched and live TCP connections are reset.
+frame templates are re-patched and live TCP connections are reset. The lease's
+mask, gateway and DNS server become the routing config (`NET_SetRoute`).
+
+**ARP cache + routing** (`net/arp`): 8 entries with TTL, retries and negative
+caching; destinations off our subnet go through the gateway. **DNS resolver**
+(`net/dns`): A records over UDP, CNAME-aware, 4-name cache honouring the TTL.
+Both are non-blocking with one shape — call from a periodic task until it
+returns `OK` (`PENDING` = request on the wire, `UNREACHABLE` = no route /
+no answer) — and need no packet queue:
+
+```cpp
+uint8_t ip[4];
+if (NET_DNS_Resolve("pool.ntp.org", ip) == net_result_t::OK) { /* ... */ }
+```
 
 ### 6. Debug & profiling
 
@@ -95,7 +108,7 @@ mcore/               framework (include root: #include "drivers/gpio.hpp")
 │                    device.hpp (MCU seam), mcore_config.hpp (config contract),
 │                    system, rcc, nvic, nvic_def, mpu, fault
 ├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, iwdg, rtc, ws2812, eth
-└── net/             net, tcp, eth_utils, temp_frame
+└── net/             net, arp, dns, dhcp, tcp, eth_utils
 app/                 application: main.cpp, board.hpp (pin maps),
                      config.hpp (HSE/MAC/PHY), syscalls.c
 platform/            startup_stm32f767zitx.s, linker scripts (.ld)
@@ -197,7 +210,7 @@ see exactly what changes, then regenerate.
 - [x] SPI driver
 - [x] IWDG, RTC
 - [x] DHCP client
-- [ ] ARP cache, DNS
+- [x] ARP cache, gateway routing, DNS resolver
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
 - [x] HardFault handler with register dump (kept across the reset)
 - [x] Split framework / board / application layers

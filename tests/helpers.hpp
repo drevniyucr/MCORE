@@ -92,6 +92,29 @@ inline void inject_tcp(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ac
 	NET_ProcessTCP(&f);
 }
 
+// Builds an ARP packet from (sender_mac, sender_ip) asking about / answering
+// target_ip and feeds it through NET_ProcessRx. opcode 1 = request, 2 = reply.
+inline void inject_arp(uint16_t opcode, const uint8_t *sender_mac, const uint8_t *sender_ip,
+		const uint8_t *target_ip) {
+	uint8_t buf[42] = {};
+	if (opcode == 1) {
+		memset(buf, 0xFF, 6);                       // requests are broadcast
+	} else {
+		memcpy(buf, MAC_ADDR, 6);                   // replies come to us
+	}
+	memcpy(&buf[6], sender_mac, 6);
+	buf[12] = 0x08; buf[13] = 0x06;
+	buf[15] = 1;                                    // htype Ethernet
+	buf[16] = 0x08;                                 // ptype IPv4
+	buf[18] = 6; buf[19] = 4;
+	buf[21] = static_cast<uint8_t>(opcode);
+	memcpy(&buf[22], sender_mac, 6);
+	memcpy(&buf[28], sender_ip, 4);
+	if (opcode == 2) memcpy(&buf[32], MAC_ADDR, 6);
+	memcpy(&buf[38], target_ip, 4);
+	process_rx(buf, sizeof(buf), 0);
+}
+
 // --- Captured-frame accessors ---
 
 inline const tcp_hdr_t* captured_tcp(const CapturedFrame &f) {
