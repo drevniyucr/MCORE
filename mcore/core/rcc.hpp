@@ -64,6 +64,13 @@ template<> struct RccEnable<I2C2> { static inline void enable() { RCC::_APB1ENR:
 template<> struct RccEnable<I2C3> { static inline void enable() { RCC::_APB1ENR::I2C3EN::set(); } };
 template<> struct RccEnable<I2C4> { static inline void enable() { RCC::_APB1ENR::I2C4EN::set(); } };
 
+template<> struct RccEnable<SPI1> { static inline void enable() { RCC::_APB2ENR::SPI1EN::set(); } };
+template<> struct RccEnable<SPI2> { static inline void enable() { RCC::_APB1ENR::SPI2EN::set(); } };
+template<> struct RccEnable<SPI3> { static inline void enable() { RCC::_APB1ENR::SPI3EN::set(); } };
+template<> struct RccEnable<SPI4> { static inline void enable() { RCC::_APB2ENR::SPI4ENR::set(); } };
+template<> struct RccEnable<SPI5> { static inline void enable() { RCC::_APB2ENR::SPI5ENR::set(); } };
+template<> struct RccEnable<SPI6> { static inline void enable() { RCC::_APB2ENR::SPI6ENR::set(); } };
+
 template<> struct RccEnable<CAN1> { static inline void enable() { RCC::_APB1ENR::CAN1EN::set(); } };
 template<> struct RccEnable<CAN2> { static inline void enable() { RCC::_APB1ENR::CAN2EN::set(); } };
 template<> struct RccEnable<CAN3> { static inline void enable() { RCC::_APB1ENR::CAN3EN::set(); } };

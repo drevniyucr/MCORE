@@ -39,6 +39,17 @@ DmaHandle<DmaStream::DMA2_Stream_2> tim1_ch2;
 DmaHandle<DmaStream::DMA1_Stream_0> i2c1_rx;
 DmaHandle<DmaStream::DMA1_Stream_7> i2c1_tx;
 
+DmaHandle<DmaStream::DMA2_Stream_0> spi4_rx;  // channel 4
+DmaHandle<DmaStream::DMA2_Stream_4> spi4_tx;  // channel 5
+
+// SPI4 with nothing attached: MISO only sees its pull resistor, so every
+// received byte is 0xFF (pull-up, as configured) or 0x00 (pull-down).
+// Observable via debugger.
+uint8_t spi_rx_poll[4];
+uint8_t spi_dma_buf[16];
+DrvStatus spi_status;
+std::atomic<uint32_t> spi_dma_count{ 0 };
+
 using LedStrip1 = WS2812<TIM1, TimCh::CH1, tim1_ch1, 13>;
 using LedStrip2 = WS2812<TIM1, TimCh::CH2, tim1_ch2, 13>;
 
@@ -68,12 +79,15 @@ CanFrame tx_can = {
 	.data = {0xDE, 0xAD}
 };
 
+constexpr uint32_t SPI_INTERVAL_MS = 500;
+
 // Forward declarations
 void GPIO_Init();
 void RCC_Init();
 void uart_init();
 void i2c_init();
 void can_init();
+void spi_init();
 void tim_init();
 void adc_init();
 void dma_init();
@@ -113,6 +127,17 @@ void task_can_send() {
 	tx_can.data[1] = static_cast<uint8_t>(can_tx_count);
 	if (CanHandle<CAN1>::try_send(tx_can) == DrvStatus::Ok) {
 		++can_tx_count;
+	}
+}
+
+// Periodic: one polling read and one in-place DMA exchange on SPI4.
+void task_spi() {
+	spi_status = SpiHandle<SPI4>::read(spi_rx_poll, sizeof(spi_rx_poll));
+
+	if (spi4_rx.ready()) {
+		for (size_t i = 0; i < sizeof(spi_dma_buf); ++i) spi_dma_buf[i] = static_cast<uint8_t>(i);
+		spi_status = SpiHandle<SPI4>::transfer_dma<spi4_rx, spi4_tx>(
+				spi_dma_buf, spi_dma_buf, sizeof(spi_dma_buf));
 	}
 }
 
@@ -191,6 +216,7 @@ int main() {
 		uart_init();
 		i2c_init();
 		can_init();
+		spi_init();
 		tim_init();
 		NVIC_API::EnableIRQGlobal();
 		adc_init();
@@ -231,13 +257,16 @@ int main() {
 		can_rx_count.fetch_add(1, std::memory_order_relaxed);
 	});
 
-	sched::Scheduler<6> scheduler;
+	spi4_rx.on_complete([] { spi_dma_count.fetch_add(1, std::memory_order_relaxed); });
+
+	sched::Scheduler<7> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
 	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
 	scheduler.every(TCP_TIMER_INTERVAL_MS,   task_net_timers);
 	scheduler.every(SNAKE_TIMER_INTERVAL_MS, task_snake);
 	scheduler.every(CAN_SEND_INTERVAL_MS,    task_can_send);
+	scheduler.every(SPI_INTERVAL_MS,         task_spi);
 	scheduler.start(get_tick());
 
 	while (true) {
@@ -328,6 +357,26 @@ void dma_init() {
 	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream2_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream2_IRQn>();
 
+	constexpr const DmaHwConfig cfg_spi4_rx = { .Channel = DmaChannel::CHNL_4,
+			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
+			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
+			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::NORMAL,
+			.Priority = DmaPrior::HIGH };
+
+	constexpr const DmaHwConfig cfg_spi4_tx = { .Channel = DmaChannel::CHNL_5,
+			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
+			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
+			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::NORMAL,
+			.Priority = DmaPrior::MEDIUM };
+
+	DMA_Config<spi4_rx, cfg_spi4_rx>();
+	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream0_IRQn, 1>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream0_IRQn>();
+
+	DMA_Config<spi4_tx, cfg_spi4_tx>();
+	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream4_IRQn, 1>();
+	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream4_IRQn>();
+
 	DMA_Config<usart6_tx, cfg_dma2_s7>();
 	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream7_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream7_IRQn>();
@@ -408,6 +457,18 @@ void can_init()
 	NVIC_API::EnableIRQ<IRQn_Type::CAN1_RX0_IRQn>();
 }
 
+void spi_init()
+{
+	constexpr const SpiHwConfig cfg = {
+		.MaxClockHz = 1'000'000,  // APB2 108 MHz / 128 = 843.75 kHz
+		.Mode = SpiMode::Mode0,
+	};
+
+	if (SPI_Init<SPI4, cfg>() != DrvStatus::Ok) {
+		Error_Handler();
+	}
+}
+
 void i2c_init() {
 	constexpr const I2CHwConfig cfg = { 
 			.Timing = 0x20404768, // Timing value for 400kHz I2C speed with 54MHz PCLK1
@@ -481,7 +542,8 @@ void GPIO_Init() {
 	constexpr GPIO_Config tim1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF1  };
 	constexpr GPIO_Config tim4_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF2  };
 	constexpr GPIO_Config adc3_cfg   { .mode=Mode::Ang, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF0  };
-	constexpr GPIO_Config i2c1_cfg   { .mode=Mode::Alt, .otype=OType::OD, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF4  };
+	constexpr GPIO_Config spi4_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::PullUp, .af=AF::AF5  };  // MISO idles high when nothing drives it
+	constexpr GPIO_Config i2c1_cfg  { .mode=Mode::Alt, .otype=OType::OD, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF4  };
 
 	eth::group::configure<eth_cfg>();
 	inputs::group::configure<in_cfg>();
@@ -493,6 +555,7 @@ void GPIO_Init() {
 	tim4::group::configure<tim4_cfg>();
 	adc3::group::configure<adc3_cfg>();
 	i2c1::group::configure<i2c1_cfg>();
+	spi4::group::configure<spi4_cfg>();
 }
 }
 
@@ -520,11 +583,11 @@ extern "C" void DMA1_Stream6_IRQHandler() {}
 extern "C" void DMA1_Stream7_IRQHandler() {}
 
 
-extern "C" void DMA2_Stream0_IRQHandler() {}
+extern "C" void DMA2_Stream0_IRQHandler() {DMA_IRQHandler<spi4_rx>();}
 extern "C" void DMA2_Stream2_IRQHandler() {DMA_IRQHandler<tim1_ch2>();}
 extern "C" void DMA2_Stream3_IRQHandler() {DMA_IRQHandler<tim1_ch1>();}
 extern "C" void DMA2_Stream1_IRQHandler() {}
-extern "C" void DMA2_Stream4_IRQHandler() {}
+extern "C" void DMA2_Stream4_IRQHandler() {DMA_IRQHandler<spi4_tx>();}
 extern "C" void DMA2_Stream5_IRQHandler() {}
 extern "C" void DMA2_Stream6_IRQHandler() {}
 extern "C" void DMA2_Stream7_IRQHandler() {DMA_IRQHandler<usart6_tx>();}

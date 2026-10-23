@@ -4082,15 +4082,16 @@ struct SYSCFG {
 }; // struct SYSCFG
 
 // --------------------------------------------
-// SPI1: Serial peripheral interface
-// Base address: 0x40013000
+// SPI: Serial peripheral interface
+// Base address: SPI1..SPI6 instances below
 // --------------------------------------------
 
-struct SPI1 {
-    static constexpr uint32_t SPI1_BASE = 0x40013000;
+template <uint32_t BASE_ADDR>
+struct SPI {
+    static constexpr uint32_t SPIx_BASE = BASE_ADDR;
 
     // control register 1
-    struct _CR1 : Register<SPI1_BASE + 0x0, ReadWrite, _CR1> {
+    struct _CR1 : Register<SPIx_BASE + 0x0, ReadWrite, _CR1> {
         using BIDIMODE = Field<_CR1, 15, 1>; // Bidirectional data mode enable
         using BIDIOE = Field<_CR1, 14, 1>; // Output enable in bidirectional mode
         using CRCEN = Field<_CR1, 13, 1>; // Hardware CRC calculation enable
@@ -4108,7 +4109,7 @@ struct SPI1 {
     };
 
     // control register 2
-    struct _CR2 : Register<SPI1_BASE + 0x4, ReadWrite, _CR2> {
+    struct _CR2 : Register<SPIx_BASE + 0x4, ReadWrite, _CR2> {
         using RXDMAEN = Field<_CR2, 0, 1>; // Rx buffer DMA enable
         using TXDMAEN = Field<_CR2, 1, 1>; // Tx buffer DMA enable
         using SSOE = Field<_CR2, 2, 1>; // SS output enable
@@ -4124,7 +4125,7 @@ struct SPI1 {
     };
 
     // status register
-    struct _SR : Register<SPI1_BASE + 0x8, ReadWrite, _SR> {
+    struct _SR : Register<SPIx_BASE + 0x8, ReadWrite, _SR> {
         using FRE = Field<_SR, 8, 1>; // Frame format error
         using BSY = Field<_SR, 7, 1>; // Busy flag
         using OVR = Field<_SR, 6, 1>; // Overrun flag
@@ -4139,27 +4140,27 @@ struct SPI1 {
     };
 
     // data register
-    struct _DR : Register<SPI1_BASE + 0xC, ReadWrite, _DR> {
+    struct _DR : Register<SPIx_BASE + 0xC, ReadWrite, _DR> {
         using DR = Field<_DR, 0, 16>; // Data register
     };
 
     // CRC polynomial register
-    struct _CRCPR : Register<SPI1_BASE + 0x10, ReadWrite, _CRCPR> {
+    struct _CRCPR : Register<SPIx_BASE + 0x10, ReadWrite, _CRCPR> {
         using CRCPOLY = Field<_CRCPR, 0, 16>; // CRC polynomial register
     };
 
     // RX CRC register
-    struct _RXCRCR : Register<SPI1_BASE + 0x14, ReadOnly, _RXCRCR> {
+    struct _RXCRCR : Register<SPIx_BASE + 0x14, ReadOnly, _RXCRCR> {
         using RxCRC = Field<_RXCRCR, 0, 16>; // Rx CRC register
     };
 
     // TX CRC register
-    struct _TXCRCR : Register<SPI1_BASE + 0x18, ReadOnly, _TXCRCR> {
+    struct _TXCRCR : Register<SPIx_BASE + 0x18, ReadOnly, _TXCRCR> {
         using TxCRC = Field<_TXCRCR, 0, 16>; // Tx CRC register
     };
 
     // I2S configuration register
-    struct _I2SCFGR : Register<SPI1_BASE + 0x1C, ReadWrite, _I2SCFGR> {
+    struct _I2SCFGR : Register<SPIx_BASE + 0x1C, ReadWrite, _I2SCFGR> {
         using I2SMOD = Field<_I2SCFGR, 11, 1>; // I2S mode selection
         using I2SE = Field<_I2SCFGR, 10, 1>; // I2S Enable
         using I2SCFG = Field<_I2SCFGR, 8, 2>; // I2S configuration mode
@@ -4172,63 +4173,22 @@ struct SPI1 {
     };
 
     // I2S prescaler register
-    struct _I2SPR : Register<SPI1_BASE + 0x20, ReadWrite, _I2SPR> {
+    struct _I2SPR : Register<SPIx_BASE + 0x20, ReadWrite, _I2SPR> {
         using MCKOE = Field<_I2SPR, 9, 1>; // Master clock output enable
         using ODD = Field<_I2SPR, 8, 1>; // Odd factor for the prescaler
         using I2SDIV = Field<_I2SPR, 0, 8>; // I2S Linear prescaler
     };
 
-}; // struct SPI1
+}; // struct SPI
 
-// --------------------------------------------
-// SPI2: 
-// Base address: 0x40003800
-// --------------------------------------------
-
-struct SPI2 {
-    static constexpr uint32_t SPI2_BASE = 0x40003800;
-
-}; // struct SPI2
-
-// --------------------------------------------
-// SPI4: 
-// Base address: 0x40013400
-// --------------------------------------------
-
-struct SPI4 {
-    static constexpr uint32_t SPI4_BASE = 0x40013400;
-
-}; // struct SPI4
-
-// --------------------------------------------
-// SPI5: 
-// Base address: 0x40015000
-// --------------------------------------------
-
-struct SPI5 {
-    static constexpr uint32_t SPI5_BASE = 0x40015000;
-
-}; // struct SPI5
-
-// --------------------------------------------
-// SPI3: 
-// Base address: 0x40003C00
-// --------------------------------------------
-
-struct SPI3 {
-    static constexpr uint32_t SPI3_BASE = 0x40003C00;
-
-}; // struct SPI3
-
-// --------------------------------------------
-// SPI6: 
-// Base address: 0x40015400
-// --------------------------------------------
-
-struct SPI6 {
-    static constexpr uint32_t SPI6_BASE = 0x40015400;
-
-}; // struct SPI6
+// The SVD declares SPI2..SPI6 as derivedFrom SPI1, which the generator left
+// as empty structs — all six share one register layout.
+using SPI1 = SPI<0x40013000>;
+using SPI2 = SPI<0x40003800>;
+using SPI3 = SPI<0x40003C00>;
+using SPI4 = SPI<0x40013400>;
+using SPI5 = SPI<0x40015000>;
+using SPI6 = SPI<0x40015400>;
 
 // --------------------------------------------
 // ADC: Analog-to-digital converter

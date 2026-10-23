@@ -32,10 +32,10 @@ struct inputs {
 	using IN13 = Pin<GPIOD,3>;
 	using IN15 = Pin<GPIOG,2>;
 	using IN16 = Pin<GPIOG,3>;
-	using IN17 = Pin<GPIOE,2>;
+	//using IN17 = Pin<GPIOE,2>;  // taken by SPI4_SCK
 	using IN18 = Pin<GPIOE,3>;
 	using IN19 = Pin<GPIOE,4>;
-	using IN20 = Pin<GPIOE,5>;
+	//using IN20 = Pin<GPIOE,5>;  // taken by SPI4_MISO
 	using IN21 = Pin<GPIOB,11>;
 	using IN22 = Pin<GPIOB,6>;
 	using IN23 = Pin<GPIOB,12>;
@@ -46,7 +46,7 @@ struct inputs {
 	IN5, IN6, IN7, IN8,
 	IN9, IN10, IN11, IN12,
 	IN13,IN15, IN16,
-	IN17, IN18, IN19, IN20,
+	IN18, IN19,
 	IN21, IN22, IN23, IN24
 	>;
 };
@@ -122,6 +122,13 @@ struct can1 {
 	using CAN1_RX = Pin<GPIOD,0>;
 	using CAN1_TX = Pin<GPIOD,1>;
 	using group = PinGroup<CAN1_RX, CAN1_TX>;
+};
+
+struct spi4 {
+	using SPI4_SCK = Pin<GPIOE,2>;
+	using SPI4_MISO = Pin<GPIOE,5>;
+	using SPI4_MOSI = Pin<GPIOE,6>;
+	using group = PinGroup<SPI4_SCK, SPI4_MISO, SPI4_MOSI>;
 };
 
 struct usart6 {
