@@ -53,7 +53,7 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 | TIM (PWM, input capture, DMA requests) | working |
 | WS2812 LED strip over TIM+DMA | working |
 | Ethernet MAC + PHY (RMII) | working |
-| CAN | in progress |
+| CAN (bxCAN: compile-time bit timing, filters, 3 TX mailboxes, IRQ callbacks; tested in loopback) | working |
 | SPI | planned |
 
 ### 5. Custom network stack (`mcore/net/`)
@@ -171,7 +171,8 @@ python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 
 - [x] CI (GitHub Actions: firmware build + host tests)
 - [x] Host-side unit tests for the network stack (header parsing, checksums, TCP FSM)
-- [ ] Finish CAN, add SPI, IWDG, RTC
+- [x] CAN driver
+- [ ] Add SPI, IWDG, RTC
 - [x] DHCP client
 - [ ] ARP cache, DNS
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK

@@ -25,6 +25,11 @@ DmaHandle<DmaStream::DMA2_Stream_7> usart6_tx;
 // on_complete callback (observable via debugger). Demonstrates event-driven DMA.
 std::atomic<uint32_t> usart6_tx_count{ 0 };
 
+// CAN1 loopback frames received / sent (observable via debugger).
+std::atomic<uint32_t> can_rx_count{ 0 };
+uint32_t can_tx_count = 0;
+CanFrame can_last_rx;
+
 DmaHandle<DmaStream::DMA1_Stream_5> usart2_rx;
 DmaHandle<DmaStream::DMA1_Stream_6> usart2_tx;
 
@@ -54,18 +59,21 @@ uint8_t txData1[] = "Hello, USART! Hello, USART! Hello, USART! "
 		" Hello, USART! Hello, USART! Hello, USART!";
 uint8_t txData2[] = "Hello, RS485!";
 
-// CanFrame tx_can = {
-// 	.id = 0x123,
-// 	.dlc = 2,
-// 	.data = {0xDE, 0xAD}
-// };
+// CAN1 runs in loopback: every frame sent is received back through filter
+// bank 0 into FIFO0 and counted by the RX ISR callback.
+constexpr uint32_t CAN_SEND_INTERVAL_MS = 500;
+CanFrame tx_can = {
+	.id = 0x123,
+	.dlc = 2,
+	.data = {0xDE, 0xAD}
+};
 
 // Forward declarations
 void GPIO_Init();
 void RCC_Init();
 void uart_init();
 void i2c_init();
-// void can_init();
+void can_init();
 void tim_init();
 void adc_init();
 void dma_init();
@@ -97,6 +105,14 @@ void task_tcp_send() {
 	UartHandle<USART6>::sendBuffer(txData1, sizeof(txData1));
 	if (tcp_clients[TEST_CLIENT_INDEX].state == tcp_state_t::TCP_ESTABLISHED) {
 		NET_TCP_SendUser(&tcp_clients[TEST_CLIENT_INDEX], test_data, sizeof(test_data));
+	}
+}
+
+// Periodic: send a CAN1 test frame (byte 1 carries a rolling counter).
+void task_can_send() {
+	tx_can.data[1] = static_cast<uint8_t>(can_tx_count);
+	if (CanHandle<CAN1>::try_send(tx_can) == DrvStatus::Ok) {
+		++can_tx_count;
 	}
 }
 
@@ -174,7 +190,7 @@ int main() {
 		GPIO_Init();
 		uart_init();
 		i2c_init();
-		//	can_init();
+		can_init();
 		tim_init();
 		NVIC_API::EnableIRQGlobal();
 		adc_init();
@@ -210,12 +226,18 @@ int main() {
 	// instead of only polling usart6_tx.ready() in the snake task.
 	usart6_tx.on_complete([] { usart6_tx_count.fetch_add(1, std::memory_order_relaxed); });
 
-	sched::Scheduler<5> scheduler;
+	CanHandle<CAN1>::on_rx([](const CanFrame& f) {
+		can_last_rx = f;
+		can_rx_count.fetch_add(1, std::memory_order_relaxed);
+	});
+
+	sched::Scheduler<6> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
 	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
 	scheduler.every(TCP_TIMER_INTERVAL_MS,   task_net_timers);
 	scheduler.every(SNAKE_TIMER_INTERVAL_MS, task_snake);
+	scheduler.every(CAN_SEND_INTERVAL_MS,    task_can_send);
 	scheduler.start(get_tick());
 
 	while (true) {
@@ -368,27 +390,23 @@ void tim_init() {
 	NVIC_API::EnableIRQ<IRQn_Type::TIM1_CC_IRQn>();
 }
 
-// void can_init()
-// {
-// 	constexpr const CanHwConfig cfg = {
-// 		.Prescaler = 6,
-// 		.SyncJumpWidth = 1,
-// 		.TimeSeg1 = 15,
-// 		.TimeSeg2 = 2,
-// 		.Mode = CanMode::Loopback,
-// 		.TimeTriggerMode = false,
-// 		.AutoBusOff = true,
-// 		.AutoWakeUp = true,
-// 		.AutoRetransmission = true,
-// 		.FifoLock = false,
-// 		.FifoPriority = false
-// 	};
+void can_init()
+{
+	// 500 kbit/s from PCLK1 = 54 MHz (SYSCLK 216 MHz / 4), solved at compile time
+	constexpr const CanHwConfig cfg = {
+		.Timing = can_bit_timing(54'000'000, 500'000),
+		.Mode = CanMode::Loopback,
+		.Interrupts = CanIrq::Rx0Pending | CanIrq::Rx0Overrun,
+	};
 
-// 	DrvStatus status = CAN_Init<CAN1, cfg>();
-// 	if (status != DrvStatus::Ok) {
-// 		Error_Handler(); // Handle initialization error
-// 	}
-// }
+	if (CAN_Init<CAN1, cfg>() != DrvStatus::Ok) {
+		Error_Handler();
+	}
+	CAN_FilterConfig<CAN1, CanFilter::accept_all(0, CanFifo::Fifo0)>();
+
+	NVIC_API::SetPriority<IRQn_Type::CAN1_RX0_IRQn, 2>();
+	NVIC_API::EnableIRQ<IRQn_Type::CAN1_RX0_IRQn>();
+}
 
 void i2c_init() {
 	constexpr const I2CHwConfig cfg = { 
@@ -458,7 +476,7 @@ void GPIO_Init() {
 	constexpr GPIO_Config in_cfg     { .mode=Mode::In,  .otype=OType::PP, .speed=Speed::Medium,   .pull=Pull::None,   .af=AF::AF0  };
 	constexpr GPIO_Config out_cfg    { .mode=Mode::Out, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF0  };
 	constexpr GPIO_Config rs485_cfg  { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::PullUp, .af=AF::AF7  }; // USART2
-	constexpr GPIO_Config can1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF9  };
+	constexpr GPIO_Config can1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::PullUp, .af=AF::AF9  };  // RX idles recessive without a transceiver
 	constexpr GPIO_Config usart6_cfg { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF8  };
 	constexpr GPIO_Config tim1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF1  };
 	constexpr GPIO_Config tim4_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF2  };
@@ -511,6 +529,8 @@ extern "C" void DMA2_Stream5_IRQHandler() {}
 extern "C" void DMA2_Stream6_IRQHandler() {}
 extern "C" void DMA2_Stream7_IRQHandler() {DMA_IRQHandler<usart6_tx>();}
 
+
+extern "C" void CAN1_RX0_IRQHandler() { CAN_RxIRQHandler<CAN1, CanFifo::Fifo0>(); }
 
 extern "C" void TIM1_CC_IRQHandler() {
 
