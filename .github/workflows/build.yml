@@ -53,6 +53,16 @@ jobs:
             build/STM32F767
             build/STM32F767.bin
 
+  # mcore/core/regs.hpp is generated: fail if someone edited it by hand
+  # instead of codegen/registers/patches.toml, or forgot to regenerate.
+  regs-up-to-date:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check generated register header
+        run: python3 codegen/registers/regsgen.py --check
+
   host-tests:
     runs-on: ubuntu-latest
     steps:

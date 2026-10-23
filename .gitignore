@@ -20,4 +20,4 @@ __pycache__/
 # --- Generated register artifacts (raw generator output; not the source of truth) ---
 # The consumed, hand-maintained copy is mcore/core/regs.hpp. The generator
 # dumps here; don't commit its output.
-codegen/registers/mcore_regs.hpp
+mcore/core/regs.generated.hpp

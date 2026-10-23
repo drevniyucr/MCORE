@@ -1,0 +1,225 @@
+# patches.toml — hand-maintained corrections applied on top of the SVD and the
+# ARM core XML by regsgen.py. Every entry says WHY it exists.
+#
+#   omit            peripherals to leave out
+#   [rename]        core XML block name -> C++ name
+#   add_peripheral  whole blocks neither source describes
+#   add_register    registers missing from an existing block
+#   add_field       fields missing from a register ("peripherals" = several at once)
+#   set_fields      replace a register's field list
+#   merge_field     join single-bit fields the SVD split up
+#   rename_field    typos in field names
+#   set_access      wrong access type in the source
+#
+# Patch the BASE of a derivedFrom family: derived peripherals copy it.
+# Core blocks (SCB, NVIC, Cache, ...) use absolute addresses as "offset".
+# Fields are [name, bit position, width, description].
+
+# GPIOI/J/K exist on the die but are not bonded out on the LQFP144 STM32F767ZI.
+omit = ["GPIOI", "GPIOJ", "GPIOK"]
+
+[rename]
+Control = "SCB"   # system_registers_m7.xml calls the System Control Block "Control"
+FPE = "FPU"
+
+
+# ---------------------------------------------------------------------------
+# Core: blocks and registers the ARM XML files do not describe
+# ---------------------------------------------------------------------------
+[[add_peripheral]]
+name = "DWT"
+base = 0xE0001000
+description = "Data Watchpoint and Trace (only what the cycle counter needs)"
+after = "FPU"
+
+  [[add_peripheral.register]]
+  name = "CTRL"
+  offset = 0x000
+  description = "Control register"
+  fields = [["CYCCNTENA", 0, 1, "Enable CYCCNT"]]
+
+  [[add_peripheral.register]]
+  name = "CYCCNT"
+  offset = 0x004
+  description = "Cycle Count register"
+  fields = [["VALUE", 0, 32, "Cycle counter"]]
+
+  [[add_peripheral.register]]
+  name = "LAR"
+  offset = 0xFB0
+  access = "wo"
+  description = "Lock Access register (write 0xC5ACCE55 to unlock)"
+
+[[add_peripheral]]
+name = "ITM"
+base = 0xE0000000
+description = "Instrumentation Trace Macrocell"
+after = "DWT"
+
+  [[add_peripheral.register]]
+  name = "PORT0"
+  offset = 0x000
+  description = "Stimulus port 0 (reads 1 when the FIFO can accept data)"
+  fields = [["u8", 0, 8, "8-bit view"], ["u16", 0, 16, "16-bit view"], ["u32", 0, 32, "32-bit view"]]
+
+  [[add_peripheral.register]]
+  name = "TER"
+  offset = 0xE00
+  description = "Trace Enable register"
+  fields = [["STIMENA0", 0, 1, "Enable stimulus port 0"]]
+
+  [[add_peripheral.register]]
+  name = "TCR"
+  offset = 0xE80
+  description = "Trace Control register"
+  fields = [["ITMENA", 0, 1, "ITM enable"], ["TSENA", 1, 1, "Timestamp enable"],
+            ["SWOENA", 4, 1, "SWO output enable"]]
+
+  [[add_peripheral.register]]
+  name = "LAR"
+  offset = 0xFB0
+  access = "wo"
+  description = "Lock Access register (write 0xC5ACCE55 to unlock)"
+
+# Debug Halting Control and Status (ARMv7-M ARM C1.6.2): C_DEBUGEN tells the
+# fault handler whether a debugger is attached.
+[[add_register]]
+peripheral = "SCB"
+name = "DHCSR"
+addr = 0xE000EDF0
+description = "Debug Halting Control and Status (writes need DBGKEY 0xA05F in [31:16])"
+fields = [["S_HALT", 17, 1, "Core is in Debug state"], ["C_HALT", 1, 1, "Halt request"],
+          ["C_DEBUGEN", 0, 1, "Halting debug enabled (debugger connected)"]]
+
+# The XML marks DEMCR read-only and omits TRCENA, which gates DWT/ITM.
+[[set_access]]
+peripheral = "SCB"
+register = "DEMCR"
+access = "rw"
+
+[[add_field]]
+peripheral = "SCB"
+register = "DEMCR"
+fields = [["TRCENA", 24, 1, "Enable DWT and ITM"]]
+
+# The XML names both ID_ISAR2[11:8] and [7:4] "MultiAccessInt_instrs"; its own
+# gui_name for [7:4] is "Memory Hint Instructions".
+[[rename_field]]
+peripheral = "ID"
+register = "ID_ISAR2"
+from = "MultiAccessInt_instrs"
+pos = 4
+to = "MemHint_instrs"
+
+# Set/way operand of the D-cache maintenance ops (used by SCB_CleanInvalidateDCache).
+[[add_field]]
+peripheral = "Cache"
+register = "DCISW"
+fields = [["SET", 5, 9, "Cache set"], ["WAY", 30, 2, "Cache way"]]
+
+
+# ---------------------------------------------------------------------------
+# Vendor SVD gaps (RM0410)
+# ---------------------------------------------------------------------------
+[[add_register]]
+peripheral = "DBGMCU"
+name = "CR"
+offset = 0x4
+description = "Debug support in low-power modes (RM0410 43.16.3)"
+fields = [["DBG_SLEEP", 0, 1, "Debug Sleep mode"], ["DBG_STOP", 1, 1, "Debug Stop mode"],
+          ["DBG_STANDBY", 2, 1, "Debug Standby mode"]]
+
+[[add_register]]
+peripheral = "DBGMCU"
+name = "APB1_FZ"
+offset = 0x8
+description = "Freeze APB1 peripherals while the core is halted (RM0410 43.16.4)"
+fields = [["DBG_RTC_STOP", 10, 1, "RTC stopped when core is halted"],
+          ["DBG_WWDG_STOP", 11, 1, "WWDG stopped when core is halted"],
+          ["DBG_IWDG_STOP", 12, 1, "IWDG stopped when core is halted"]]
+
+[[add_field]]
+peripheral = "IWDG"
+register = "SR"
+fields = [["WVU", 2, 1, "Watchdog counter window value update"]]
+
+# The SVD splits every multi-bit RCC field into single bits (SW0, SW1, PLLM0..5).
+[[merge_field]]
+peripheral = "RCC"
+register = "CFGR"
+name = "SW"
+parts = ["SW0", "SW1"]
+description = "System clock switch"
+
+[[merge_field]]
+peripheral = "RCC"
+register = "CFGR"
+name = "SWS"
+parts = ["SWS0", "SWS1"]
+description = "System clock switch status"
+
+[[merge_field]]
+peripheral = "RCC"
+register = "PLLCFGR"
+name = "PLLM"
+parts = ["PLLM0", "PLLM1", "PLLM2", "PLLM3", "PLLM4", "PLLM5"]
+description = "Division factor for the main PLL input clock"
+
+[[merge_field]]
+peripheral = "RCC"
+register = "PLLCFGR"
+name = "PLLN"
+parts = ["PLLN0", "PLLN1", "PLLN2", "PLLN3", "PLLN4", "PLLN5", "PLLN6", "PLLN7", "PLLN8"]
+description = "Main PLL multiplication factor for VCO"
+
+[[merge_field]]
+peripheral = "RCC"
+register = "PLLCFGR"
+name = "PLLP"
+parts = ["PLLP0", "PLLP1"]
+description = "Main PLL division factor for main system clock"
+
+[[merge_field]]
+peripheral = "RCC"
+register = "PLLCFGR"
+name = "PLLQ"
+parts = ["PLLQ0", "PLLQ1", "PLLQ2", "PLLQ3"]
+description = "Main PLL division factor for USB OTG FS, SDMMC and RNG clocks"
+
+# The SVD has one 32-bit "SMPx_x" field per register; one 3-bit field per channel.
+[[set_fields]]
+peripheral = "ADC1"
+register = "SMPR1"
+fields = [["SMP10", 0, 3], ["SMP11", 3, 3], ["SMP12", 6, 3], ["SMP13", 9, 3], ["SMP14", 12, 3],
+          ["SMP15", 15, 3], ["SMP16", 18, 3], ["SMP17", 21, 3], ["SMP18", 24, 3]]
+
+[[set_fields]]
+peripheral = "ADC1"
+register = "SMPR2"
+fields = [["SMP0", 0, 3], ["SMP1", 3, 3], ["SMP2", 6, 3], ["SMP3", 9, 3], ["SMP4", 12, 3],
+          ["SMP5", 15, 3], ["SMP6", 18, 3], ["SMP7", 21, 3], ["SMP8", 24, 3], ["SMP9", 27, 3]]
+
+# TIM1/TIM8: capture/compare channels 5 and 6 and the CC4 complementary polarity.
+[[add_field]]
+peripheral = "TIM1"
+register = "CCER"
+fields = [["CC4NP", 15, 1, "Capture/Compare 4 complementary output polarity"],
+          ["CC5E", 16, 1, "Capture/Compare 5 output enable"], ["CC5P", 17, 1, "Capture/Compare 5 output polarity"],
+          ["CC6E", 20, 1, "Capture/Compare 6 output enable"], ["CC6P", 21, 1, "Capture/Compare 6 output polarity"]]
+
+# Output compare mode bit 3 (OCxM[3]) of the 4-channel timers is missing.
+[[add_field]]
+peripherals = ["TIM1", "TIM2", "TIM3", "TIM4"]
+register = "CCMR1_Output"
+fields = [["OC1M3", 16, 1, "Output compare 1 mode, bit 3"], ["OC2M3", 24, 1, "Output compare 2 mode, bit 3"]]
+
+[[add_field]]
+peripherals = ["TIM1", "TIM2", "TIM3", "TIM4"]
+register = "CCMR2_Output"
+fields = [["OC3M3", 16, 1, "Output compare 3 mode, bit 3"], ["OC4M3", 24, 1, "Output compare 4 mode, bit 3"]]
+
+[[rename_field]]
+peripherals = ["TIM2", "TIM3", "TIM4"]
+register = "CCMR2_Output"
+from = "O24CE"
+to = "OC4CE"

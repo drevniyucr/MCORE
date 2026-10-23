@@ -25,7 +25,7 @@ SysTick::_STCSR::bitSet<SysTick::_STCSR::CLKSOURCE,
 
 ### 2. Code generation from SVD (`codegen/`)
 
-`mcore/core/regs.hpp` (~19k lines) was **bootstrapped** by `codegen/registers/` from `STM32F767.svd` plus XML descriptions of the Cortex-M7 core blocks (SCB, NVIC, MPU, cache, FPU, DWT/ITM). It has since been refined by hand (peripheral structs, host-build guards, per-register access-mode fixes), so `mcore/core/regs.hpp` is currently the **single source of truth** — the generator is a bootstrap aid, not a live pipeline (see "Regenerating" below). `codegen/nvic/nvic_gen.py` generates a typed IRQ map (`IRQn_Type::USART2_IRQn::Priority / Enable / ...`).
+`mcore/core/regs.hpp` (~19k lines) is **generated** by `codegen/registers/regsgen.py` from `STM32F767.svd`, ARM XML descriptions of the Cortex-M7 core blocks (SCB, NVIC, MPU, cache, FPU) and a small hand-written `patches.toml` for what those sources miss or get wrong; CI fails if the header drifts from them (see "Regenerating" below). `codegen/nvic/nvic_gen.py` generates a typed IRQ map (`IRQn_Type::USART2_IRQn::Priority / Enable / ...`).
 
 ### 3. Type-safe pins (`mcore/drivers/gpio.hpp`)
 
@@ -91,7 +91,7 @@ frame templates are re-patched and live TCP connections are reset.
 ```
 mcore/               framework (include root: #include "drivers/gpio.hpp")
 ├── mcore.hpp        umbrella header
-├── core/            regs.hpp (source of truth), utils.hpp, def.hpp,
+├── core/            regs.hpp (generated), utils.hpp, def.hpp,
 │                    device.hpp (MCU seam), mcore_config.hpp (config contract),
 │                    system, rcc, nvic, nvic_def, mpu, fault
 ├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, iwdg, rtc, ws2812, eth
@@ -100,7 +100,7 @@ app/                 application: main.cpp, board.hpp (pin maps),
                      config.hpp (HSE/MAC/PHY), syscalls.c
 platform/            startup_stm32f767zitx.s, linker scripts (.ld)
 codegen/
-├── registers/       SVD → mcore/core/regs.hpp generator (Python)
+├── registers/       regsgen.py: SVD + core XML + patches.toml → mcore/core/regs.hpp
 └── nvic/            IRQ map generator (Python)
 debug/               openocd/ configs, MCORE_Debug.cfg, STM32F767.svd
 tests/               host-side unit tests for the network stack (doctest)
@@ -160,19 +160,34 @@ every push.
 
 ## Regenerating the register layer
 
-> **Note:** `mcore/core/regs.hpp` is the maintained source of truth. The register
-> generator was used to bootstrap it and has since drifted (its raw output uses
-> `namespace`s instead of peripheral structs, lacks the host-build guards, and
-> misses hand-applied access-mode fixes). Its output is git-ignored and must not
-> be copied over `regs.hpp` as-is — refresh the generator first if you intend to
-> regenerate. Edit `mcore/core/regs.hpp` directly for now.
+`mcore/core/regs.hpp` is **generated — do not edit it by hand**. It is built by
+`codegen/registers/regsgen.py` (Python ≥ 3.11, no packages needed) from:
+
+1. `xml-svd/STM32F767.svd` — the vendor peripherals;
+2. `xml-svd/*_registers_*.xml` — ARM `core_reg` descriptions of the Cortex-M7
+   blocks (SCB, NVIC, MPU, cache...), which the SVD format leaves out on purpose;
+3. `patches.toml` — hand-written corrections, each with its reason: blocks
+   neither source has (DWT, ITM, DHCSR, DBGMCU freeze registers), fields the SVD
+   splits into single bits (`RCC_PLLCFGR.PLLM0..5` → `PLLM`), typos (`O24CE`),
+   wrong access types.
+
+Peripherals with the same register layout (SVD `derivedFrom`, or simply
+identical like GPIOA/B/D) become one `template <uint32_t BASE_ADDR>` plus a
+`using` per instance; the rest are plain structs. The generator rejects
+duplicate names and fields past bit 31.
 
 ```sh
-cd codegen/registers
-python xml-svd2reg.py      # STM32F767.svd + core XMLs → mcore_regs.hpp (raw, git-ignored output)
-cd ../nvic
+python codegen/registers/regsgen.py           # regenerate mcore/core/regs.hpp
+python codegen/registers/regsgen.py --diff    # semantic diff (registers/addresses/fields) vs the current file
+python codegen/registers/regsgen.py --check   # CI: fail if regs.hpp is stale or hand-edited
+python codegen/registers/regsgen.py --svd OTHER.svd --patches other.toml -o other_regs.hpp
+
+cd codegen/nvic
 python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 ```
+
+To fix a register: add an entry to `patches.toml`, run `regsgen.py --diff` to
+see exactly what changes, then regenerate.
 
 ## Roadmap
 
@@ -186,4 +201,5 @@ python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
 - [x] HardFault handler with register dump (kept across the reset)
 - [x] Split framework / board / application layers
-- [ ] Make svd2reg a standalone tool (any STM32 from its SVD)
+- [x] Register header generated from SVD + core XML + patches, checked in CI
+      (`--svd/--patches` for another STM32; core XML is Cortex-M7 only for now)
