@@ -16,6 +16,7 @@
 #include "core/mcore_config.hpp"
 #include "core/mpu.hpp"
 #include "core/nvic.hpp"
+#include "core/fault.hpp"
 #include "net/net.hpp"
 #include "net/eth_utils.hpp"
 #include "net/tcp.hpp"

@@ -59,6 +59,14 @@ RtcDateTime rtc_now;
 std::atomic<uint32_t> rtc_wakeups{ 0 };
 volatile bool wdg_starve = false;
 
+// Fault that caused the last reset (if have_last_fault). Setting fault_test
+// from the debugger provokes one: 1 bus error, 2 divide by zero,
+// 3 call through a pointer without the Thumb bit.
+FaultRecord last_fault;
+bool have_last_fault = false;
+volatile uint8_t fault_test = 0;
+volatile int fault_sink;
+
 using LedStrip1 = WS2812<TIM1, TimCh::CH1, tim1_ch1, 13>;
 using LedStrip2 = WS2812<TIM1, TimCh::CH2, tim1_ch2, 13>;
 
@@ -164,6 +172,25 @@ void task_watchdog() {
 	if (!wdg_starve) IWDG_Refresh();
 }
 
+// Periodic: provoke the fault requested from the debugger (see fault_test).
+void task_fault_test() {
+	switch (fault_test) {
+	case 1:  // just past the end of SRAM: precise BusFault
+		fault_sink = static_cast<int>(*reinterpret_cast<volatile uint32_t*>(0x2008'0000));
+		break;
+	case 2: {  // UsageFault, trapped by Fault_Init (CCR.DIV_0_TRP)
+		volatile int zero = 0;
+		fault_sink = 100 / zero;  // not 1/x: GCC turns that into a compare, no sdiv
+		break;
+	}
+	case 3:  // even address = Thumb bit clear: UsageFault INVSTATE
+		reinterpret_cast<void (*)()>(0x0800'0000)();
+		break;
+	default:
+		break;
+	}
+}
+
 // Rainbow animation over a WS2812 strip's pixel buffer. Application code
 // (moved out of the driver); integer math instead of the old float version —
 // the hue wheel is 256 wide, three sectors of 85 steps (3*85 ≈ 255).
@@ -228,6 +255,8 @@ int main() {
 	//SystemInit(); startup_stm32f767zitx.s calls SystemInit() before main() is entered, so no need to call it here.
 
 	reset_cause = RCC_ResetCause();  // first thing: the flags accumulate until cleared
+	have_last_fault = Fault_TakeLast(last_fault);
+	Fault_Init();
 
 	uint32_t init_cycles;
 	{
@@ -258,6 +287,9 @@ int main() {
 		UartHandle<USART6>::UartRxDMA<usart6_rx>(rx_usart6_buf,sizeof(rx_usart6_buf));
 	}
 	print("Spend %lu cycles for init\n", init_cycles);
+	if (have_last_fault) {
+		Fault_Print(last_fault);
+	}
 
 	i2cstat = Eeprom47L16<I2C1>::write(0x0010, tx, sizeof(tx));
 
@@ -285,7 +317,7 @@ int main() {
 
 	spi4_rx.on_complete([] { spi_dma_count.fetch_add(1, std::memory_order_relaxed); });
 
-	sched::Scheduler<9> scheduler;
+	sched::Scheduler<10> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
 	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
@@ -295,6 +327,7 @@ int main() {
 	scheduler.every(SPI_INTERVAL_MS,         task_spi);
 	scheduler.every(RTC_READ_INTERVAL_MS,    task_rtc_read);
 	scheduler.every(WDG_KICK_INTERVAL_MS,    task_watchdog);
+	scheduler.every(WDG_KICK_INTERVAL_MS,    task_fault_test);
 
 	// Last, so the slow init above (LSE start, ETH, EEPROM) cannot trip it.
 	// From here on a hang anywhere in the loop resets the MCU within ~1 s.

@@ -169,6 +169,16 @@ SECTIONS
     __bss_end__ = _ebss;
   } >RAM
 
+  /* Not zeroed by the startup code: survives software / watchdog resets.
+     Random after power-on, so contents must carry their own validity check */
+  .noinit (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.noinit)
+    *(.noinit*)
+    . = ALIGN(4);
+  } >RAM
+
   /* User_heap_stack section, used to check that there is enough "RAM" Ram  type memory left */
   ._user_heap_stack :
   {

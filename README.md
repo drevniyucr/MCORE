@@ -79,6 +79,11 @@ frame templates are re-patched and live TCP connections are reset.
 
 - `print()` over **ITM/SWO** (`mcore/core/system.cpp`)
 - Cycle-exact profiling via **DWT** counter
+- **Fault capture** (`mcore/core/fault.cpp`): HardFault/MemManage/BusFault/UsageFault
+  switch to a private stack, save the stacked registers + CFSR/HFSR/MMFAR/BFAR to
+  a `.noinit` record, then halt on `BKPT` if a debugger is attached or reset.
+  After the reboot `Fault_TakeLast()` + `Fault_Print()` report it
+  (e.g. `pc=0800060c ... integer divide by zero`)
 - OpenOCD configs (`debug/`) + VS Code launch/tasks
 
 ## Project layout
@@ -88,7 +93,7 @@ mcore/               framework (include root: #include "drivers/gpio.hpp")
 ├── mcore.hpp        umbrella header
 ├── core/            regs.hpp (source of truth), utils.hpp, def.hpp,
 │                    device.hpp (MCU seam), mcore_config.hpp (config contract),
-│                    system, rcc, nvic, nvic_def, mpu
+│                    system, rcc, nvic, nvic_def, mpu, fault
 ├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, iwdg, rtc, ws2812, eth
 └── net/             net, tcp, eth_utils, temp_frame
 app/                 application: main.cpp, board.hpp (pin maps),
@@ -179,6 +184,6 @@ python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 - [x] DHCP client
 - [ ] ARP cache, DNS
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
-- [ ] HardFault handler with register dump
+- [x] HardFault handler with register dump (kept across the reset)
 - [x] Split framework / board / application layers
 - [ ] Make svd2reg a standalone tool (any STM32 from its SVD)

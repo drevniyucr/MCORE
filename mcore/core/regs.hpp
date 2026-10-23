@@ -48,6 +48,14 @@ struct SCB {
         using TBLBASE = Field <_VTOR, 29, 1>; // Bits [29] : Determines whether the vector table is in the code or SRAM memory region
     };
 
+    // DHCSR: Debug Halting Control and Status (ARMv7-M ARM C1.6.2). Writes need
+    // DBGKEY 0xA05F in [31:16]; reading C_DEBUGEN tells whether a debugger is attached.
+    struct _DHCSR : Register <0xE000EDF0, ReadWrite, _DHCSR> {
+        using S_HALT = Field <_DHCSR, 17, 1>; // Bits [17] : Core is in Debug state
+        using C_HALT = Field <_DHCSR, 1, 1>; // Bits [1] : Halt request
+        using C_DEBUGEN = Field <_DHCSR, 0, 1>; // Bits [0] : Halting debug enabled (debugger connected)
+    };
+
     // DEMCR: Manages vector catch behaviour and DebugMonitor handling when debugging
     struct _DEMCR : Register <0xE000EDFC, ReadWrite, _DEMCR> {
         using TRCENA = Field <_DEMCR, 24, 1>; // Bits [24] : Enable trace and debug block
