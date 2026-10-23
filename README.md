@@ -55,6 +55,8 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 | Ethernet MAC + PHY (RMII) | working |
 | CAN (bxCAN: compile-time bit timing, filters, 3 TX mailboxes, IRQ callbacks; tested in loopback) | working |
 | SPI (master, 4..16-bit frames, polling + full-duplex DMA, RAII chip select) | working |
+| IWDG (compile-time timeout, window mode, debug freeze) + reset-cause query | working |
+| RTC (LSE/LSI, calendar kept across resets, 1 Hz wakeup IRQ, backup registers) | working |
 
 ### 5. Custom network stack (`mcore/net/`)
 
@@ -87,7 +89,7 @@ mcore/               framework (include root: #include "drivers/gpio.hpp")
 ├── core/            regs.hpp (source of truth), utils.hpp, def.hpp,
 │                    device.hpp (MCU seam), mcore_config.hpp (config contract),
 │                    system, rcc, nvic, nvic_def, mpu
-├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, ws2812, eth
+├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, iwdg, rtc, ws2812, eth
 └── net/             net, tcp, eth_utils, temp_frame
 app/                 application: main.cpp, board.hpp (pin maps),
                      config.hpp (HSE/MAC/PHY), syscalls.c
@@ -173,7 +175,7 @@ python nvic_gen.py         # stm32f767xx.h → irqn_type_autogen.hpp
 - [x] Host-side unit tests for the network stack (header parsing, checksums, TCP FSM)
 - [x] CAN driver
 - [x] SPI driver
-- [ ] Add IWDG, RTC
+- [x] IWDG, RTC
 - [x] DHCP client
 - [ ] ARP cache, DNS
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK

@@ -4629,6 +4629,7 @@ struct IWDG {
 
     // Status register
     struct _SR : Register<IWDG_BASE + 0xC, ReadOnly, _SR> {
+        using WVU = Field<_SR, 2, 1>; // Watchdog counter window value update (RM0410, missing in SVD)
         using RVU = Field<_SR, 1, 1>; // Watchdog counter reload value update
         using PVU = Field<_SR, 0, 1>; // Watchdog prescaler value update
     };
@@ -19024,6 +19025,22 @@ struct DBGMCU {
     struct _IDCODE : Register<DBGMCU_BASE + 0x0, ReadOnly, _IDCODE> {
         using DEV_ID = Field<_IDCODE, 0, 12>; // Device identifier
         using REV_ID = Field<_IDCODE, 16, 16>; // Revision identifie
+    };
+
+    // The registers below are not in the SVD; layout from RM0410 §43.16.
+
+    // DBGMCU_CR: debug support in low-power modes
+    struct _CR : Register<DBGMCU_BASE + 0x4, ReadWrite, _CR> {
+        using DBG_SLEEP = Field<_CR, 0, 1>; // Debug Sleep mode
+        using DBG_STOP = Field<_CR, 1, 1>; // Debug Stop mode
+        using DBG_STANDBY = Field<_CR, 2, 1>; // Debug Standby mode
+    };
+
+    // DBGMCU_APB1_FZ: freeze APB1 peripherals while the core is halted
+    struct _APB1_FZ : Register<DBGMCU_BASE + 0x8, ReadWrite, _APB1_FZ> {
+        using DBG_RTC_STOP = Field<_APB1_FZ, 10, 1>; // RTC stopped when core is halted
+        using DBG_WWDG_STOP = Field<_APB1_FZ, 11, 1>; // WWDG stopped when core is halted
+        using DBG_IWDG_STOP = Field<_APB1_FZ, 12, 1>; // IWDG stopped when core is halted
     };
 
 }; // struct DBGMCU

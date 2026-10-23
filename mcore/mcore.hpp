@@ -25,6 +25,8 @@
 #include "drivers/i2c.hpp"
 #include "drivers/can.hpp"
 #include "drivers/spi.hpp"
+#include "drivers/iwdg.hpp"
+#include "drivers/rtc.hpp"
 #include "drivers/tim.hpp"
 #include "drivers/adc.hpp"
 #include "drivers/dma.hpp"

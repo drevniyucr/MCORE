@@ -50,6 +50,15 @@ uint8_t spi_dma_buf[16];
 DrvStatus spi_status;
 std::atomic<uint32_t> spi_dma_count{ 0 };
 
+// Why the MCU last reset, RTC clock state and a 1 Hz wakeup counter
+// (observable via debugger). Setting wdg_starve = true from the debugger
+// stops the watchdog kicks: the board must reset with IndependentWatchdog.
+ResetCause reset_cause;
+RtcClock rtc_source;
+RtcDateTime rtc_now;
+std::atomic<uint32_t> rtc_wakeups{ 0 };
+volatile bool wdg_starve = false;
+
 using LedStrip1 = WS2812<TIM1, TimCh::CH1, tim1_ch1, 13>;
 using LedStrip2 = WS2812<TIM1, TimCh::CH2, tim1_ch2, 13>;
 
@@ -80,6 +89,9 @@ CanFrame tx_can = {
 };
 
 constexpr uint32_t SPI_INTERVAL_MS = 500;
+constexpr uint32_t RTC_READ_INTERVAL_MS = 1000;
+constexpr uint32_t WDG_TIMEOUT_MS = 1000;
+constexpr uint32_t WDG_KICK_INTERVAL_MS = 100;  // 10x margin covers the LSI spread
 
 // Forward declarations
 void GPIO_Init();
@@ -88,6 +100,7 @@ void uart_init();
 void i2c_init();
 void can_init();
 void spi_init();
+void rtc_init();
 void tim_init();
 void adc_init();
 void dma_init();
@@ -139,6 +152,16 @@ void task_spi() {
 		spi_status = SpiHandle<SPI4>::transfer_dma<spi4_rx, spi4_tx>(
 				spi_dma_buf, spi_dma_buf, sizeof(spi_dma_buf));
 	}
+}
+
+// Periodic: snapshot the calendar.
+void task_rtc_read() {
+	RTC_GetDateTime(rtc_now);
+}
+
+// Periodic: kick the watchdog (unless starved on purpose from the debugger).
+void task_watchdog() {
+	if (!wdg_starve) IWDG_Refresh();
 }
 
 // Rainbow animation over a WS2812 strip's pixel buffer. Application code
@@ -204,6 +227,8 @@ void task_snake() {
 int main() {
 	//SystemInit(); startup_stm32f767zitx.s calls SystemInit() before main() is entered, so no need to call it here.
 
+	reset_cause = RCC_ResetCause();  // first thing: the flags accumulate until cleared
+
 	uint32_t init_cycles;
 	{
 		prof::ScopeCycles _timer{&init_cycles};  // elapsed written on scope exit
@@ -217,6 +242,7 @@ int main() {
 		i2c_init();
 		can_init();
 		spi_init();
+		rtc_init();
 		tim_init();
 		NVIC_API::EnableIRQGlobal();
 		adc_init();
@@ -259,7 +285,7 @@ int main() {
 
 	spi4_rx.on_complete([] { spi_dma_count.fetch_add(1, std::memory_order_relaxed); });
 
-	sched::Scheduler<7> scheduler;
+	sched::Scheduler<9> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
 	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
@@ -267,6 +293,14 @@ int main() {
 	scheduler.every(SNAKE_TIMER_INTERVAL_MS, task_snake);
 	scheduler.every(CAN_SEND_INTERVAL_MS,    task_can_send);
 	scheduler.every(SPI_INTERVAL_MS,         task_spi);
+	scheduler.every(RTC_READ_INTERVAL_MS,    task_rtc_read);
+	scheduler.every(WDG_KICK_INTERVAL_MS,    task_watchdog);
+
+	// Last, so the slow init above (LSE start, ETH, EEPROM) cannot trip it.
+	// From here on a hang anywhere in the loop resets the MCU within ~1 s.
+	if (IWDG_Start<IwdgConfig{ .TimeoutMs = WDG_TIMEOUT_MS }>() != DrvStatus::Ok) {
+		Error_Handler();
+	}
 	scheduler.start(get_tick());
 
 	while (true) {
@@ -469,6 +503,26 @@ void spi_init()
 	}
 }
 
+void rtc_init()
+{
+	// LSE crystal first; fall back to LSI (less accurate) if it does not start
+	rtc_source = RtcClock::Lse;
+	if (RTC_Init<RtcConfig{ .Source = RtcClock::Lse }>() != DrvStatus::Ok) {
+		rtc_source = RtcClock::Lsi;
+		if (RTC_Init<RtcConfig{ .Source = RtcClock::Lsi }>() != DrvStatus::Ok) {
+			Error_Handler();
+		}
+	}
+	// First boot after the backup domain lost power: seed with the build time
+	if (!RTC_IsTimeSet()) {
+		RTC_SetDateTime(rtc_build_time());
+	}
+
+	RTC_WakeupStart(1, [] { rtc_wakeups.fetch_add(1, std::memory_order_relaxed); });
+	NVIC_API::SetPriority<IRQn_Type::RTC_WKUP_IRQn, 3>();
+	NVIC_API::EnableIRQ<IRQn_Type::RTC_WKUP_IRQn>();
+}
+
 void i2c_init() {
 	constexpr const I2CHwConfig cfg = { 
 			.Timing = 0x20404768, // Timing value for 400kHz I2C speed with 54MHz PCLK1
@@ -594,6 +648,8 @@ extern "C" void DMA2_Stream7_IRQHandler() {DMA_IRQHandler<usart6_tx>();}
 
 
 extern "C" void CAN1_RX0_IRQHandler() { CAN_RxIRQHandler<CAN1, CanFifo::Fifo0>(); }
+
+extern "C" void RTC_WKUP_IRQHandler() { RTC_WakeupIRQHandler(); }
 
 extern "C" void TIM1_CC_IRQHandler() {
 
