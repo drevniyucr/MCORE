@@ -1,6 +1,18 @@
 /*
- * tcp.hpp — TCP: connection table, FSM (passive and active open),
- *           sliding-window TX, RX ring
+ * tcp.hpp — TCP: connection table, FSM (passive and active open), send and
+ *           receive streams on the shared block pool (net/tcp_buf)
+ *
+ * A connection is a small control block; its data lives in two byte FIFOs
+ * whose blocks come from one pool. So the limit is memory, not a connection
+ * count: idle connections cost ~96 bytes, busy ones borrow blocks, and when
+ * the pool runs low the receive window closes instead of anything failing.
+ * Fairness and safety rules on top:
+ *   - a connection holds at most TCP_CONN_RX_BLOCKS / TCP_CONN_TX_BLOCKS;
+ *   - at most TCP_MAX_HALF_OPEN connections in SYN_RCVD: a SYN flood evicts
+ *     the oldest half-open one instead of filling the table;
+ *   - TCP_TCB_RESERVE control blocks and TCP_POOL_RESERVE_BLOCKS pool blocks
+ *     are only for connections we open ourselves (MQTT etc.), so incoming
+ *     traffic cannot lock our own client out.
  *
  *  Created on: Sep 29, 2025
  *      Author: AkimovMA
@@ -9,9 +21,20 @@
 #include "core/def.hpp"
 #include "net/net.hpp"
 #include "net/arp.hpp"
+#include "net/tcp_buf.hpp"
 
-constexpr uint8_t TCP_MAX_CONNECTIONS  = 10;
-constexpr uint8_t TCP_MAX_LISTEN_PORTS = 4;
+// Control blocks: cheap (~96 B each), memory is governed by the pool
+constexpr uint8_t  TCP_MAX_CONNECTIONS  = 64;
+constexpr uint8_t  TCP_TCB_RESERVE      = 4;      // only for active opens
+constexpr uint8_t  TCP_MAX_HALF_OPEN    = 8;      // SYN_RCVD at once (SYN flood)
+constexpr uint8_t  TCP_MAX_LISTEN_PORTS = 4;
+
+// Per-connection share of the pool (16 KB each way) and the active-open reserve
+constexpr uint16_t TCP_CONN_RX_BLOCKS      = 32;
+constexpr uint16_t TCP_CONN_TX_BLOCKS      = 32;
+constexpr uint16_t TCP_POOL_RESERVE_BLOCKS = 16;  // 8 KB
+constexpr uint32_t TCP_RX_BUFF_MAX = uint32_t{TCP_CONN_RX_BLOCKS} * TCP_BLOCK_SIZE;
+constexpr uint32_t TCP_TX_BUFF_MAX = uint32_t{TCP_CONN_TX_BLOCKS} * TCP_BLOCK_SIZE;
 
 constexpr uint32_t TCP_KEEPALIVE_TIMEOUT   = 20000;  // ms
 constexpr uint8_t  TCP_KEEPALIVE_MAX_COUNT = 3;
@@ -20,23 +43,15 @@ constexpr uint32_t TCP_KEEPALIVE_INTERVAL  = 1000;   // ms
 constexpr uint32_t TCP_TIME_WAIT_TIMEOUT = 10000;    // ms (scaled-down 2*MSL)
 
 constexpr uint16_t TCP_DEFAULT_PEER_MSS = 536;   // RFC 1122 default when no MSS option
-constexpr uint16_t TCP_OUR_MSS          = 1460;  // advertised in SYN|ACK
+constexpr uint16_t TCP_OUR_MSS          = 1460;  // advertised in SYN and SYN|ACK
 
 constexpr uint8_t  TCP_RETRANSMISSION_MAX_COUNT = 3;
 constexpr uint32_t TCP_RETRANSMIT_TIMEOUT = 2500;    // ms
+constexpr uint32_t TCP_PERSIST_MIN_MS     = 1000;    // zero-window probe, doubling...
+constexpr uint32_t TCP_PERSIST_MAX_MS     = 30000;   // ...up to this
 constexpr uint16_t TCP_TEMPLATE_FRAME_LEN = 54;      // 14 (ETH) + 20 (IP) + 20 (TCP)
 
-constexpr uint32_t TCP_LAST_ACK_WAIT_TO_CLOSE = 5000;
-
-// TX sliding window: up to TCP_TX_QUEUE_SLOTS segments in flight,
-// each carrying at most TCP_TX_SLOT_LEN payload bytes
-constexpr uint8_t  TCP_TX_QUEUE_SLOTS = 3;
-constexpr uint16_t TCP_TX_SLOT_LEN    = 1200;
-
 constexpr uint16_t TCP_EPHEMERAL_BASE = 49152;  // RFC 6335 dynamic range for our client ports
-
-constexpr uint16_t SOCKET_RX_BUFF_LEN = 5120;
-constexpr uint16_t SOCKET_TX_BUFF_LEN = TCP_TX_QUEUE_SLOTS * TCP_TX_SLOT_LEN;
 
 constexpr uint8_t TCP_FIN = 0x01;
 constexpr uint8_t TCP_SYN = 0x02;
@@ -57,63 +72,48 @@ enum class tcp_state_t : uint8_t {
 };
 
 /**
- * @brief One in-flight TX segment (payload lives in socket_tx_buff slot)
- */
-struct tcp_tx_seg_t {
-	uint32_t seq;        // first sequence number of the segment
-	uint32_t sent_at;    // tick of the last (re)transmission
-	uint16_t len;        // payload length (0 for control segments)
-	uint8_t retries;     // retransmission attempts so far
-	uint8_t flags;       // TCP flags to rebuild the header
-	uint8_t opts[4];     // TCP options (SYN|ACK carries MSS)
-	uint8_t opts_len;
-	bool used;
-};
-
-/**
- * @brief TCP connection structure
+ * @brief TCP connection control block
  *
- * Optimized memory layout:
- * - 32-bit fields grouped together (minimizes padding)
- * - 16-bit fields grouped together
- * - 8-bit fields grouped together
- * - Large buffers at the end
- * - Frequently accessed fields at the beginning
+ * Send side as in RFC 793: the TX FIFO holds every byte from snd_unack on
+ * (sent-but-unacked, then not-yet-sent); tcp_my_seq is snd_nxt. SYN and FIN
+ * occupy sequence numbers but no FIFO bytes.
+ *
+ * "client" is the remote end and "server_port" our local port, whichever
+ * side opened the connection (the names predate active open).
  */
-// "client" is the remote end and "server_port" our local port, whichever
-// side opened the connection (the names predate active open).
 struct tcp_conn_t {
 	// === 32-bit fields (sequence numbers, timers, IP) ===
 	uint32_t client_ip;           // Client IP address (network byte order)
-	uint32_t tcp_my_seq;          // Our sequence number
-	uint32_t tcp_client_seq;      // Client's sequence number
+	uint32_t tcp_my_seq;          // snd_nxt: next sequence number to send
+	uint32_t tcp_client_seq;      // Client's initial sequence number
 	uint32_t rcv_next;            // Expected next receive sequence number
-	uint32_t snd_unack;           // Sent but not acknowledged sequence number
+	uint32_t snd_unack;           // snd_una: oldest unacknowledged sequence number
 	uint32_t last_activity;       // Last packet activity timestamp
 	uint32_t last_keepalive;      // Last keepalive sent timestamp
-	
-	// === 16-bit fields (ports, windows, buffer positions) ===
+	uint32_t rtx_at;              // when the oldest unacked data/SYN/FIN was (re)sent
+	uint32_t persist_at;          // next zero-window probe
+	uint32_t persist_ms;          // current probe interval (backoff)
+
+	// === data streams on the shared pool ===
+	tcp_fifo_t rx;                // received, not yet read by the application
+	tcp_fifo_t tx;                // from snd_unack on: in flight, then unsent
+
+	// === 16-bit fields (ports, windows) ===
 	uint16_t client_port;         // Client port number
 	uint16_t server_port;         // Server port number
-	uint16_t window_size;         // Our receive window size
+	uint16_t window_size;         // Our receive window size (last advertised)
 	uint16_t client_window;       // Client's advertised window size
 	uint16_t peer_mss;            // Peer's MSS from SYN option (or default)
-	uint16_t rx_head;             // RX ring: write position
-	uint16_t rx_tail;             // RX ring: read position
-	uint16_t rx_count;            // RX ring: bytes buffered
-
-	// === TX sliding window ===
-	tcp_tx_seg_t tx_queue[TCP_TX_QUEUE_SLOTS];  // in-flight segment metadata
 
 	// === 8-bit fields and small arrays ===
 	uint8_t socket_tag;           // Connection identifier/index
 	uint8_t keep_alive_count;     // Keepalive probe count
+	uint8_t rtx_retries;          // retransmissions of the oldest unacked
 	uint8_t client_mac[MAC_ADDR_LEN];  // Client MAC address
 	tcp_state_t state;            // Current TCP state
-	
-	// === Large buffers (at end to minimize struct size impact) ===
-	uint8_t socket_rx_buff[SOCKET_RX_BUFF_LEN];  // Receive ring buffer
-	uint8_t socket_tx_buff[SOCKET_TX_BUFF_LEN];  // TX slot arena (payloads)
+	bool active_open;             // we connected (may use the reserves)
+	bool fin_pending;             // close requested: FIN goes after the data
+	bool fin_sent;                // our FIN is out (its number is tcp_my_seq - 1)
 };
 
 #pragma pack(push,1)
@@ -187,6 +187,9 @@ void NET_TCP_Close(tcp_conn_t *conn);
 // Hard close: RST to the peer, slot released at once
 void NET_TCP_Abort(tcp_conn_t *conn);
 
+// Queue data for sending: up to the connection's TX share and what the pool
+// allows. Returns the bytes taken (0 = buffer full: call again after ACKs),
+// -1 if not connected. Segments go out as the peer's window permits.
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
 
 // Received-data access: bytes buffered / consume up to maxlen bytes.

@@ -202,3 +202,35 @@ TEST_CASE("TCP connect: Close in SYN_SENT aborts") {
 	NET_TCP_Close(c);
 	CHECK_FALSE(NET_TCP_IsOpen(c, port));
 }
+
+TEST_CASE("TCP connect: the reserves keep our own connections possible") {
+	connect_setup();
+	constexpr uint16_t LPORT = 5001;
+	NET_TCP_Listen(LPORT);
+	// Incoming connections take every control block they may...
+	uint16_t passive = 0;
+	for (uint16_t p = 30000; ; p++) {
+		inject_tcp(p, LPORT, 1000, 0, TCP_SYN);
+		if (find_conn(p) == nullptr) break;
+		inject_tcp(p, LPORT, 1001, TEST_ISN + 1, TCP_ACK);
+		passive++;
+	}
+	CHECK(passive == TCP_MAX_CONNECTIONS - TCP_TCB_RESERVE);
+	// ...and all the pool they may: fill each RX share until the window closes
+	static uint8_t chunk[1024];
+	for (uint16_t p = 30000; p < 30000 + passive; p++) {
+		tcp_conn_t *c = find_conn(p);
+		for (int i = 0; i < 16 && tcpbuf::room(c->rx, TCP_CONN_RX_BLOCKS, TCP_POOL_RESERVE_BLOCKS) > 0; i++) {
+			inject_tcp(p, LPORT, 1001 + NET_TCP_Available(c), TEST_ISN + 1, TCP_ACK, chunk, sizeof(chunk));
+		}
+	}
+	CHECK(tcpbuf::free_blocks() == TCP_POOL_RESERVE_BLOCKS);
+
+	// Our own connection still gets a control block and buffer space
+	g_tx_frames.clear();
+	tcp_conn_t *c = establish();
+	CHECK(c->active_open);
+	CHECK(c->window_size == TCP_POOL_RESERVE_BLOCKS * TCP_BLOCK_SIZE);   // the reserve
+	const uint8_t msg[] = { 'h', 'i' };
+	CHECK(NET_TCP_SendUser(c, msg, sizeof(msg)) == sizeof(msg));
+}

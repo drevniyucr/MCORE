@@ -61,7 +61,7 @@ TEST_CASE("RX lengths: TCP header longer than the IP payload is dropped") {
 	// code computed 20 - 60 = 65496 payload bytes and copied 5120 of memory
 	ipv4_frame f = bogus_tcp(buf, 1001, c->tcp_my_seq, TCP_ACK | TCP_PSH, 60, 20);
 	NET_ProcessTCP(&f);
-	CHECK(c->rx_count == 0);
+	CHECK(NET_TCP_Available(c) == 0);
 	CHECK(c->rcv_next == 1001);
 	CHECK(g_tx_frames.empty());                    // no ACK, no RST to a forged segment
 }
@@ -83,7 +83,7 @@ TEST_CASE("RX lengths: TCP shorter than its minimal header is dropped") {
 	static uint8_t buf[ETH_MAX_PACKET_SIZE];
 	ipv4_frame f = bogus_tcp(buf, 1001, c->tcp_my_seq, TCP_ACK | TCP_PSH, 20, 12);
 	NET_ProcessTCP(&f);
-	CHECK(c->rx_count == 0);
+	CHECK(NET_TCP_Available(c) == 0);
 	CHECK(g_tx_frames.empty());
 }
 

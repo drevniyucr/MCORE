@@ -25,11 +25,13 @@ add_executable(net_tests
     test_tcp_connect.cpp
     test_ntp.cpp
     test_rx_lengths.cpp
+    test_tcp_buf.cpp
     # Real stack sources under test (system.cpp/eth.cpp are NOT linked —
     # their symbols are provided by stubs.cpp)
     ${MCORE_ROOT}/mcore/net/eth_utils.cpp
     ${MCORE_ROOT}/mcore/net/net.cpp
     ${MCORE_ROOT}/mcore/net/tcp.cpp
+    ${MCORE_ROOT}/mcore/net/tcp_buf.cpp
     ${MCORE_ROOT}/mcore/net/dhcp.cpp
     ${MCORE_ROOT}/mcore/net/arp.cpp
     ${MCORE_ROOT}/mcore/net/dns.cpp

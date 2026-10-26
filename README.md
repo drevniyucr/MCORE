@@ -63,11 +63,29 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 Hand-written ARP / ICMP / UDP / **TCP** on top of the own ETH DMA driver. No lwIP.
 
 The TCP server supports: listening ports (`NET_TCP_Listen`, multiple clients
-per port), MSS negotiation, a receive ring buffer with a socket-style read API
-(`NET_TCP_Read` / `NET_TCP_Available`, window reopens as data is consumed),
-sliding-window transmit (up to 3 segments in flight, MSS-sized segmentation,
-per-segment retransmission), keepalive probing, in-sequence RST validation,
-active/passive close with TIME_WAIT, up to 10 simultaneous connections.
+per port), MSS negotiation, a socket-style read API (`NET_TCP_Read` /
+`NET_TCP_Available`, window reopens as data is consumed), stream transmit
+(`NET_TCP_SendUser` queues bytes, segments go out as the peer's window allows,
+retransmission from the oldest unacked byte, zero-window probing with backoff),
+keepalive probing, in-sequence RST validation, active/passive close with
+TIME_WAIT (our FIN follows the queued data).
+
+**Memory, not a connection count, is the limit** (`net/tcp_buf`). A connection
+is a ~96-byte control block (64 of them); its send and receive data live in
+byte FIFOs built from one shared pool of 192 × 512-byte blocks (96 KB). An idle
+connection holds no block; when the pool runs low the receive window closes and
+unsent data waits — TCP flow control instead of errors. On top of that:
+
+| Rule | Value | Why |
+|---|---|---|
+| Per-connection share | 16 KB RX + 16 KB TX | one busy peer cannot take the whole pool |
+| Half-open (`SYN_RCVD`) | ≤ 8, the oldest is evicted | a SYN flood cannot fill the table |
+| Reserve for our own connections | 4 control blocks + 8 KB of pool | incoming traffic cannot lock out MQTT/TLS |
+
+Checked on the board: 70 incoming connections pushing data the application never
+reads — 59 accepted (64 − 4 reserved − 1 MQTT), the rest refused with RST, the
+pool filled to exactly 96 − 8 KB, while MQTT over TLS kept publishing every
+second and answering commands.
 
 **DHCP client** (RFC 2131): DISCOVER/OFFER/REQUEST/ACK with exponential
 backoff, lease renewal at T1 (unicast) and rebinding at T2 (broadcast),
@@ -225,7 +243,8 @@ minitest suite of the shared MQTT client, C11).
 
 Covered scenarios include the TCP three-way handshake, in-order/out-of-order
 data, passive close, RST handling, retransmission with controlled time,
-keepalive probing, connection-table exhaustion, the TCP active open
+keepalive probing, the block pool (window closing, per-connection shares,
+reserves for active opens), SYN-flood eviction, zero-window probing, the TCP active open
 (SYN_SENT, refusal, SYN retransmission), ARP, DNS and SNTP. Tests also run in CI on
 every push.
 
@@ -271,7 +290,8 @@ see exactly what changes, then regenerate.
 - [x] ARP cache, gateway routing, DNS resolver
 - [x] TCP client (active open), NetClient, TLS 1.2 (mbedTLS), MQTT 3.1.1
 - [x] SNTP client (RTC in UTC from the network)
-- [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
+- [x] TCP buffers from a shared block pool (no fixed connection limit), zero-window probing
+- [ ] TCP: out-of-order reassembly, delayed ACK
 - [x] HardFault handler with register dump (kept across the reset)
 - [x] Split framework / board / application layers
 - [x] Register header generated from SVD + core XML + patches, checked in CI

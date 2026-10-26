@@ -1,6 +1,7 @@
 /*
- * tcp.cpp — TCP: connection table, FSM (passive and active open),
- *           sliding-window TX, RX ring
+ * tcp.cpp — TCP: connection table, FSM (passive and active open), send and
+ *           receive streams on the shared block pool, retransmission,
+ *           zero-window probing, admission control
  *
  *  Created on: Sep 28, 2025
  *      Author: AkimovMA
@@ -8,6 +9,7 @@
 #include <cstddef>
 #include <cstring>
 #include "net/tcp.hpp"
+#include "net/tcp_buf.hpp"
 #include "net/net.hpp"
 #include "core/system.hpp"
 #include "net/eth_utils.hpp"
@@ -52,8 +54,8 @@ uint8_t TCPsendFrameTemplate[TCP_TEMPLATE_FRAME_LEN] = {
 namespace {
 	// Constants for TCP processing
 	constexpr uint16_t TCP_MIN_HDR_LEN = 20;  // Minimum TCP header length
-	constexpr uint16_t TCP_MAX_HDR_LEN = 60;  // Maximum TCP header length
 	constexpr uint32_t TCP_MAX_WINDOW = 65535U;  // Maximum TCP window size
+	constexpr uint16_t TCP_MAX_SEG_DATA = ETH_MAX_PACKET_SIZE - ETH_HDR_LEN - IP_HDR_LEN - TCP_HDR_LEN;
 
 	// Serial (mod 2^32) sequence-number comparison, robust across wrap
 	inline bool seq_gt(uint32_t a, uint32_t b) {
@@ -63,32 +65,13 @@ namespace {
 		return static_cast<int32_t>(a - b) <= 0;
 	}
 
-	/**
-	 * @brief Check if sequence number is within acceptable receive window
-	 * 
-	 * @param seq Sequence number to check
-	 * @param rcv_next Expected next sequence number
-	 * @param window_size Receive window size
-	 * @return true if sequence is acceptable, false otherwise
-	 */
+	// Only the next expected segment is taken (no out-of-order reassembly yet)
 	inline bool is_seq_acceptable(uint32_t seq, uint32_t rcv_next) {
-	//inline bool is_seq_acceptable(uint32_t seq, uint32_t rcv_next, uint16_t window_size) {
-		// Accept sequence if it's the next expected or within window
-		// For simplicity, only accept in-order packets (rcv_next)
-		// TODO: Implement proper sliding window for out-of-order packets
 		return (seq == rcv_next);
 	}
-	
-	/**
-	 * @brief Check if ACK number is within acceptable range
-	 * 
-	 * @param ack ACK number to check
-	 * @param snd_unack Oldest unacknowledged sequence
-	 * @param tcp_my_seq Next sequence to send
-	 * @return true if ACK is acceptable, false otherwise
-	 */
+
+	// ACK must cover something unacknowledged and nothing we never sent
 	inline bool is_ack_acceptable(uint32_t ack, uint32_t snd_unack, uint32_t tcp_my_seq) {
-		// ACK must be greater than oldest unacknowledged and <= next to send
 		return seq_gt(ack, snd_unack) && seq_lte(ack, tcp_my_seq);
 	}
 
@@ -123,6 +106,10 @@ namespace {
 		}
 		return TCP_DEFAULT_PEER_MSS;
 	}
+
+	const uint8_t MSS_OPTION[4] = { 2, 4,
+			static_cast<uint8_t>(TCP_OUR_MSS >> 8),
+			static_cast<uint8_t>(TCP_OUR_MSS & 0xFF) };
 }
 
 tcp_conn_t tcp_clients[TCP_MAX_CONNECTIONS] = { };
@@ -140,11 +127,31 @@ uint8_t **ppTxBuff = nullptr;
 uint16_t listen_ports[TCP_MAX_LISTEN_PORTS] = { };
 
 uint16_t next_ephemeral = 0;   // 0 = not seeded yet
+
+// Pool blocks a connection must leave free: incoming ones keep the reserve
+// for the connections we open ourselves
+uint16_t keep_free(const tcp_conn_t *c) {
+	return c->active_open ? 0 : TCP_POOL_RESERVE_BLOCKS;
+}
+
+// What we can promise to receive right now (the advertised window)
+uint16_t rx_window(const tcp_conn_t *c) {
+	const uint32_t room = tcpbuf::room(c->rx, TCP_CONN_RX_BLOCKS, keep_free(c));
+	return static_cast<uint16_t>(room > TCP_MAX_WINDOW ? TCP_MAX_WINDOW : room);
+}
+
+// Largest payload per segment towards this peer
+uint16_t send_mss(const tcp_conn_t *c) {
+	uint16_t mss = (c->peer_mss != 0) ? c->peer_mss : TCP_DEFAULT_PEER_MSS;
+	if (mss > TCP_OUR_MSS) mss = TCP_OUR_MSS;
+	return mss;
+}
 } // namespace
 
 void NET_TCP_Init() {
 	memset(tcp_clients, 0, sizeof(tcp_clients));
 	memset(listen_ports, 0, sizeof(listen_ports));
+	tcpbuf::init();
 	free_top = 0;
 	active_conn = 0;
 	ppTxBuff = &TxDescList.pBuff;
@@ -188,18 +195,25 @@ static bool NET_TCP_IsListening(uint16_t port) {
 	return false;
 }
 
-int NET_TCP_ClientAdd() {
-	if (free_top != 0 && active_conn < TCP_MAX_CONNECTIONS) {
-		uint8_t i = free_list[--free_top];
-		active_list[active_conn++] = i; // добавляем в список активных
-		print("Added TCP client %d\n", i);
-		return i;
+// A free control block. Incoming connections (active == false) cannot take
+// the last TCP_TCB_RESERVE: those are kept for the ones we open ourselves.
+static int tcb_alloc(bool active) {
+	if (free_top == 0 || (!active && free_top <= TCP_TCB_RESERVE)) {
+		return -1;
 	}
-	return -1;
+	const uint8_t i = free_list[--free_top];
+	active_list[active_conn++] = i;
+	memset(&tcp_clients[i], 0, sizeof(tcp_conn_t));
+	tcp_clients[i].socket_tag = i;
+	tcp_clients[i].active_open = active;
+	return i;
+}
+
+int NET_TCP_ClientAdd() {
+	return tcb_alloc(false);
 }
 
 void NET_TCP_ClientRemove(uint8_t idx) {
-	// удаляем из active_list
 	for (int j = 0; j < active_conn; j++) {
 		if (active_list[j] == idx) {
 			if (j != active_conn - 1) {
@@ -207,29 +221,21 @@ void NET_TCP_ClientRemove(uint8_t idx) {
 			} else {
 				active_conn--;
 			}
+			tcpbuf::clear(tcp_clients[idx].rx);    // blocks back to the pool
+			tcpbuf::clear(tcp_clients[idx].tx);
 			memset(&tcp_clients[idx], 0, sizeof(tcp_conn_t));
 			free_list[free_top++] = idx;
-			print("Removed TCP client %d\n", idx);
 			break;
 		}
 	}
 }
 
 /**
- * @brief Find TCP connection by IP and port (optimized lookup)
- * 
- * @param client_ip Client IP address
- * @param client_port Client port
- * @param server_port Server port
- * @return Pointer to connection or NULL if not found
+ * @brief Find TCP connection by IP and port
  */
 static tcp_conn_t* NET_TCP_FindConnection(uint32_t client_ip, uint16_t client_port, uint16_t server_port) {
-	// Linear search through active connections
-	// TODO: Could be optimized with hash table for many connections
 	for (int i = 0; i < active_conn; i++) {
-		uint8_t idx = active_list[i];
-		tcp_conn_t* conn = &tcp_clients[idx];
-		
+		tcp_conn_t* conn = &tcp_clients[active_list[i]];
 		if (conn->client_ip == client_ip &&
 		    conn->client_port == client_port &&
 		    conn->server_port == server_port) {
@@ -239,15 +245,30 @@ static tcp_conn_t* NET_TCP_FindConnection(uint32_t client_ip, uint16_t client_po
 	return nullptr;
 }
 
+// SYN flood protection: with TCP_MAX_HALF_OPEN connections in SYN_RCVD,
+// the oldest one makes room (silently: it is likely a spoofed source)
+static void evict_half_open_if_full() {
+	uint8_t half_open = 0;
+	tcp_conn_t *oldest = nullptr;
+	for (int i = 0; i < active_conn; i++) {
+		tcp_conn_t *c = &tcp_clients[active_list[i]];
+		if (c->state == tcp_state_t::TCP_SYN_RCVD) {
+			half_open++;
+			if (oldest == nullptr || seq_gt(oldest->last_activity, c->last_activity)) {
+				oldest = c;
+			}
+		}
+	}
+	if (half_open >= TCP_MAX_HALF_OPEN && oldest != nullptr) {
+		NET_TCP_ClientRemove(oldest->socket_tag);
+	}
+}
+
 /**
  * @brief Send TCP RST frame without creating connection
- * 
- * Optimized frame construction with error handling
  */
 void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 		uint32_t seq, uint32_t ack, uint8_t flags) {
-	
-	// Check TX buffer availability before constructing frame
 	if (!ETH_IsTxBufferAvailable()) {
 		return;  // TX queue full, drop RST
 	}
@@ -257,17 +278,10 @@ void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 	ip_hdr_t *ip = reinterpret_cast<ip_hdr_t*>(tx_buf + ETH_HDR_LEN);
 	tcp_hdr_t *tcp = reinterpret_cast<tcp_hdr_t*>(tx_buf + ETH_HDR_LEN + IP_HDR_LEN);
 
-	// Copy template (only Ethernet + IP headers, TCP will be filled)
 	memcpy(eth, TCPsendFrameTemplate, TCP_TEMPLATE_FRAME_LEN);
-	
-	// Update Ethernet destination MAC
 	memcpy(eth->dst, frame->scr_mac, MAC_ADDR_LEN);
-	
-	// Update IP header
 	ip->tot_len = bswap16(IP_HDR_LEN + TCP_HDR_LEN);
 	ip->dst_ip = bswap32(BuffU8ToU32(frame->scr_addr));
-	
-	// Update TCP header
 	tcp->src_port = bswap16(src_port);
 	tcp->dst_port = bswap16(dst_port);
 	tcp->seq_num = bswap32(seq);
@@ -276,105 +290,156 @@ void NET_SendTCP_RST(ipv4_frame *frame, uint16_t src_port, uint16_t dst_port,
 	tcp->offset_reserved = 0x50;  // Data offset = 5 (20 bytes), reserved = 0
 	tcp->window = 0;
 	tcp->urgent_ptr = 0;
-	// Checksum will be calculated by hardware if enabled
+	// Checksum is inserted by the MAC
 
-	// Send frame - check return value
-	if (!ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN)) {
-		// TX failed - frame dropped
-	}
+	ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN);
 }
 
 // ==========================
-// TX sliding window helpers
+// Frame building
 // ==========================
 
-// Payload storage of a slot inside the connection's TX arena
-static uint8_t* tx_slot_payload(tcp_conn_t *conn, const tcp_tx_seg_t *seg) {
-	const ptrdiff_t idx = seg - &conn->tx_queue[0];
-	return &conn->socket_tx_buff[idx * TCP_TX_SLOT_LEN];
-}
+// Headers for a segment of conn into the driver's TX buffer; returns where
+// the payload goes. Advertises the current receive window.
+static uint8_t* tcp_frame(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
+		const uint8_t *opts, uint8_t opts_len, uint16_t data_len) {
+	uint8_t* tx_buf = *ppTxBuff;
+	eth_hdr_t *eth = reinterpret_cast<eth_hdr_t*>(tx_buf);
+	ip_hdr_t *ip = reinterpret_cast<ip_hdr_t*>(tx_buf + ETH_HDR_LEN);
+	tcp_hdr_t *tcp = reinterpret_cast<tcp_hdr_t*>(tx_buf + ETH_HDR_LEN + IP_HDR_LEN);
+	const uint16_t tcp_hdr_total = TCP_HDR_LEN + opts_len;
 
-static tcp_tx_seg_t* tx_slot_alloc(tcp_conn_t *conn) {
-	for (auto &seg : conn->tx_queue) {
-		if (!seg.used) {
-			return &seg;
-		}
+	conn->window_size = rx_window(conn);
+
+	memcpy(eth, TCPsendFrameTemplate, TCP_TEMPLATE_FRAME_LEN);
+	memcpy(eth->dst, conn->client_mac, MAC_ADDR_LEN);
+	ip->tot_len = bswap16(IP_HDR_LEN + tcp_hdr_total + data_len);
+	ip->dst_ip = bswap32(conn->client_ip);
+	tcp->src_port = bswap16(conn->server_port);
+	tcp->dst_port = bswap16(conn->client_port);
+	tcp->seq_num = bswap32(seq);
+	tcp->ack_num = bswap32(ack);
+	tcp->window = bswap16(conn->window_size);
+	tcp->flags = flags;
+	tcp->offset_reserved = static_cast<uint8_t>((5 + opts_len / 4) << 4);
+	tcp->urgent_ptr = 0;
+	if (opts_len > 0 && opts != nullptr) {
+		memcpy(reinterpret_cast<uint8_t*>(tcp) + TCP_HDR_LEN, opts, opts_len);
 	}
-	return nullptr;
-}
-
-// Oldest (lowest sequence) in-flight segment, nullptr if queue is empty
-static tcp_tx_seg_t* tx_oldest_unacked(tcp_conn_t *conn) {
-	tcp_tx_seg_t *oldest = nullptr;
-	for (auto &seg : conn->tx_queue) {
-		if (seg.used && (oldest == nullptr || seq_gt(oldest->seq, seg.seq))) {
-			oldest = &seg;
-		}
-	}
-	return oldest;
-}
-
-// End sequence of a segment (SYN/FIN consume one sequence number)
-static uint32_t tx_seg_end(const tcp_tx_seg_t *seg) {
-	return seg->seq + seg->len + (((seg->flags & (TCP_SYN | TCP_FIN)) != 0) ? 1 : 0);
-}
-
-// Release every slot fully covered by the cumulative ACK
-static void tx_release_acked(tcp_conn_t *conn, uint32_t ack) {
-	for (auto &seg : conn->tx_queue) {
-		if (seg.used && seq_lte(tx_seg_end(&seg), ack)) {
-			seg.used = false;
-		}
-	}
-}
-
-// Rebuild and resend one saved segment (header is reconstructed,
-// payload comes from the slot arena)
-static void tx_retransmit_slot(tcp_conn_t *conn, tcp_tx_seg_t *seg) {
-	if (!ETH_IsTxBufferAvailable()) {
-		return;  // TX queue full; the timer will retry
-	}
-	NET_SendTCP(conn, seg->seq, conn->rcv_next, seg->flags,
-				(seg->len > 0) ? tx_slot_payload(conn, seg) : nullptr, seg->len,
-				(seg->opts_len > 0) ? seg->opts : nullptr, seg->opts_len);
+	return reinterpret_cast<uint8_t*>(tcp) + tcp_hdr_total;
 }
 
 /**
- * @brief Send a segment and keep it in the TX queue until ACKed
- *
- * Advances tcp_my_seq by the consumed sequence space.
- * @return true if the segment was queued and handed to the driver
+ * @brief Send one TCP segment with an explicit payload
  */
-static bool NET_TCP_EnqueueSegment(tcp_conn_t *conn, uint8_t flags,
+void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
 		const uint8_t *data, uint16_t data_len,
-		const uint8_t *opts = nullptr, uint8_t opts_len = 0) {
-	if (data_len > TCP_TX_SLOT_LEN || opts_len > sizeof(tcp_tx_seg_t::opts)) {
-		return false;
+		const uint8_t *opts, uint8_t opts_len) {
+	// Options must keep the header 32-bit aligned
+	if ((opts_len & 0x3) != 0 || opts_len > 40 ||
+	    data_len > TCP_MAX_SEG_DATA - opts_len) {
+		return;
 	}
-	tcp_tx_seg_t *seg = tx_slot_alloc(conn);
-	if (seg == nullptr || !ETH_IsTxBufferAvailable()) {
-		return false;
+	uint8_t *payload = tcp_frame(conn, seq, ack, flags, opts, opts_len, data_len);
+	if (data_len > 0 && data != nullptr) {
+		memcpy(payload, data, data_len);
 	}
-
-	seg->seq = conn->tcp_my_seq;
-	seg->len = data_len;
-	seg->flags = flags;
-	seg->retries = 0;
-	seg->sent_at = get_tick();
-	seg->opts_len = opts_len;
-	if (opts_len > 0) {
-		memcpy(seg->opts, opts, opts_len);
-	}
-	if (data_len > 0) {
-		memcpy(tx_slot_payload(conn, seg), data, data_len);
-	}
-	seg->used = true;
-
-	NET_SendTCP(conn, seg->seq, conn->rcv_next, flags, data, data_len,
-				opts, opts_len);
-	conn->tcp_my_seq = tx_seg_end(seg);
-	return true;
+	ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN + opts_len + data_len);
 }
+
+// A data segment straight from the TX FIFO: bytes at `offset` past snd_unack
+static void send_from_tx(tcp_conn_t *conn, uint32_t seq, uint32_t offset, uint16_t len, uint8_t flags) {
+	uint8_t *payload = tcp_frame(conn, seq, conn->rcv_next, flags, nullptr, 0, len);
+	tcpbuf::peek(conn->tx, offset, payload, len);
+	ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN + len);
+}
+
+// SYN (active open) or SYN|ACK (passive) with our MSS, at the ISN
+static void send_syn(tcp_conn_t *conn) {
+	const bool passive = conn->state == tcp_state_t::TCP_SYN_RCVD;
+	NET_SendTCP(conn, conn->snd_unack, passive ? conn->rcv_next : 0,
+	            passive ? (TCP_SYN | TCP_ACK) : TCP_SYN,
+	            nullptr, 0, MSS_OPTION, sizeof(MSS_OPTION));
+}
+
+// ==========================
+// Send side
+// ==========================
+
+// Send what the peer's window allows, then our FIN once every byte is out.
+static void tcp_output(tcp_conn_t *conn) {
+	const bool draining = (conn->state == tcp_state_t::TCP_FIN_WAIT_1 ||
+	                       conn->state == tcp_state_t::TCP_LAST_ACK) && !conn->fin_sent;
+	if (conn->state != tcp_state_t::TCP_ESTABLISHED && !draining) {
+		return;
+	}
+	const uint16_t mss = send_mss(conn);
+	while (true) {
+		const uint32_t in_flight = conn->tcp_my_seq - conn->snd_unack;
+		if (in_flight >= conn->tx.count || in_flight >= conn->client_window) {
+			break;                                  // all sent, or window full
+		}
+		uint32_t len = conn->tx.count - in_flight;
+		if (len > mss) len = mss;
+		if (len > conn->client_window - in_flight) len = conn->client_window - in_flight;
+		if (!ETH_IsTxBufferAvailable()) {
+			break;                                  // driver busy: NET_TCP_Timers retries
+		}
+		if (in_flight == 0) {
+			conn->rtx_at = get_tick();             // first byte in flight starts the clock
+			conn->rtx_retries = 0;
+		}
+		send_from_tx(conn, conn->tcp_my_seq, in_flight, static_cast<uint16_t>(len), TCP_ACK | TCP_PSH);
+		conn->tcp_my_seq += len;
+	}
+	if (conn->fin_pending && !conn->fin_sent &&
+	    conn->tcp_my_seq - conn->snd_unack == conn->tx.count && ETH_IsTxBufferAvailable()) {
+		if (conn->tcp_my_seq == conn->snd_unack) {
+			conn->rtx_at = get_tick();
+			conn->rtx_retries = 0;
+		}
+		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_FIN | TCP_ACK, nullptr, 0);
+		conn->tcp_my_seq += 1;                     // FIN consumes one number
+		conn->fin_sent = true;
+	}
+}
+
+// Cumulative ACK: drop acknowledged bytes, restart the retransmission clock
+static void tcp_ack_received(tcp_conn_t *conn, uint32_t ack) {
+	if (!is_ack_acceptable(ack, conn->snd_unack, conn->tcp_my_seq)) {
+		return;                                     // old duplicate or beyond snd_nxt
+	}
+	const uint32_t acked = ack - conn->snd_unack;
+	// SYN and FIN take a sequence number but no FIFO byte
+	tcpbuf::pop(conn->tx, nullptr, acked < conn->tx.count ? acked : conn->tx.count);
+	conn->snd_unack = ack;
+	conn->rtx_at = get_tick();
+	conn->rtx_retries = 0;
+}
+
+// Resend the oldest unacknowledged thing: SYN, SYN|ACK, data or FIN
+static void retransmit_oldest(tcp_conn_t *conn) {
+	if (!ETH_IsTxBufferAvailable()) {
+		return;                                     // the timer will retry
+	}
+	if (conn->state == tcp_state_t::TCP_SYN_SENT || conn->state == tcp_state_t::TCP_SYN_RCVD) {
+		send_syn(conn);
+		return;
+	}
+	uint32_t data = conn->tcp_my_seq - conn->snd_unack;
+	if (data > conn->tx.count) data = conn->tx.count;   // minus a FIN in flight
+	if (data > 0) {
+		const uint16_t mss = send_mss(conn);
+		send_from_tx(conn, conn->snd_unack, 0, static_cast<uint16_t>(data > mss ? mss : data),
+		             TCP_ACK | TCP_PSH);
+	} else if (conn->fin_sent) {
+		NET_SendTCP(conn, conn->tcp_my_seq - 1, conn->rcv_next, TCP_FIN | TCP_ACK, nullptr, 0);
+	}
+}
+
+// ==========================
+// Active open
+// ==========================
 
 static bool local_port_in_use(uint16_t port) {
 	for (int i = 0; i < active_conn; i++) {
@@ -413,34 +478,30 @@ net_result_t NET_TCP_Connect(const uint8_t *ip, uint16_t port, tcp_conn_t **out)
 	if (arp != net_result_t::OK) {
 		return arp;                                // PENDING: ask again later
 	}
+	if (!ETH_IsTxBufferAvailable()) {
+		return net_result_t::PENDING;              // TX path busy right now
+	}
 	const uint16_t local_port = alloc_ephemeral_port();
-	const int num = (local_port != 0) ? NET_TCP_ClientAdd() : -1;
+	const int num = (local_port != 0) ? tcb_alloc(true) : -1;
 	if (num < 0) {
 		return net_result_t::UNREACHABLE;          // no free connection slot
 	}
 
 	tcp_conn_t *conn = &tcp_clients[num];
-	conn->socket_tag = static_cast<uint8_t>(num);
 	conn->client_ip = BuffU8ToU32(ip);             // same byte order as the RX path
 	memcpy(conn->client_mac, mac, MAC_ADDR_LEN);
 	conn->client_port = port;
 	conn->server_port = local_port;
-	conn->window_size = SOCKET_RX_BUFF_LEN;
 	conn->peer_mss = TCP_DEFAULT_PEER_MSS;         // until the SYN|ACK says otherwise
-	conn->tcp_my_seq = NET_Entropy();
-	conn->snd_unack = conn->tcp_my_seq;
+	conn->snd_unack = NET_Entropy();               // ISN
 	conn->last_activity = get_tick();
 	conn->state = tcp_state_t::TCP_SYN_SENT;
 
-	// SYN with our MSS, kept in the TX queue: the timers retransmit it and
-	// give up (RST + close) after TCP_RETRANSMISSION_MAX_COUNT attempts
-	const uint8_t mss_opt[4] = { 2, 4,
-			static_cast<uint8_t>(TCP_OUR_MSS >> 8),
-			static_cast<uint8_t>(TCP_OUR_MSS & 0xFF) };
-	if (!NET_TCP_EnqueueSegment(conn, TCP_SYN, nullptr, 0, mss_opt, sizeof(mss_opt))) {
-		NET_TCP_ClientRemove(conn->socket_tag);
-		return net_result_t::PENDING;              // TX path busy right now
-	}
+	// SYN with our MSS; the timers retransmit it and give up (RST + close)
+	// after TCP_RETRANSMISSION_MAX_COUNT attempts
+	send_syn(conn);
+	conn->tcp_my_seq = conn->snd_unack + 1;
+	conn->rtx_at = get_tick();
 	*out = conn;
 	return net_result_t::OK;
 }
@@ -473,8 +534,7 @@ static void tcp_syn_sent(tcp_conn_t *conn, ipv4_frame *frame, const tcp_hdr_t *t
 		conn->rcv_next = seq + 1;                  // their SYN consumes one number
 		conn->client_window = bswap16(tcp->window);
 		conn->peer_mss = parse_mss_option(tcp);
-		conn->snd_unack = ack;
-		tx_release_acked(conn, ack);
+		tcp_ack_received(conn, ack);
 		conn->last_activity = get_tick();
 		conn->keep_alive_count = 0;
 		conn->state = tcp_state_t::TCP_ESTABLISHED;
@@ -482,131 +542,80 @@ static void tcp_syn_sent(tcp_conn_t *conn, ipv4_frame *frame, const tcp_hdr_t *t
 	}
 }
 
-/**
- * @brief Send TCP frame on established socket
- * 
- * Optimized frame construction with proper error handling
- */
-void NET_SendTCP(tcp_conn_t *conn, uint32_t seq, uint32_t ack, uint8_t flags,
-		const uint8_t *data, uint16_t data_len,
-		const uint8_t *opts, uint8_t opts_len) {
-
-	// Options must keep the header 32-bit aligned
-	if ((opts_len & 0x3) != 0 || opts_len > 40) {
-		return;
-	}
-
-	// Validate data length
-	if (data_len > (ETH_MAX_PACKET_SIZE - ETH_HDR_LEN - IP_HDR_LEN - TCP_HDR_LEN - opts_len)) {
-		return;  // Frame too large
-	}
-
-	const uint16_t tcp_hdr_total = TCP_HDR_LEN + opts_len;
-
-	uint8_t* tx_buf = *ppTxBuff;
-	eth_hdr_t *eth = reinterpret_cast<eth_hdr_t*>(tx_buf);
-	ip_hdr_t *ip = reinterpret_cast<ip_hdr_t*>(tx_buf + ETH_HDR_LEN);
-	tcp_hdr_t *tcp = reinterpret_cast<tcp_hdr_t*>(tx_buf + ETH_HDR_LEN + IP_HDR_LEN);
-
-	// Copy template
-	memcpy(eth, TCPsendFrameTemplate, TCP_TEMPLATE_FRAME_LEN);
-
-	// Update Ethernet destination MAC
-	memcpy(eth->dst, conn->client_mac, MAC_ADDR_LEN);
-
-	// Update IP header
-	ip->tot_len = bswap16(IP_HDR_LEN + tcp_hdr_total + data_len);
-	ip->dst_ip = bswap32(conn->client_ip);
-
-	// Update TCP header
-	tcp->src_port = bswap16(conn->server_port);
-	tcp->dst_port = bswap16(conn->client_port);
-	tcp->seq_num = bswap32(seq);
-	tcp->ack_num = bswap32(ack);
-	tcp->window = bswap16(conn->window_size);
-	tcp->flags = flags;
-	tcp->offset_reserved = static_cast<uint8_t>((5 + opts_len / 4) << 4);
-	tcp->urgent_ptr = 0;
-
-	// Copy options if present
-	if (opts_len > 0 && opts != nullptr) {
-		memcpy(reinterpret_cast<uint8_t*>(tcp) + TCP_HDR_LEN, opts, opts_len);
-	}
-
-	// Copy payload if present
-	if (data_len > 0 && data != nullptr) {
-		memcpy(reinterpret_cast<uint8_t*>(tcp) + tcp_hdr_total, data, data_len);
-	}
-
-	// Send frame (retransmission bookkeeping is the TX queue's job)
-	if (!ETH_SendFrame(ETH_HDR_LEN + IP_HDR_LEN + tcp_hdr_total + data_len)) {
-		// TX failed - frame dropped; queued segments will be retransmitted
-	}
-}
-
 // ==========================
-// Обработка TCP пакета
+// Timers
 // ==========================
 
 void NET_TCP_Timers() {
-	uint8_t idx;
-	tcp_conn_t *conn;
-	
-	// Process from end to beginning to allow safe removal
+	const uint32_t now = get_tick();
+
+	// From the end: removal swaps the last entry into the hole
 	for (int i = active_conn - 1; i >= 0; i--) {
-		idx = active_list[i];
-		conn = &tcp_clients[idx];
+		const uint8_t idx = active_list[i];
+		tcp_conn_t *conn = &tcp_clients[idx];
 
 		// TIME_WAIT: release the slot after 2*MSL, nothing else to do
 		if (conn->state == tcp_state_t::TCP_TIME_WAIT) {
-			if ((get_tick() - conn->last_activity) > TCP_TIME_WAIT_TIMEOUT) {
+			if ((now - conn->last_activity) > TCP_TIME_WAIT_TIMEOUT) {
 				NET_TCP_ClientRemove(idx);
 			}
 			continue;
 		}
 
-		// Retransmission: resend the oldest unacknowledged segment
-		tcp_tx_seg_t *seg = tx_oldest_unacked(conn);
-		if (seg != nullptr &&
-		    (get_tick() - seg->sent_at > TCP_RETRANSMIT_TIMEOUT)) {
-
-			if (seg->retries < TCP_RETRANSMISSION_MAX_COUNT) {
-				tx_retransmit_slot(conn, seg);
-				seg->sent_at = get_tick();
-				seg->retries++;
-			} else {
-				// Max retransmissions reached - send RST and close
-				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_RST, nullptr, 0);
+		// Retransmission of the oldest unacknowledged SYN / data / FIN
+		if (conn->snd_unack != conn->tcp_my_seq && (now - conn->rtx_at) > TCP_RETRANSMIT_TIMEOUT) {
+			if (conn->rtx_retries >= TCP_RETRANSMISSION_MAX_COUNT) {
+				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_RST, nullptr, 0);
 				NET_TCP_ClientRemove(idx);
 				continue;
 			}
+			retransmit_oldest(conn);
+			conn->rtx_at = now;
+			conn->rtx_retries++;
 		}
 
-		// Check keepalive timeout
-		if (((get_tick() - conn->last_activity) > TCP_KEEPALIVE_TIMEOUT) &&
-		    (conn->state == tcp_state_t::TCP_ESTABLISHED)) {
+		// Data that waited for the driver or the window
+		tcp_output(conn);
 
-			if ((get_tick() - conn->last_keepalive) >= TCP_KEEPALIVE_INTERVAL) {
+		// Zero-window probing (RFC 1122 4.2.2.17): the peer closed its window
+		// and we have data; without probes a lost window update stalls forever
+		const uint32_t in_flight = conn->tcp_my_seq - conn->snd_unack;
+		if (conn->state == tcp_state_t::TCP_ESTABLISHED && conn->client_window == 0 &&
+		    in_flight == 0 && conn->tx.count > 0) {
+			if (conn->persist_ms == 0) {
+				conn->persist_ms = TCP_PERSIST_MIN_MS;
+				conn->persist_at = now + TCP_PERSIST_MIN_MS;
+			} else if (static_cast<int32_t>(now - conn->persist_at) >= 0 && ETH_IsTxBufferAvailable()) {
+				send_from_tx(conn, conn->tcp_my_seq, 0, 1, TCP_ACK);   // 1 byte beyond the window
+				conn->persist_ms = (conn->persist_ms * 2 > TCP_PERSIST_MAX_MS) ? TCP_PERSIST_MAX_MS
+				                                                             : conn->persist_ms * 2;
+				conn->persist_at = now + conn->persist_ms;
+			}
+		} else {
+			conn->persist_ms = 0;
+		}
 
+		// Keepalive: probe an idle established connection, drop a dead one
+		if (((now - conn->last_activity) > TCP_KEEPALIVE_TIMEOUT) &&
+		    (conn->state == tcp_state_t::TCP_ESTABLISHED) && in_flight == 0) {
+			if ((now - conn->last_keepalive) >= TCP_KEEPALIVE_INTERVAL) {
 				if (conn->keep_alive_count >= TCP_KEEPALIVE_MAX_COUNT) {
-					// Max keepalive attempts - send RST and close
-					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-								TCP_RST, nullptr, 0);
+					NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_RST, nullptr, 0);
 					NET_TCP_ClientRemove(idx);
 					continue;
 				}
-
 				// Send keepalive (ACK with seq-1)
-				NET_SendTCP(conn, conn->tcp_my_seq - 1, conn->rcv_next,
-							TCP_ACK, nullptr, 0);
-
+				NET_SendTCP(conn, conn->tcp_my_seq - 1, conn->rcv_next, TCP_ACK, nullptr, 0);
 				conn->keep_alive_count++;
-				conn->last_keepalive = get_tick();
+				conn->last_keepalive = now;
 			}
 		}
 	}
 }
+
+// ==========================
+// Receive side
+// ==========================
 
 void NET_ProcessTCP(ipv4_frame *frame) {
 	const tcp_hdr_t *tcp = reinterpret_cast<const tcp_hdr_t*>(&frame->ip_hdr[frame->ip_hdr_len]);
@@ -617,21 +626,19 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		return;
 	}
 	const uint16_t seg_len = static_cast<uint16_t>(frame->ip_len - frame->ip_hdr_len);
-	const uint16_t hdr_len = static_cast<uint16_t>((tcp->offset_reserved >> 4) * 4);
-	if (hdr_len < TCP_MIN_HDR_LEN || hdr_len > seg_len) {
+	const uint16_t tcp_hdr_len = static_cast<uint16_t>((tcp->offset_reserved >> 4) * 4);
+	if (tcp_hdr_len < TCP_MIN_HDR_LEN || tcp_hdr_len > seg_len) {
 		return;  // malformed: drop silently, no RST to a forged segment
 	}
 
-	// Extract TCP header fields (network byte order)
-	uint8_t client_flags = tcp->flags;
-	uint16_t client_window = bswap16(tcp->window);
-	uint16_t client_port = bswap16(tcp->src_port);
-	uint16_t server_port = bswap16(tcp->dst_port);
-	uint32_t client_ip = BuffU8ToU32(frame->scr_addr);
-	uint32_t client_seq = bswap32(tcp->seq_num);
-	uint32_t client_ack = bswap32(tcp->ack_num);
+	const uint8_t client_flags = tcp->flags;
+	const uint16_t client_window = bswap16(tcp->window);
+	const uint16_t client_port = bswap16(tcp->src_port);
+	const uint16_t server_port = bswap16(tcp->dst_port);
+	const uint32_t client_ip = BuffU8ToU32(frame->scr_addr);
+	const uint32_t client_seq = bswap32(tcp->seq_num);
+	const uint32_t client_ack = bswap32(tcp->ack_num);
 
-	// Find existing connection
 	tcp_conn_t *conn = NET_TCP_FindConnection(client_ip, client_port, server_port);
 
 	// Our active open has its own rules (RST and ACK checks differ)
@@ -648,7 +655,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		return;
 	}
 
-	// Handle new connection (SYN)
+	// New connection (SYN)
 	if (!conn && (client_flags & TCP_SYN)) {
 		// Only listening ports accept connections
 		if (!NET_TCP_IsListening(server_port)) {
@@ -656,18 +663,16 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 							TCP_RST | TCP_ACK);
 			return;
 		}
-
-		int num = NET_TCP_ClientAdd();
+		evict_half_open_if_full();
+		const int num = tcb_alloc(false);
 		if (num == -1) {
-			// No free connections - send RST
+			// No control block left for incoming connections
 			NET_SendTCP_RST(frame, server_port, client_port, 0, client_seq + 1,
 							TCP_RST | TCP_ACK);
 			return;
 		}
-		
-		// Initialize new connection
+
 		conn = &tcp_clients[num];
-		conn->socket_tag = static_cast<uint8_t>(num);
 		conn->client_ip = client_ip;
 		conn->last_activity = get_tick();
 		memcpy(conn->client_mac, frame->scr_mac, MAC_ADDR_LEN);
@@ -676,19 +681,14 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		conn->tcp_client_seq = client_seq;
 		conn->rcv_next = client_seq + 1;  // SYN consumes 1 sequence number
 		conn->client_window = client_window;
-		conn->window_size = SOCKET_RX_BUFF_LEN;
 		conn->peer_mss = parse_mss_option(tcp);
-		conn->tcp_my_seq = NET_Entropy();
-		conn->snd_unack = conn->tcp_my_seq;
+		conn->snd_unack = NET_Entropy();  // ISN
 		conn->state = tcp_state_t::TCP_SYN_RCVD;
 
-		// Send SYN+ACK advertising our MSS (queued for retransmission;
-		// consumes one sequence number)
-		const uint8_t mss_opt[4] = { 2, 4,
-				static_cast<uint8_t>(TCP_OUR_MSS >> 8),
-				static_cast<uint8_t>(TCP_OUR_MSS & 0xFF) };
-		NET_TCP_EnqueueSegment(conn, TCP_SYN | TCP_ACK, nullptr, 0,
-				mss_opt, sizeof(mss_opt));
+		// SYN|ACK with our MSS (retransmitted by the timers; consumes one number)
+		send_syn(conn);
+		conn->tcp_my_seq = conn->snd_unack + 1;
+		conn->rtx_at = get_tick();
 		return;
 	}
 
@@ -701,29 +701,22 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		return;
 	}
 
-	// Update connection state
 	conn->client_window = client_window;
 
-	// Process based on connection state
 	switch (conn->state) {
 	case tcp_state_t::TCP_SYN_RCVD:
 		if (client_flags & TCP_ACK) {
 			if ((client_ack == conn->tcp_my_seq) && (client_seq == conn->rcv_next)) {
 				// ACK for SYN+ACK received - connection established
 				conn->last_activity = get_tick();
-				conn->snd_unack = client_ack;
 				conn->keep_alive_count = 0;
-				tx_release_acked(conn, client_ack);
+				tcp_ack_received(conn, client_ack);
 				conn->state = tcp_state_t::TCP_ESTABLISHED;
 			}
 		}
-
 		// Retransmit SYN+ACK if SYN received again
 		if ((client_flags & TCP_SYN) && (client_seq + 1 == conn->rcv_next)) {
-			tcp_tx_seg_t *synack = tx_oldest_unacked(conn);
-			if (synack != nullptr) {
-				tx_retransmit_slot(conn, synack);
-			}
+			retransmit_oldest(conn);
 		}
 		break;
 
@@ -731,101 +724,59 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 		conn->last_activity = get_tick();
 		conn->keep_alive_count = 0;
 
-		// Validate sequence number is acceptable (in-order packets only for now)
+		// In-order segments only for now: anything else gets a duplicate
+		// ACK with rcv_next, which helps the sender recover from a loss
 		if (!is_seq_acceptable(client_seq, conn->rcv_next)) {
-			// Out-of-order or duplicate packet - send ACK with current rcv_next
-			// This helps the sender recover from packet loss
 			if (client_flags & TCP_ACK) {
-				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_ACK, nullptr, 0);
+				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
 			}
 			break;
 		}
 
-		// 1) ACK bookkeeping first: a FIN segment normally carries an ACK
-		// too, and the TX slots it releases may be needed right below to
-		// queue our own FIN|ACK. ACKs beyond what we sent (or old
-		// duplicates) must not move snd_unack.
-		if ((client_flags & TCP_ACK) &&
-		    is_ack_acceptable(client_ack, conn->snd_unack, conn->tcp_my_seq)) {
-			conn->snd_unack = client_ack;
-			tx_release_acked(conn, client_ack);
+		// 1) ACK bookkeeping first: a FIN segment normally carries an ACK too
+		if (client_flags & TCP_ACK) {
+			tcp_ack_received(conn, client_ack);
 		}
 
-		// Extract TCP header length and validate
-		const uint16_t tcp_hdr_len = (tcp->offset_reserved >> 4) * 4;
-		if (tcp_hdr_len < TCP_MIN_HDR_LEN || tcp_hdr_len > TCP_MAX_HDR_LEN) {
-			break;  // Invalid TCP header length
-		}
-
-		// 2) Consume the payload. Data may arrive on a FIN segment too -
-		// the FIN logically FOLLOWS the data (RFC 793), so the bytes are
-		// processed the same way as on a plain data segment.
-		const uint16_t data_len = static_cast<uint16_t>(
-				frame->ip_len - frame->ip_hdr_len - tcp_hdr_len);
-		uint16_t copy_len = 0;
+		// 2) Payload into the RX stream, as far as our share of the pool goes.
+		// Data on a FIN segment logically precedes the FIN (RFC 793).
+		const uint16_t data_len = static_cast<uint16_t>(seg_len - tcp_hdr_len);
+		uint32_t copy_len = 0;
 		if (data_len > 0) {
 			const uint8_t *payload = reinterpret_cast<const uint8_t*>(tcp) + tcp_hdr_len;
-			const uint16_t free_space = SOCKET_RX_BUFF_LEN - conn->rx_count;
-
-			// Copy as much data as fits into the RX ring
-			copy_len = (data_len <= free_space) ? data_len : free_space;
-			if (copy_len > 0) {
-				uint16_t first = SOCKET_RX_BUFF_LEN - conn->rx_head;
-				if (first > copy_len) {
-					first = copy_len;
-				}
-				memcpy(&conn->socket_rx_buff[conn->rx_head], payload, first);
-				if (copy_len > first) {
-					memcpy(&conn->socket_rx_buff[0], payload + first,
-							copy_len - first);
-				}
-				conn->rx_head = static_cast<uint16_t>(
-						(conn->rx_head + copy_len) % SOCKET_RX_BUFF_LEN);
-				conn->rx_count += copy_len;
-				conn->rcv_next += copy_len;
-			}
-			// Note: If copy_len < data_len, the tail is dropped (buffer
-			// full); the missing ACK makes the peer retransmit it
-
-			// Update the window BEFORE advertising it in the ACK
-			conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
+			copy_len = tcpbuf::push(conn->rx, payload, data_len, TCP_CONN_RX_BLOCKS, keep_free(conn));
+			conn->rcv_next += copy_len;
+			// A tail that did not fit is not acked: the peer retransmits it
 		}
 
-		// 3) FIN - but only if its sequence position was actually reached,
-		// i.e. every payload byte before it fit into the RX ring. If the
-		// tail was dropped, stay ESTABLISHED: the peer retransmits the
-		// remaining data together with the FIN.
+		// 3) FIN - only if every byte before it was taken. Our FIN follows
+		// once all our queued data is out (tcp_output).
 		if ((client_flags & TCP_FIN) && copy_len == data_len) {
 			conn->rcv_next += 1;  // FIN consumes 1 sequence number
-			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-						TCP_ACK, nullptr, 0);
-
-			NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
+			conn->fin_pending = true;
 			conn->state = tcp_state_t::TCP_LAST_ACK;
 		} else if (data_len > 0) {
-			// Plain data segment (or a FIN we could not take yet): ack
-			// what was consumed
-			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-						TCP_ACK, nullptr, 0);
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
 		}
 
-		// Always update receive window (even if no data)
-		conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
+		// 4) The ACK may have opened the peer's window or freed our FIFO
+		tcp_output(conn);
 		break;
 	}
 
 	case tcp_state_t::TCP_FIN_WAIT_1:
-		if ((client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq)) {
+		if (client_flags & TCP_ACK) {
 			conn->last_activity = get_tick();
-			conn->keep_alive_count = 0;
-			tx_release_acked(conn, client_ack);
-
-			if (client_flags & TCP_FIN) {
-				// Simultaneous close - ACK the FIN and wait out TIME_WAIT
+			tcp_ack_received(conn, client_ack);
+			tcp_output(conn);                       // still draining before our FIN
+		}
+		if (conn->fin_sent && conn->snd_unack == conn->tcp_my_seq) {
+			// Our FIN is acknowledged
+			if ((client_flags & TCP_FIN) && client_seq == conn->rcv_next) {
+				// ... and theirs came with it: ACK it and wait out TIME_WAIT
 				conn->rcv_next++;
-				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next,
-							TCP_ACK, nullptr, 0);
+				NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
 				conn->last_activity = get_tick();
 				conn->state = tcp_state_t::TCP_TIME_WAIT;
 				return;
@@ -837,8 +788,7 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 	case tcp_state_t::TCP_FIN_WAIT_2:
 		if ((client_flags & TCP_FIN) && (client_seq == conn->rcv_next)) {
 			conn->rcv_next += 1;
-			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
-						nullptr, 0);
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
 			conn->last_activity = get_tick();
 			conn->state = tcp_state_t::TCP_TIME_WAIT;
 			return;
@@ -848,14 +798,16 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 	case tcp_state_t::TCP_TIME_WAIT:
 		// Peer retransmitted its FIN (our ACK was lost) - re-ACK it
 		if (client_flags & TCP_FIN) {
-			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
-						nullptr, 0);
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
 		}
 		break;
 
 	case tcp_state_t::TCP_LAST_ACK:
-		if ((client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq) &&
-		    (client_seq == conn->rcv_next)) {
+		if (client_flags & TCP_ACK) {
+			tcp_ack_received(conn, client_ack);
+			tcp_output(conn);                       // remaining data, then our FIN
+		}
+		if (conn->fin_sent && conn->snd_unack == conn->tcp_my_seq && client_seq == conn->rcv_next) {
 			NET_TCP_ClientRemove(conn->socket_tag);
 			return;
 		}
@@ -866,50 +818,38 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 	}
 }
 
+// ==========================
+// Application API
+// ==========================
+
 uint16_t NET_TCP_Available(tcp_conn_t *conn) {
-	return (conn != nullptr) ? conn->rx_count : 0;
+	return (conn != nullptr) ? static_cast<uint16_t>(conn->rx.count) : 0;
 }
 
 int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen) {
 	if (conn == nullptr || dst == nullptr) {
 		return -1;
 	}
-
-	uint16_t n = (conn->rx_count < maxlen) ? conn->rx_count : maxlen;
+	const uint32_t n = tcpbuf::pop(conn->rx, dst, maxlen);
 	if (n == 0) {
 		return 0;
 	}
 
-	// Copy out of the ring (up to two chunks across the wrap point)
-	uint16_t first = SOCKET_RX_BUFF_LEN - conn->rx_tail;
-	if (first > n) {
-		first = n;
-	}
-	memcpy(dst, &conn->socket_rx_buff[conn->rx_tail], first);
-	if (n > first) {
-		memcpy(dst + first, &conn->socket_rx_buff[0], n - first);
-	}
-	conn->rx_tail = static_cast<uint16_t>((conn->rx_tail + n) % SOCKET_RX_BUFF_LEN);
-	conn->rx_count -= n;
-
-	const uint16_t old_window = conn->window_size;
-	conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
-
 	// The peer saw a (nearly) closed window: announce that it reopened,
 	// otherwise it may never learn it can transmit again
+	const uint16_t old_window = conn->window_size;
 	if (conn->state == tcp_state_t::TCP_ESTABLISHED &&
-	    old_window < conn->peer_mss && conn->window_size >= conn->peer_mss) {
-		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK,
-					nullptr, 0);
+	    old_window < conn->peer_mss && rx_window(conn) >= conn->peer_mss) {
+		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
 	}
-
-	return n;
+	return static_cast<int>(n);
 }
 
 void NET_TCP_Close(tcp_conn_t *conn) {
 	if (conn->state == tcp_state_t::TCP_ESTABLISHED) {
-		NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
+		conn->fin_pending = true;                  // FIN after the queued data
 		conn->state = tcp_state_t::TCP_FIN_WAIT_1;
+		tcp_output(conn);
 	} else if (conn->state == tcp_state_t::TCP_SYN_SENT) {
 		NET_TCP_Abort(conn);                       // nothing to close gracefully yet
 	}
@@ -925,14 +865,9 @@ void NET_TCP_Abort(tcp_conn_t *conn) {
 }
 
 /**
- * @brief Send application data (sliding window)
+ * @brief Queue application data on the TX stream and send what the window allows
  *
- * Splits the buffer into MSS-sized segments; each takes a TX queue slot
- * and must fit into the peer's advertised window. Partial sends are
- * normal - call again for the remainder once ACKs free slots/window.
- *
- * @return Number of bytes accepted (0 = no slot/window right now),
- *         -1 on invalid arguments or connection state
+ * @return Bytes taken (0 = TX share or pool full right now), -1 if not connected
  */
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len) {
 	if (conn == nullptr || conn->state != tcp_state_t::TCP_ESTABLISHED) {
@@ -941,34 +876,7 @@ int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len) {
 	if (data == nullptr || len == 0) {
 		return -1;  // Invalid parameters
 	}
-
-	uint16_t mss = (conn->peer_mss < TCP_TX_SLOT_LEN) ? conn->peer_mss
-	                                                  : TCP_TX_SLOT_LEN;
-	if (mss == 0) {
-		mss = TCP_DEFAULT_PEER_MSS;
-	}
-
-	const uint16_t send_window = (conn->client_window < TCP_MAX_WINDOW)
-			? conn->client_window : TCP_MAX_WINDOW;
-
-	uint16_t sent = 0;
-	while (sent < len) {
-		uint16_t chunk = len - sent;
-		if (chunk > mss) {
-			chunk = mss;
-		}
-
-		// Respect the peer's receive window (bytes already in flight count)
-		const uint32_t in_flight = conn->tcp_my_seq - conn->snd_unack;
-		if (in_flight + chunk > send_window) {
-			break;  // window full - retry after ACKs arrive
-		}
-
-		if (!NET_TCP_EnqueueSegment(conn, TCP_ACK | TCP_PSH,
-				data + sent, chunk)) {
-			break;  // no free TX slot / driver queue full
-		}
-		sent += chunk;
-	}
-	return sent;
+	const uint32_t taken = tcpbuf::push(conn->tx, data, len, TCP_CONN_TX_BLOCKS, keep_free(conn));
+	tcp_output(conn);
+	return static_cast<int>(taken);
 }

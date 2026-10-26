@@ -58,7 +58,7 @@ TEST_CASE("TCP handshake: SYN gets SYN|ACK and creates SYN_RCVD connection") {
 	CHECK(bswap32(tcp->ack_num) == CSEQ + 1);
 	CHECK(bswap16(tcp->src_port) == SPORT);
 	CHECK(bswap16(tcp->dst_port) == CPORT);
-	CHECK(bswap16(tcp->window) == SOCKET_RX_BUFF_LEN);
+	CHECK(bswap16(tcp->window) == TCP_RX_BUFF_MAX);  // whole per-connection share
 }
 
 TEST_CASE("TCP handshake: final ACK establishes the connection") {
@@ -88,7 +88,7 @@ TEST_CASE("TCP: in-order data lands in the socket buffer and is ACKed") {
 	CHECK(memcmp(out, payload, sizeof(payload)) == 0);
 	CHECK(NET_TCP_Available(conn) == 0);
 	CHECK(conn->rcv_next == CSEQ + 1 + sizeof(payload));
-	CHECK(conn->window_size == SOCKET_RX_BUFF_LEN);  // restored by the read
+	CHECK(conn->window_size == TCP_RX_BUFF_MAX - sizeof(payload));  // as advertised in the ACK
 
 	REQUIRE(g_tx_frames.size() == 1);
 	const tcp_hdr_t *tcp = captured_tcp(g_tx_frames[0]);
@@ -195,7 +195,7 @@ TEST_CASE("TCP MSS: SYN|ACK advertises our MSS option") {
 	CHECK(((opt[2] << 8) | opt[3]) == TCP_OUR_MSS);
 }
 
-TEST_CASE("TCP RX ring: data survives wrap-around of the ring buffer") {
+TEST_CASE("TCP RX stream: data survives reading and refilling across blocks") {
 	setup();
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
@@ -236,10 +236,10 @@ TEST_CASE("TCP RX window: closes when full, reading sends a window update") {
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 
-	// Fill the whole 5120-byte buffer
-	static uint8_t chunk[1280];
+	// Fill the connection's whole share (16 x 1 KB)
+	static uint8_t chunk[1024];
 	uint32_t seq = CSEQ + 1;
-	for (int i = 0; i < 4; i++) {
+	for (uint32_t i = 0; i < TCP_RX_BUFF_MAX / sizeof(chunk); i++) {
 		inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK, chunk, sizeof(chunk));
 		seq += sizeof(chunk);
 	}
@@ -252,16 +252,17 @@ TEST_CASE("TCP RX window: closes when full, reading sends a window update") {
 	g_tx_frames.clear();
 	inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK, chunk, sizeof(chunk));
 	CHECK(conn->rcv_next == seq);                   // nothing consumed
-	CHECK(NET_TCP_Available(conn) == SOCKET_RX_BUFF_LEN);
+	CHECK(NET_TCP_Available(conn) == TCP_RX_BUFF_MAX);
 
 	// Reading reopens the window and emits exactly one window-update ACK
 	g_tx_frames.clear();
-	static uint8_t sink[SOCKET_RX_BUFF_LEN];
-	CHECK(NET_TCP_Read(conn, sink, sizeof(sink)) == SOCKET_RX_BUFF_LEN);
+	static uint8_t sink[TCP_RX_BUFF_MAX];
+	CHECK(NET_TCP_Read(conn, sink, sizeof(sink)) == TCP_RX_BUFF_MAX);
 	REQUIRE(g_tx_frames.size() == 1);
 	const tcp_hdr_t *upd = captured_tcp(g_tx_frames[0]);
 	CHECK(upd->flags == TCP_ACK);
-	CHECK(bswap16(upd->window) == SOCKET_RX_BUFF_LEN);
+	CHECK(bswap16(upd->window) == TCP_RX_BUFF_MAX);
+	CHECK(tcpbuf::free_blocks() == TCP_POOL_BLOCKS);  // read data went back to the pool
 }
 
 TEST_CASE("TCP active close: FIN|ACK -> FIN_WAIT_2 -> TIME_WAIT -> released") {
@@ -397,36 +398,37 @@ TEST_CASE("TCP send: peer window limits how much goes in flight") {
 	REQUIRE(conn != nullptr);
 	g_tx_frames.clear();
 
-	// 2000 bytes: 536 fits, second chunk would exceed the 1024 window
+	// All 2000 bytes are taken; only the 1024-byte window goes out (536 + 488)
 	static uint8_t big[2000] = {};
-	CHECK(NET_TCP_SendUser(conn, big, sizeof(big)) == 536);
-	CHECK(g_tx_frames.size() == 1);
+	CHECK(NET_TCP_SendUser(conn, big, sizeof(big)) == sizeof(big));
+	REQUIRE(g_tx_frames.size() == 2);
+	CHECK(captured_tcp_len(g_tx_frames[0]) == 536);
+	CHECK(captured_tcp_len(g_tx_frames[1]) == 488);
+	CHECK(conn->tcp_my_seq - conn->snd_unack == 1024);
 
-	// ACK opens the window again -> next chunk goes out
+	// ACK opens the window again -> the queued bytes follow by themselves
+	g_tx_frames.clear();
 	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + 536, TCP_ACK);
-	CHECK(NET_TCP_SendUser(conn, big, 536) == 536);
+	REQUIRE(g_tx_frames.size() == 1);
+	CHECK(bswap32(captured_tcp(g_tx_frames[0])->seq_num) == TEST_ISN + 1 + 1024);
+	CHECK(captured_tcp_len(g_tx_frames[0]) == 536);
 }
 
-TEST_CASE("TCP send: TX queue slots cap the number of in-flight segments") {
+TEST_CASE("TCP send: the TX share caps what SendUser takes, ACKs free it") {
 	setup();
-	// Small MSS so slots run out before the window does
-	const uint8_t mss_opt[4] = { 2, 4, 0x00, 0x64 };  // MSS 100
-	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN, nullptr, 0, 65535,
-			mss_opt, sizeof(mss_opt));
+	inject_tcp(CPORT, SPORT, CSEQ, 0, TCP_SYN, nullptr, 0, 65535);
 	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1, TCP_ACK, nullptr, 0, 65535);
 	tcp_conn_t *conn = find_conn(CPORT);
 	REQUIRE(conn != nullptr);
-	g_tx_frames.clear();
 
-	static uint8_t data[400] = {};
-	// Only TCP_TX_QUEUE_SLOTS segments fit in flight
-	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == TCP_TX_QUEUE_SLOTS * 100);
-	CHECK(g_tx_frames.size() == TCP_TX_QUEUE_SLOTS);
-	CHECK(NET_TCP_SendUser(conn, data, 100) == 0);   // no free slot
+	static uint8_t data[20000] = {};
+	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == static_cast<int>(TCP_TX_BUFF_MAX));
+	CHECK(NET_TCP_SendUser(conn, data, 100) == 0);   // share full until acked
+	CHECK(conn->tcp_my_seq - conn->snd_unack == TCP_TX_BUFF_MAX);  // all of it in flight
 
-	// ACK of the first segment frees a slot
-	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + 100, TCP_ACK, nullptr, 0, 65535);
-	CHECK(NET_TCP_SendUser(conn, data, 100) == 100);
+	// ACK of 1000 bytes releases the first block (the second is still half in use)
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + 1000, TCP_ACK, nullptr, 0, 65535);
+	CHECK(NET_TCP_SendUser(conn, data, 1000) == TCP_BLOCK_SIZE);
 }
 
 TEST_CASE("TCP retransmit: oldest segment resent, then RST after max retries") {
@@ -497,18 +499,138 @@ TEST_CASE("TCP keepalive: idle established connection gets probed") {
 	CHECK(conn->keep_alive_count == 1);
 }
 
-TEST_CASE("TCP: connection table exhaustion answers SYN with RST|ACK") {
+TEST_CASE("TCP SYN flood: a new SYN evicts the oldest half-open connection") {
 	setup();
-	for (uint16_t i = 0; i < TCP_MAX_CONNECTIONS; i++) {
+	for (uint16_t i = 0; i < TCP_MAX_HALF_OPEN; i++) {
 		inject_tcp(static_cast<uint16_t>(CPORT + i), SPORT, CSEQ, 0, TCP_SYN);
+		g_test_now += 10;
 	}
+	tcp_conn_t *est = do_handshake(CPORT + 500);       // established ones never count
+	REQUIRE(est != nullptr);
 	g_tx_frames.clear();
 
 	inject_tcp(CPORT + 100, SPORT, CSEQ, 0, TCP_SYN);
 
-	CHECK(find_conn(CPORT + 100) == nullptr);
+	CHECK(find_conn(CPORT) == nullptr);                 // the oldest made room, silently
+	CHECK(find_conn(CPORT + 1) != nullptr);
+	REQUIRE(find_conn(CPORT + 100) != nullptr);
+	CHECK(est->state == tcp_state_t::TCP_ESTABLISHED);
+	REQUIRE(g_tx_frames.size() == 1);
+	CHECK(captured_tcp(g_tx_frames[0])->flags == (TCP_SYN | TCP_ACK));
+}
+
+TEST_CASE("TCP: incoming connections leave the TCB reserve, then get RST|ACK") {
+	setup();
+	constexpr uint16_t PASSIVE_MAX = TCP_MAX_CONNECTIONS - TCP_TCB_RESERVE;
+	for (uint16_t i = 0; i < PASSIVE_MAX; i++) {
+		REQUIRE(do_handshake(static_cast<uint16_t>(CPORT + i)) != nullptr);
+	}
+	g_tx_frames.clear();
+
+	inject_tcp(CPORT + 1000, SPORT, CSEQ, 0, TCP_SYN);
+
+	CHECK(find_conn(CPORT + 1000) == nullptr);
 	REQUIRE(g_tx_frames.size() == 1);
 	CHECK(captured_tcp(g_tx_frames[0])->flags == (TCP_RST | TCP_ACK));
+}
+
+TEST_CASE("TCP pool: a dry pool closes the window, the peer is not acked beyond it") {
+	setup();
+	// Each connection may hold 32 blocks, the pool keeps 16 back for active
+	// opens: 5 full connections leave 192 - 160 = 32, the 6th gets 16
+	static uint8_t chunk[1024];
+	tcp_conn_t *conns[6];
+	for (uint16_t k = 0; k < 6; k++) {
+		conns[k] = do_handshake(static_cast<uint16_t>(CPORT + k));
+		REQUIRE(conns[k] != nullptr);
+		uint32_t seq = CSEQ + 1;
+		for (uint32_t i = 0; i < TCP_RX_BUFF_MAX / sizeof(chunk); i++) {
+			inject_tcp(static_cast<uint16_t>(CPORT + k), SPORT, seq, TEST_ISN + 1, TCP_ACK,
+			           chunk, sizeof(chunk));
+			seq = CSEQ + 1 + NET_TCP_Available(conns[k]);  // the peer resends what was not acked
+		}
+	}
+	for (uint16_t k = 0; k < 5; k++) {
+		CHECK(NET_TCP_Available(conns[k]) == TCP_RX_BUFF_MAX);
+	}
+	CHECK(NET_TCP_Available(conns[5]) == (TCP_POOL_BLOCKS - 5 * TCP_CONN_RX_BLOCKS
+	                                      - TCP_POOL_RESERVE_BLOCKS) * TCP_BLOCK_SIZE);
+	CHECK(tcpbuf::free_blocks() == TCP_POOL_RESERVE_BLOCKS);
+	CHECK(conns[5]->window_size == 0);
+	CHECK(conns[5]->rcv_next == CSEQ + 1 + NET_TCP_Available(conns[5]));
+
+	// A newcomer still connects (control blocks are cheap) but is offered no window
+	g_tx_frames.clear();
+	inject_tcp(CPORT + 50, SPORT, CSEQ, 0, TCP_SYN);
+	REQUIRE(g_tx_frames.size() == 1);
+	CHECK(bswap16(captured_tcp(g_tx_frames[0])->window) == 0);
+
+	// Reading one connection hands the blocks to whoever needs them
+	static uint8_t sink[TCP_RX_BUFF_MAX];
+	CHECK(NET_TCP_Read(conns[0], sink, sizeof(sink)) == static_cast<int>(TCP_RX_BUFF_MAX));
+	CHECK(tcpbuf::free_blocks() == TCP_POOL_RESERVE_BLOCKS + TCP_CONN_RX_BLOCKS);
+}
+
+TEST_CASE("TCP zero window: data waits, probes back off, window update resumes") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+	// Peer closes its window
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1, TCP_ACK, nullptr, 0, 0);
+	g_tx_frames.clear();
+
+	const uint8_t data[] = { 'a', 'b', 'c' };
+	CHECK(NET_TCP_SendUser(conn, data, sizeof(data)) == sizeof(data));
+	CHECK(g_tx_frames.empty());                         // nothing may go out
+
+	NET_TCP_Timers();                                   // arms the persist timer
+	g_test_now += TCP_PERSIST_MIN_MS;
+	NET_TCP_Timers();
+	REQUIRE(g_tx_frames.size() == 1);                   // 1-byte probe
+	CHECK(captured_tcp_len(g_tx_frames[0]) == 1);
+	CHECK(captured_tcp_payload(g_tx_frames[0])[0] == 'a');
+	CHECK(bswap32(captured_tcp(g_tx_frames[0])->seq_num) == TEST_ISN + 1);
+	CHECK(conn->tcp_my_seq == TEST_ISN + 1);            // probe does not advance snd_nxt
+
+	g_test_now += TCP_PERSIST_MIN_MS;                   // interval doubled: not yet
+	NET_TCP_Timers();
+	CHECK(g_tx_frames.size() == 1);
+	g_test_now += TCP_PERSIST_MIN_MS;
+	NET_TCP_Timers();
+	CHECK(g_tx_frames.size() == 2);
+
+	// Window reopens: the queued bytes go out as a normal segment
+	g_tx_frames.clear();
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1, TCP_ACK, nullptr, 0, 1024);
+	REQUIRE(g_tx_frames.size() == 1);
+	CHECK(captured_tcp_len(g_tx_frames[0]) == sizeof(data));
+	CHECK(conn->persist_ms == TCP_PERSIST_MIN_MS * 4);  // two probes so far; reset on the next pass
+	NET_TCP_Timers();
+	CHECK(conn->persist_ms == 0);
+}
+
+TEST_CASE("TCP active close: FIN waits until queued data is out") {
+	setup();
+	tcp_conn_t *conn = do_handshake();                  // window 1024
+	REQUIRE(conn != nullptr);
+	static uint8_t data[1500] = {};
+	REQUIRE(NET_TCP_SendUser(conn, data, sizeof(data)) == sizeof(data));
+	g_tx_frames.clear();
+
+	NET_TCP_Close(conn);
+	CHECK(conn->state == tcp_state_t::TCP_FIN_WAIT_1);
+	CHECK(g_tx_frames.empty());                         // window full, 476 bytes left
+
+	// ACK of everything in flight: the rest goes out followed by FIN
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + 1024, TCP_ACK);
+	REQUIRE(g_tx_frames.size() == 2);
+	CHECK(captured_tcp_len(g_tx_frames[0]) == 476);
+	CHECK(captured_tcp(g_tx_frames[1])->flags == (TCP_FIN | TCP_ACK));
+	CHECK(bswap32(captured_tcp(g_tx_frames[1])->seq_num) == TEST_ISN + 1 + 1500);
+
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + 1500 + 1, TCP_ACK);
+	CHECK(conn->state == tcp_state_t::TCP_FIN_WAIT_2);
+	CHECK(conn->tx.count == 0);
 }
 
 TEST_CASE("TCP: FIN carrying data delivers the payload before closing") {
@@ -565,15 +687,15 @@ TEST_CASE("TCP: FIN whose data does not fit is not acknowledged") {
 	tcp_conn_t *conn = do_handshake();
 	REQUIRE(conn != nullptr);
 
-	// Fill the RX ring completely (4 x 1280 = SOCKET_RX_BUFF_LEN)
-	static uint8_t chunk[1280] = {};
+	// Fill the connection's RX share completely
+	static uint8_t chunk[1024] = {};
 	uint32_t seq = CSEQ + 1;
-	for (int i = 0; i < 4; i++) {
+	for (uint32_t i = 0; i < TCP_RX_BUFF_MAX / sizeof(chunk); i++) {
 		inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK,
 				chunk, sizeof(chunk));
 		seq += sizeof(chunk);
 	}
-	REQUIRE(conn->rx_count == SOCKET_RX_BUFF_LEN);
+	REQUIRE(NET_TCP_Available(conn) == TCP_RX_BUFF_MAX);
 	g_tx_frames.clear();
 
 	// FIN with one byte of payload: nothing fits, so neither the byte nor
@@ -584,5 +706,5 @@ TEST_CASE("TCP: FIN whose data does not fit is not acknowledged") {
 
 	CHECK(conn->state == tcp_state_t::TCP_ESTABLISHED);  // not closed
 	CHECK(conn->rcv_next == seq);                        // nothing consumed
-	CHECK(conn->rx_count == SOCKET_RX_BUFF_LEN);
+	CHECK(NET_TCP_Available(conn) == TCP_RX_BUFF_MAX);
 }

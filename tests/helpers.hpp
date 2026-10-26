@@ -125,6 +125,11 @@ inline const uint8_t* captured_tcp_payload(const CapturedFrame &f) {
 	return f.data.data() + ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN;
 }
 
+// Payload bytes of a captured option-less TCP segment
+inline size_t captured_tcp_len(const CapturedFrame &f) {
+	return f.data.size() - (ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN);
+}
+
 // Finds the live connection for a client port, nullptr if none.
 inline tcp_conn_t* find_conn(uint16_t client_port) {
 	for (auto &c : tcp_clients) {
