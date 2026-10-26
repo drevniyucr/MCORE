@@ -64,6 +64,7 @@ set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/platform/STM32F767ZITX_FLASH.ld)
 
 # Исходники
 file(GLOB_RECURSE SRC
+    mcore/*.c
     mcore/*.cpp
     app/*.c
     app/*.cpp
@@ -76,6 +77,33 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     mcore
     app
 )
+
+# ---- mbedTLS: TLS for net/netclient (same release and setup as goz-shuttle) ----
+# 3.6 LTS, downloaded at configure time and checked against the release
+# checksum; for an offline build point MBEDTLS_DIR at an unpacked release.
+# Only its sources are used, its own CMake project is not.
+set(MBEDTLS_VERSION 3.6.7)
+set(MBEDTLS_SHA256 a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6)
+set(MBEDTLS_DIR "" CACHE PATH "unpacked mbedtls-${MBEDTLS_VERSION} (empty: download)")
+if(NOT MBEDTLS_DIR)
+    include(FetchContent)
+    FetchContent_Declare(mbedtls
+        URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${MBEDTLS_VERSION}/mbedtls-${MBEDTLS_VERSION}.tar.bz2
+        URL_HASH SHA256=${MBEDTLS_SHA256}
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        SOURCE_SUBDIR do-not-add)
+    FetchContent_MakeAvailable(mbedtls)
+    set(MBEDTLS_SRC_DIR ${mbedtls_SOURCE_DIR})
+else()
+    set(MBEDTLS_SRC_DIR ${MBEDTLS_DIR})
+endif()
+file(GLOB MBEDTLS_SOURCES ${MBEDTLS_SRC_DIR}/library/*.c)
+add_library(mcore_mbedtls STATIC ${MBEDTLS_SOURCES})
+target_include_directories(mcore_mbedtls SYSTEM PUBLIC ${MBEDTLS_SRC_DIR}/include)
+target_include_directories(mcore_mbedtls PUBLIC mcore/net/tls PRIVATE ${MBEDTLS_SRC_DIR}/library)
+target_compile_definitions(mcore_mbedtls PUBLIC "MBEDTLS_CONFIG_FILE=\"mcore_mbedtls_config.h\"")
+target_compile_options(mcore_mbedtls PRIVATE ${C_FLAGS} -w)
+target_link_libraries(${PROJECT_NAME} PRIVATE mcore_mbedtls)
 
 set(LINKER_MAP_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")
 

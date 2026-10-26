@@ -88,6 +88,25 @@ uint8_t ip[4];
 if (NET_DNS_Resolve("pool.ntp.org", ip) == net_result_t::OK) { /* ... */ }
 ```
 
+**TCP client** (`NET_TCP_Connect`): active open from an ephemeral port,
+SYN_SENT with MSS, SYN retransmission, refusal by RST, same API shape.
+
+**NetClient** (`net/netclient`): one non-blocking state machine for
+"host:port, optionally over TLS" — DNS → ARP → TCP connect → TLS handshake →
+byte stream, with a TX queue that takes messages whole. **TLS 1.2** is
+mbedTLS 3.6 (fetched at configure time, SHA-256 checked), configured as a
+small client: ECDHE-ECDSA-AES128-GCM-SHA256 / P-256 only, broker certificate
+always verified (dates against the RTC), optional client certificate,
+entropy from the RNG peripheral. Restartable ECC slices the handshake math so
+no superloop pass blocks (handshake ≈ 0.5 s in total, the 1 s watchdog stays
+on). mbedTLS gets a 40 KB static arena — the only heap in MCORE (≈ 26 KB peak).
+
+**MQTT 3.1.1** (`net/mqtt.c`): the transport-agnostic, heap-free client from
+the goz-shuttle firmware (C11, its own tests in `tests/c`), on top of NetClient.
+`app/mqtt_demo.cpp` publishes telemetry once a second, keeps a retained
+`online` status with an `offline` last will, answers `ping` on its command
+topic and reconnects by itself.
+
 ### 6. Debug & profiling
 
 - `print()` over **ITM/SWO** (`mcore/core/system.cpp`)
@@ -108,7 +127,7 @@ mcore/               framework (include root: #include "drivers/gpio.hpp")
 │                    device.hpp (MCU seam), mcore_config.hpp (config contract),
 │                    system, rcc, nvic, nvic_def, mpu, fault
 ├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, iwdg, rtc, ws2812, eth
-└── net/             net, arp, dns, dhcp, tcp, eth_utils
+└── net/             net, arp, dns, dhcp, tcp, netclient, tls, mqtt, eth_utils
 app/                 application: main.cpp, board.hpp (pin maps),
                      config.hpp (HSE/MAC/PHY), syscalls.c
 platform/            startup_stm32f767zitx.s, linker scripts (.ld)
@@ -153,6 +172,23 @@ Toolchain discovery: pass `-DSTM32_TOOLCHAIN_PATH=...` or set the `STM32_TOOLCHA
 
 Flash/debug: OpenOCD (`debug/MCORE_Debug.cfg`) or the provided VS Code tasks.
 
+The first configure downloads mbedTLS; offline, pass `-DMBEDTLS_DIR=<unpacked mbedtls-3.6.7>`.
+
+### MQTT over TLS bench
+
+Board on the PC's Ethernet (PC = 192.168.99.10/24, board = 192.168.99.123,
+its static fallback when no DHCP server answers):
+
+```sh
+python bench/tls/make_bench_certs.py     # once: test CA + broker + client certs (git-ignored)
+cmake --build build --target STM32F767   # app/tls_bench_creds.hpp present -> TLS demo on 8883
+mosquitto -c bench/mosquitto_tls.conf -v
+mosquitto_sub -h 127.0.0.1 -t "mcore/#" -v
+mosquitto_pub -h 127.0.0.1 -t mcore/mcore-01/cmd -m ping    # -> mcore/mcore-01/reply pong
+```
+
+Without the generated credentials the demo builds for plain MQTT on 1883.
+
 ## Testing
 
 The network stack (checksums, RX dispatch, ARP/ICMP/UDP handlers, the full
@@ -166,9 +202,13 @@ cmake --build build-tests
 ctest --test-dir build-tests --output-on-failure
 ```
 
+Two executables: `net_tests` (doctest, C++) and `mqtt_tests` (the goz-shuttle
+minitest suite of the shared MQTT client, C11).
+
 Covered scenarios include the TCP three-way handshake, in-order/out-of-order
 data, passive close, RST handling, retransmission with controlled time,
-keepalive probing and connection-table exhaustion. Tests also run in CI on
+keepalive probing, connection-table exhaustion, the TCP active open
+(SYN_SENT, refusal, SYN retransmission), ARP and DNS. Tests also run in CI on
 every push.
 
 ## Regenerating the register layer
@@ -211,6 +251,8 @@ see exactly what changes, then regenerate.
 - [x] IWDG, RTC
 - [x] DHCP client
 - [x] ARP cache, gateway routing, DNS resolver
+- [x] TCP client (active open), NetClient, TLS 1.2 (mbedTLS), MQTT 3.1.1
+- [ ] NTP client (RTC from the network instead of the build time)
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
 - [x] HardFault handler with register dump (kept across the reset)
 - [x] Split framework / board / application layers

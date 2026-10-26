@@ -145,6 +145,20 @@ int _times(struct tms *buf)
   return -1;
 }
 
+/* time() and gettimeofday(): seconds from the RTC calendar (mcore/core/system.cpp);
+ * mbedTLS checks certificate dates with them */
+extern long long mcore_unix_time(void);
+
+int _gettimeofday(struct timeval *tv, void *tz)
+{
+  (void)tz;
+  if (tv) {
+    tv->tv_sec = (time_t)mcore_unix_time();
+    tv->tv_usec = 0;
+  }
+  return 0;
+}
+
 int _stat(char *file, struct stat *st)
 {
   (void)file;

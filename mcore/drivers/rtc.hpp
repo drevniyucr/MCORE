@@ -71,6 +71,18 @@ constexpr uint8_t weekday(uint16_t year, uint8_t month, uint8_t day) {
     return static_cast<uint8_t>(w == 0 ? 7 : w);
 }
 
+// Howard Hinnant's days_from_civil: days since 1970-01-01
+constexpr int64_t days_from_civil(int64_t y, unsigned m, unsigned d) {
+	y -= m <= 2;
+	const int64_t era = (y >= 0 ? y : y - 399) / 400;
+	const auto yoe = static_cast<unsigned>(y - era * 400);
+	const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+	const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+	return era * 146097 + static_cast<int64_t>(doe) - 719468;
+}
+static_assert(days_from_civil(1970, 1, 1) == 0);
+static_assert(days_from_civil(2000, 3, 1) == 11017);
+
 constexpr bool valid(const RtcDateTime& t) {
     return t.year >= 2000 && t.year <= 2099 && t.month >= 1 && t.month <= 12
         && t.day >= 1 && t.day <= days_in_month(t.year, t.month)
@@ -249,6 +261,19 @@ inline void RTC_GetDateTime(RtcDateTime& t) noexcept {
     t.weekday = static_cast<uint8_t>((dr & DR::WDU::BitMsk) >> DR::WDU::pos);
     // SS counts down from PREDIV_S within each second
     t.millis = static_cast<uint16_t>((prediv_s - ss) * 1000U / (prediv_s + 1U));
+}
+
+/** Seconds since 1970-01-01 00:00 of a calendar value (taken as UTC). */
+constexpr int64_t rtc_unix(const RtcDateTime &t) {
+	return rtc_detail::days_from_civil(t.year, t.month, t.day) * 86400
+	     + t.hour * 3600 + t.minute * 60 + t.second;
+}
+
+/** The RTC calendar as Unix time. */
+inline int64_t RTC_UnixTime() noexcept {
+	RtcDateTime t;
+	RTC_GetDateTime(t);
+	return rtc_unix(t);
 }
 
 void rtc_bad_build_timestamp();  // not constexpr: a call is a compile error

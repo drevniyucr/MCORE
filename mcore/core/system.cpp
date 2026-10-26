@@ -1,6 +1,7 @@
 #include "core/system.hpp"
 #include "core/nvic.hpp"
 #include "core/mcore_config.hpp"
+#include "drivers/rtc.hpp"
 #include <cstdarg>
 #include <cstdio>
 
@@ -140,6 +141,11 @@ extern "C" void NMI_Handler(void) {
 }
 
 // HardFault / MemManage / BusFault / UsageFault: core/fault.cpp
+
+// Wall clock for libc time() (app/syscalls.c _gettimeofday): the RTC calendar
+extern "C" long long mcore_unix_time(void) {
+	return RTC_UnixTime();
+}
 
 extern "C" void SVC_Handler(void) {
 

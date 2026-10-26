@@ -1,5 +1,6 @@
 /*
- * tcp.cpp — TCP server: connection table, FSM, sliding-window TX, RX ring
+ * tcp.cpp — TCP: connection table, FSM (passive and active open),
+ *           sliding-window TX, RX ring
  *
  *  Created on: Sep 28, 2025
  *      Author: AkimovMA
@@ -137,6 +138,8 @@ uint8_t free_top = 0;
 uint8_t **ppTxBuff = nullptr;
 
 uint16_t listen_ports[TCP_MAX_LISTEN_PORTS] = { };
+
+uint16_t next_ephemeral = 0;   // 0 = not seeded yet
 } // namespace
 
 void NET_TCP_Init() {
@@ -373,6 +376,112 @@ static bool NET_TCP_EnqueueSegment(tcp_conn_t *conn, uint8_t flags,
 	return true;
 }
 
+static bool local_port_in_use(uint16_t port) {
+	for (int i = 0; i < active_conn; i++) {
+		if (tcp_clients[active_list[i]].server_port == port) {
+			return true;
+		}
+	}
+	return NET_TCP_IsListening(port);
+}
+
+// Next free port of the ephemeral range, starting at a random offset so a
+// reboot does not reuse the previous run's ports (stale peer state).
+static uint16_t alloc_ephemeral_port() {
+	constexpr uint16_t RANGE = 0xFFFF - TCP_EPHEMERAL_BASE + 1;
+	if (next_ephemeral == 0) {
+		next_ephemeral = static_cast<uint16_t>(TCP_EPHEMERAL_BASE + NET_Entropy() % RANGE);
+	}
+	for (uint16_t tries = 0; tries < RANGE; tries++) {
+		const uint16_t port = next_ephemeral;
+		next_ephemeral = (next_ephemeral == 0xFFFF) ? TCP_EPHEMERAL_BASE
+		                                            : static_cast<uint16_t>(next_ephemeral + 1);
+		if (!local_port_in_use(port)) {
+			return port;
+		}
+	}
+	return 0;
+}
+
+net_result_t NET_TCP_Connect(const uint8_t *ip, uint16_t port, tcp_conn_t **out) {
+	*out = nullptr;
+	if (port == 0) {
+		return net_result_t::UNREACHABLE;
+	}
+	uint8_t mac[MAC_ADDR_LEN];
+	const net_result_t arp = NET_ARP_Resolve(ip, mac);
+	if (arp != net_result_t::OK) {
+		return arp;                                // PENDING: ask again later
+	}
+	const uint16_t local_port = alloc_ephemeral_port();
+	const int num = (local_port != 0) ? NET_TCP_ClientAdd() : -1;
+	if (num < 0) {
+		return net_result_t::UNREACHABLE;          // no free connection slot
+	}
+
+	tcp_conn_t *conn = &tcp_clients[num];
+	conn->socket_tag = static_cast<uint8_t>(num);
+	conn->client_ip = BuffU8ToU32(ip);             // same byte order as the RX path
+	memcpy(conn->client_mac, mac, MAC_ADDR_LEN);
+	conn->client_port = port;
+	conn->server_port = local_port;
+	conn->window_size = SOCKET_RX_BUFF_LEN;
+	conn->peer_mss = TCP_DEFAULT_PEER_MSS;         // until the SYN|ACK says otherwise
+	conn->tcp_my_seq = NET_Entropy();
+	conn->snd_unack = conn->tcp_my_seq;
+	conn->last_activity = get_tick();
+	conn->state = tcp_state_t::TCP_SYN_SENT;
+
+	// SYN with our MSS, kept in the TX queue: the timers retransmit it and
+	// give up (RST + close) after TCP_RETRANSMISSION_MAX_COUNT attempts
+	const uint8_t mss_opt[4] = { 2, 4,
+			static_cast<uint8_t>(TCP_OUR_MSS >> 8),
+			static_cast<uint8_t>(TCP_OUR_MSS & 0xFF) };
+	if (!NET_TCP_EnqueueSegment(conn, TCP_SYN, nullptr, 0, mss_opt, sizeof(mss_opt))) {
+		NET_TCP_ClientRemove(conn->socket_tag);
+		return net_result_t::PENDING;              // TX path busy right now
+	}
+	*out = conn;
+	return net_result_t::OK;
+}
+
+bool NET_TCP_IsOpen(const tcp_conn_t *conn, uint16_t local_port) {
+	return conn != nullptr && conn->state != tcp_state_t::TCP_CLOSED &&
+	       conn->server_port == local_port;
+}
+
+// Active open, RFC 793 "SYN-SENT STATE" (simultaneous open not supported)
+static void tcp_syn_sent(tcp_conn_t *conn, ipv4_frame *frame, const tcp_hdr_t *tcp) {
+	const uint8_t flags = tcp->flags;
+	const uint32_t seq = bswap32(tcp->seq_num);
+	const uint32_t ack = bswap32(tcp->ack_num);
+	const bool ack_ok = (flags & TCP_ACK) && ack == conn->tcp_my_seq;
+
+	if (flags & TCP_RST) {
+		if (ack_ok) {
+			NET_TCP_ClientRemove(conn->socket_tag);    // connection refused
+		}
+		return;
+	}
+	if ((flags & TCP_ACK) && !ack_ok) {
+		// ACK of something we never sent (old duplicate): reset it
+		NET_SendTCP_RST(frame, conn->server_port, conn->client_port, ack, 0, TCP_RST);
+		return;
+	}
+	if ((flags & TCP_SYN) && ack_ok) {
+		conn->tcp_client_seq = seq;
+		conn->rcv_next = seq + 1;                  // their SYN consumes one number
+		conn->client_window = bswap16(tcp->window);
+		conn->peer_mss = parse_mss_option(tcp);
+		conn->snd_unack = ack;
+		tx_release_acked(conn, ack);
+		conn->last_activity = get_tick();
+		conn->keep_alive_count = 0;
+		conn->state = tcp_state_t::TCP_ESTABLISHED;
+		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
+	}
+}
+
 /**
  * @brief Send TCP frame on established socket
  * 
@@ -513,6 +622,12 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 
 	// Find existing connection
 	tcp_conn_t *conn = NET_TCP_FindConnection(client_ip, client_port, server_port);
+
+	// Our active open has its own rules (RST and ACK checks differ)
+	if (conn && conn->state == tcp_state_t::TCP_SYN_SENT) {
+		tcp_syn_sent(conn, frame, tcp);
+		return;
+	}
 
 	// Handle RST flag: only accept an in-sequence RST (anti-spoofing, RFC 793)
 	if (conn && (client_flags & TCP_RST)) {
@@ -784,7 +899,18 @@ void NET_TCP_Close(tcp_conn_t *conn) {
 	if (conn->state == tcp_state_t::TCP_ESTABLISHED) {
 		NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
 		conn->state = tcp_state_t::TCP_FIN_WAIT_1;
+	} else if (conn->state == tcp_state_t::TCP_SYN_SENT) {
+		NET_TCP_Abort(conn);                       // nothing to close gracefully yet
 	}
+}
+
+void NET_TCP_Abort(tcp_conn_t *conn) {
+	if (conn == nullptr || conn->state == tcp_state_t::TCP_CLOSED) {
+		return;
+	}
+	// SYN_SENT: the peer has not synchronised to our numbers, any RST will do
+	NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_RST | TCP_ACK, nullptr, 0);
+	NET_TCP_ClientRemove(conn->socket_tag);
 }
 
 /**

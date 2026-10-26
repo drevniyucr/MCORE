@@ -2,6 +2,7 @@
 
 #include "core/def.hpp"
 #include "core/system.hpp"
+#include "core/mcore_config.hpp"
 // Replace old macros with inline accessor functions to enable type safety and easier debugging
 
 static inline void RCC_GPIOAEN() { RCC::_AHB1ENR::GPIOAEN::set(); }
@@ -162,6 +163,7 @@ struct ClockConfig {
 	uint8_t PLLM;     // делитель HSE → PLL вход [2..63]
 	uint16_t PLLN;    // множитель PLL [50..432]
 	PLL_P PLLP;       // делитель PLL → SYSCLK
+	uint8_t PLLQ = 9; // делитель PLL → CK48 (RNG, USB, SDMMC) [2..15]: должно выйти 48 МГц
 	AHBPrescaler AHBDiv;    // AHB делитель
 	APBPrescaler APB1Div;   // APB1 делитель
 	APBPrescaler APB2Div;   // APB2 делитель
@@ -236,6 +238,12 @@ static inline RCCStatus OSCInit() {
 
 	// 1. Проверка PLL параметров (валидные диапазоны по Reference Manual)
 	static_assert(cfg.PLLM >= 2 && cfg.PLLM <= 63 && cfg.PLLN >= 50 && cfg.PLLN <= 432, "PLL configuration is out of valid range");
+	static_assert(cfg.PLLQ >= 2 && cfg.PLLQ <= 15, "PLLQ must be 2..15");
+	// CK48 feeds the RNG (and USB/SDMMC): RM0410 asks for 48 MHz, a faster
+	// clock is out of spec. Before PLLQ was configurable it stayed at its
+	// reset value 4: 432/4 = 108 MHz.
+	static_assert((cfg.useHSE ? HSE_VALUE : HSI_VALUE) / cfg.PLLM * cfg.PLLN / cfg.PLLQ <= 48000000U,
+	              "CK48 (VCO / PLLQ) above 48 MHz");
 
 	// 2. Включение HSE (если нужно)
 	if constexpr (cfg.useHSE) {
@@ -261,6 +269,7 @@ static inline RCCStatus OSCInit() {
 		  (RCC::_PLLCFGR::PLLM::BitMsk)
 		| (RCC::_PLLCFGR::PLLN::BitMsk)
 		| (RCC::_PLLCFGR::PLLP::BitMsk)
+		| (RCC::_PLLCFGR::PLLQ::BitMsk)
 		| (RCC::_PLLCFGR::PLLSRC::BitMsk)
 		);
 
@@ -268,6 +277,7 @@ static inline RCCStatus OSCInit() {
 		  (static_cast<uint32_t>(cfg.PLLM) << RCC::_PLLCFGR::PLLM::pos)
 		| (static_cast<uint32_t>(cfg.PLLN) << RCC::_PLLCFGR::PLLN::pos)
 		| (static_cast<uint32_t>(cfg.PLLP) << RCC::_PLLCFGR::PLLP::pos)
+		| (static_cast<uint32_t>(cfg.PLLQ) << RCC::_PLLCFGR::PLLQ::pos)
 		| (cfg.useHSE ? RCC::_PLLCFGR::PLLSRC::BitMsk : 0U)
 		);
 

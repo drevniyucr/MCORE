@@ -4,7 +4,7 @@
 #   cmake --build build-tests
 #   ctest --test-dir build-tests --output-on-failure
 cmake_minimum_required(VERSION 3.21)
-project(mcore_tests CXX)
+project(mcore_tests C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +22,7 @@ add_executable(net_tests
     test_ring_buffer.cpp
     test_arp.cpp
     test_dns.cpp
+    test_tcp_connect.cpp
     # Real stack sources under test (system.cpp/eth.cpp are NOT linked —
     # their symbols are provided by stubs.cpp)
     ${MCORE_ROOT}/mcore/net/eth_utils.cpp
@@ -46,5 +47,22 @@ if(WIN32 AND NOT MSVC)
     target_link_options(net_tests PRIVATE -static)
 endif()
 
+# MQTT client shared with goz-shuttle: C11, tested with the shuttle's own
+# minitest suite (tests/c), kept identical to the upstream copy
+add_executable(mqtt_tests
+    c/test_mqtt.c
+    ${MCORE_ROOT}/mcore/net/mqtt.c
+)
+target_include_directories(mqtt_tests PRIVATE ${MCORE_ROOT}/mcore)
+set_target_properties(mqtt_tests PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+if(WIN32)
+    # clang on Windows uses the MSVC CRT, which flags strncpy as deprecated
+    target_compile_definitions(mqtt_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+if(NOT MSVC)
+    target_compile_options(mqtt_tests PRIVATE -Wall -Wextra)
+endif()
+
 enable_testing()
 add_test(NAME net_tests COMMAND net_tests)
+add_test(NAME mqtt_tests COMMAND mqtt_tests)

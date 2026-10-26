@@ -2,6 +2,7 @@
 #include "core/def.hpp"
 #include "main.hpp"
 #include "board.hpp"
+#include "mqtt_demo.hpp"
 #include <cstdio>
 #include <atomic>
 #include <cstring>
@@ -143,8 +144,12 @@ void task_adc_drain() {
 void task_tcp_send() {
 	UART_sTATUS = UartHandle<USART2>::sendBuffer(txData2, sizeof(txData2));
 	UartHandle<USART6>::sendBuffer(txData1, sizeof(txData1));
-	if (tcp_clients[TEST_CLIENT_INDEX].state == tcp_state_t::TCP_ESTABLISHED) {
-		NET_TCP_SendUser(&tcp_clients[TEST_CLIENT_INDEX], test_data, sizeof(test_data));
+	// Only a peer of our test server: since active open exists, slot 9 may
+	// just as well be an outgoing connection (the MQTT/TLS link), and these
+	// bytes would land in the middle of its TLS stream.
+	tcp_conn_t &test = tcp_clients[TEST_CLIENT_INDEX];
+	if (test.state == tcp_state_t::TCP_ESTABLISHED && test.server_port == TCP_LISTEN_PORT) {
+		NET_TCP_SendUser(&test, test_data, sizeof(test_data));
 	}
 }
 
@@ -179,6 +184,15 @@ void task_watchdog() {
 
 // Periodic: resolve a public host name (DHCP-provided DNS server, through the
 // gateway). Result observable via debugger: dns_demo_ip / dns_demo_result.
+// Every poll: MQTT telemetry link (DNS -> TCP -> TLS -> MQTT, all non-blocking)
+void task_mqtt() {
+	const MqttTelemetry t = {
+		get_tick(), RTC_UnixTime(), { adc_latest[0], adc_latest[1] },
+		can_rx_count.load(std::memory_order_relaxed),
+	};
+	mqtt_demo_poll(t);
+}
+
 void task_dns_demo() {
 	dns_demo_result = NET_DNS_Resolve(DNS_DEMO_HOST, dns_demo_ip);
 }
@@ -295,6 +309,10 @@ int main() {
 
 		NET_TCP_Init();
 		NET_TCP_Listen(TCP_LISTEN_PORT);
+		// Bench: the board sits on the PC's 192.168.99.0/24 cable (broker at
+		// .10); DHCP saves this as the fallback when no server answers
+		const uint8_t bench_ip[4] = { 192, 168, 99, 123 };
+		NET_SetIPAddr(bench_ip);
 		NET_DHCP_Start();  // falls back to the static IP if no server answers
 		UartHandle<USART2>::UartRxDMA<usart2_rx>(rx_usart2_buf,sizeof(rx_usart2_buf));
 		UartHandle<USART6>::UartRxDMA<usart6_rx>(rx_usart6_buf,sizeof(rx_usart6_buf));
@@ -330,7 +348,7 @@ int main() {
 
 	spi4_rx.on_complete([] { spi_dma_count.fetch_add(1, std::memory_order_relaxed); });
 
-	sched::Scheduler<11> scheduler;
+	sched::Scheduler<12> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
 	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
@@ -342,6 +360,7 @@ int main() {
 	scheduler.every(WDG_KICK_INTERVAL_MS,    task_watchdog);
 	scheduler.every(WDG_KICK_INTERVAL_MS,    task_fault_test);
 	scheduler.every(RTC_READ_INTERVAL_MS,    task_dns_demo);
+	scheduler.every(0,                       task_mqtt);
 
 	// Last, so the slow init above (LSE start, ETH, EEPROM) cannot trip it.
 	// From here on a hang anywhere in the loop resets the MCU within ~1 s.
@@ -560,9 +579,14 @@ void rtc_init()
 			Error_Handler();
 		}
 	}
-	// First boot after the backup domain lost power: seed with the build time
-	if (!RTC_IsTimeSet()) {
-		RTC_SetDateTime(rtc_build_time());
+	// Seed with the build time on the first boot after the backup domain lost
+	// power, and whenever the clock is behind it (firmware cannot be older
+	// than now): TLS rejects certificates "valid from the future" otherwise.
+	// __TIME__ is the build PC's local time, the RTC is read as UTC: up to a
+	// few hours ahead, harmless for certificate dates.
+	constexpr RtcDateTime build_time = rtc_build_time();
+	if (!RTC_IsTimeSet() || RTC_UnixTime() < rtc_unix(build_time)) {
+		RTC_SetDateTime(build_time);
 	}
 
 	RTC_WakeupStart(1, [] { rtc_wakeups.fetch_add(1, std::memory_order_relaxed); });

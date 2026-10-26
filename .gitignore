@@ -17,7 +17,11 @@ tools
 __pycache__/
 *.pyc
 
-# --- Generated register artifacts (raw generator output; not the source of truth) ---
-# The consumed, hand-maintained copy is mcore/core/regs.hpp. The generator
-# dumps here; don't commit its output.
+# --- Generated register artifacts ---
+# Temporary output of codegen/registers/regsgen.py --diff (mcore/core/regs.hpp
+# itself is generated and committed).
 mcore/core/regs.generated.hpp
+
+# --- Bench TLS credentials: private keys (bench/tls/make_bench_certs.py) ---
+bench/tls/out/
+app/tls_bench_creds.hpp

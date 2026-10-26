@@ -1,5 +1,6 @@
 /*
- * tcp.hpp — TCP server: connection table, FSM, sliding-window TX, RX ring
+ * tcp.hpp — TCP: connection table, FSM (passive and active open),
+ *           sliding-window TX, RX ring
  *
  *  Created on: Sep 29, 2025
  *      Author: AkimovMA
@@ -7,6 +8,7 @@
 #pragma once
 #include "core/def.hpp"
 #include "net/net.hpp"
+#include "net/arp.hpp"
 
 constexpr uint8_t TCP_MAX_CONNECTIONS  = 10;
 constexpr uint8_t TCP_MAX_LISTEN_PORTS = 4;
@@ -31,6 +33,8 @@ constexpr uint32_t TCP_LAST_ACK_WAIT_TO_CLOSE = 5000;
 constexpr uint8_t  TCP_TX_QUEUE_SLOTS = 3;
 constexpr uint16_t TCP_TX_SLOT_LEN    = 1200;
 
+constexpr uint16_t TCP_EPHEMERAL_BASE = 49152;  // RFC 6335 dynamic range for our client ports
+
 constexpr uint16_t SOCKET_RX_BUFF_LEN = 5120;
 constexpr uint16_t SOCKET_TX_BUFF_LEN = TCP_TX_QUEUE_SLOTS * TCP_TX_SLOT_LEN;
 
@@ -43,6 +47,7 @@ constexpr uint8_t TCP_URG = 0x20;
 
 enum class tcp_state_t : uint8_t {
 	TCP_CLOSED = 0,
+	TCP_SYN_SENT,      // active open: our SYN is out, waiting for SYN|ACK
 	TCP_SYN_RCVD,
 	TCP_ESTABLISHED,
 	TCP_FIN_WAIT_1,
@@ -75,6 +80,8 @@ struct tcp_tx_seg_t {
  * - Large buffers at the end
  * - Frequently accessed fields at the beginning
  */
+// "client" is the remote end and "server_port" our local port, whichever
+// side opened the connection (the names predate active open).
 struct tcp_conn_t {
 	// === 32-bit fields (sequence numbers, timers, IP) ===
 	uint32_t client_ip;           // Client IP address (network byte order)
@@ -164,8 +171,21 @@ void NET_TCP_ClientRemove(uint8_t idx);
 bool NET_TCP_Listen(uint16_t port);
 void NET_TCP_StopListen(uint16_t port);
 
+// Active open to ip:port from a fresh ephemeral local port. Non-blocking,
+// like ARP/DNS: PENDING while the next hop's MAC is being resolved (call
+// again), OK with *out in TCP_SYN_SENT (watch it reach ESTABLISHED, or drop
+// to CLOSED on refusal/timeout), UNREACHABLE without a route or free slot.
+net_result_t NET_TCP_Connect(const uint8_t *ip, uint16_t port, tcp_conn_t **out);
+
+// True while `conn` is still the connection that was opened from local_port:
+// a closed slot is zeroed and may be reused by another connection.
+bool NET_TCP_IsOpen(const tcp_conn_t *conn, uint16_t local_port);
+
 // Active close: FIN|ACK from ESTABLISHED, completes via FIN_WAIT/TIME_WAIT
 void NET_TCP_Close(tcp_conn_t *conn);
+
+// Hard close: RST to the peer, slot released at once
+void NET_TCP_Abort(tcp_conn_t *conn);
 
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
 
