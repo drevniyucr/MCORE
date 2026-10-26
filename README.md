@@ -48,7 +48,7 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 | GPIO / NVIC / MPU / SysTick | working |
 | DMA (`DmaHandle<DmaStream::...>`; D-cache clean / invalidate done by the driver) | working |
 | USART + DMA RX/TX | working |
-| I2C (tested with 47L16 EEPROM) | working |
+| I2C (polling; DMA with `I2CDma`: non-blocking write / write-read; tested with 47L16 EEPROM, 47C16 EERAM, ADXL345) | working |
 | ADC | working |
 | TIM (PWM, input capture, DMA requests) | working |
 | WS2812 LED strip over TIM+DMA | working |
