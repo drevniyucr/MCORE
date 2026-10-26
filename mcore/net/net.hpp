@@ -80,8 +80,9 @@ extern uint8_t NET_DNS_SERVER[4];
 extern uint8_t UDPsendFrameTemplate[UDP_TEMPLATE_FRAME_LEN];
 extern uint8_t icmp_port_unrchble_template[ICMP_UNRCHBLE_FRAME_LEN];
 
-// Entropy source (TCP ISN, DHCP xid). Firmware implementation reads
-// SysTick (mcore/net/port.cpp); host tests provide a deterministic stub.
+// Unpredictable 32-bit values for everything an off-path attacker must not
+// guess: TCP ISN, ephemeral ports, DNS ids, NTP nonces, DHCP xid. Firmware:
+// the hardware RNG (mcore/net/port.cpp); host tests: a deterministic stub.
 uint32_t NET_Entropy(void);
 
 // Change our IP at runtime (DHCP): updates IP_ADDR and the source-IP

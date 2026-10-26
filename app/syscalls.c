@@ -200,17 +200,14 @@ static uint8_t *__sbrk_heap_end = NULL;
  *
  * @verbatim
  * ############################################################################
- * #  .data  #  .bss  #       newlib heap       #          MSP stack          #
- * #         #        #                         # Reserved by _Min_Stack_Size #
+ * #  MSP stack  #  .data  #  .bss  #  .noinit  #  newlib heap  # (ETH DMA)  #
  * ############################################################################
- * ^-- RAM start      ^-- _end                             _estack, RAM end --^
+ * ^-- RAM start ^-- _estack                     ^-- _end   _heap_limit --^
  * @endverbatim
  *
- * This implementation starts allocating at the '_end' linker symbol
- * The '_Min_Stack_Size' linker symbol reserves a memory for the MSP stack
- * The implementation considers '_estack' linker symbol to be RAM end
- * NOTE: If the MSP stack, at any point during execution, grows larger than the
- * reserved size, please increase the '_Min_Stack_Size'.
+ * The stack sits below the data (see the linker script), so the heap is
+ * bounded by _heap_limit, the end of the RAM region: the Ethernet DMA buffers
+ * above it are never handed out.
  *
  * @param incr Memory size
  * @return Pointer to allocated memory
@@ -218,10 +215,8 @@ static uint8_t *__sbrk_heap_end = NULL;
 void *_sbrk(ptrdiff_t incr)
 {
   extern uint8_t _end; /* Symbol defined in the linker script */
-  extern uint8_t _estack; /* Symbol defined in the linker script */
-  extern uint32_t _Min_Stack_Size; /* Symbol defined in the linker script */
-  const uint32_t stack_limit = (uint32_t)&_estack - (uint32_t)&_Min_Stack_Size;
-  const uint8_t *max_heap = (uint8_t *)stack_limit;
+  extern uint8_t _heap_limit; /* Symbol defined in the linker script */
+  const uint8_t *max_heap = &_heap_limit;
   uint8_t *prev_heap_end;
 
   /* Initialize heap end at first call */

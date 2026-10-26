@@ -5,6 +5,7 @@
 
 #include "core/regs.hpp"
 #include "core/system.hpp"
+#include "drivers/rng.hpp"
 
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ecp.h"
@@ -13,8 +14,6 @@
 #include "mbedtls/platform_time.h"
 
 namespace {
-
-constexpr uint32_t RNG_TIMEOUT_POLLS = 100000;
 
 alignas(8) uint8_t arena[TLS_ARENA_SIZE];
 bool initialised = false;
@@ -30,26 +29,13 @@ enum class DrbgState : uint8_t { Unseeded, Ready, Failed } drbg_state = DrbgStat
 extern "C" int mbedtls_hardware_poll(void *data, unsigned char *out, size_t len, size_t *olen);
 
 extern "C" int mbedtls_hardware_poll(void *, unsigned char *out, size_t len, size_t *olen) {
-	if (!RCC::_AHB2ENR::RNGEN::is_set()) {
-		RCC::_AHB2ENR::RNGEN::set();                   // clocked from CK48 = VCO / PLLQ = 48 MHz
-		(void)RCC::_AHB2ENR::read();
-		RNG::_CR::RNGEN::set();
-	}
 	size_t n = 0;
 	while (n < len) {
-		uint32_t polls = 0;
-		while (!RNG::_SR::DRDY::is_set()) {
-			const uint32_t sr = RNG::_SR::read();
-			if ((sr & (RNG::_SR::SECS::BitMsk | RNG::_SR::CECS::BitMsk)) || ++polls > RNG_TIMEOUT_POLLS) {
-				// seed or clock error: restart the generator, report what we have (RM0410 22.3.5)
-				RNG::_CR::RNGEN::clear();
-				RNG::_SR::overwrite(sr & ~(RNG::_SR::SEIS::BitMsk | RNG::_SR::CEIS::BitMsk));
-				RNG::_CR::RNGEN::set();
-				*olen = n;
-				return n ? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
-			}
+		uint32_t v;
+		if (RNG_Read(v) != DrvStatus::Ok) {
+			*olen = n;                                 // report what we have
+			return n ? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
 		}
-		uint32_t v = RNG::_DR::read();
 		for (int i = 0; i < 4 && n < len; ++i, v >>= 8) out[n++] = static_cast<unsigned char>(v);
 	}
 	*olen = n;

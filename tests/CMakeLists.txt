@@ -24,6 +24,7 @@ add_executable(net_tests
     test_dns.cpp
     test_tcp_connect.cpp
     test_ntp.cpp
+    test_rx_lengths.cpp
     # Real stack sources under test (system.cpp/eth.cpp are NOT linked —
     # their symbols are provided by stubs.cpp)
     ${MCORE_ROOT}/mcore/net/eth_utils.cpp
@@ -42,6 +43,10 @@ target_include_directories(net_tests PRIVATE
 
 if(NOT MSVC)
     target_compile_options(net_tests PRIVATE -Wall -Wextra)
+endif()
+if(WIN32)
+    # clang on Windows uses the MSVC CRT, which flags strncpy as deprecated
+    target_compile_definitions(net_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # Self-contained exe on Windows: avoid libstdc++/libgcc/winpthread DLL deps

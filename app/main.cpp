@@ -15,7 +15,6 @@ spsc::RingBuffer<AdcSample, 16> adc_queue;
 uint16_t adc_latest[2] = { 0, 0 };  // last value per rank, drained in the loop
 uint8_t adc_idx = 0;                 // ISR-owned scan position (rank 0 / 1)
 uint8_t hue = 0;
-DrvStatus UART_sTATUS;
 uint8_t rx_usart6_buf[100];
 uint8_t rx_usart2_buf[100];
 
@@ -62,7 +61,7 @@ volatile bool wdg_starve = false;
 
 // Fault that caused the last reset (if have_last_fault). Setting fault_test
 // from the debugger provokes one: 1 bus error, 2 divide by zero,
-// 3 call through a pointer without the Thumb bit.
+// 3 call through a pointer without the Thumb bit, 4 stack overflow.
 FaultRecord last_fault;
 bool have_last_fault = false;
 volatile uint8_t fault_test = 0;
@@ -81,17 +80,13 @@ uint8_t tx[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
 uint8_t rx[4] = { 0 };
 namespace {
 // Local constants
-constexpr uint32_t TCP_SEND_INTERVAL_MS = 500;
 constexpr uint32_t TCP_TIMER_INTERVAL_MS = 100;
 constexpr uint32_t SNAKE_TIMER_INTERVAL_MS = 400;
-constexpr uint8_t TEST_CLIENT_INDEX = 9;  // Specific client for testing
 constexpr uint16_t TCP_LISTEN_PORT = 5001;  // server port for incoming connections
 
-uint8_t test_data[] = "LMAO LMAO LMAO LMAO LMAO LMAO LMAO";
 uint8_t txData1[] = "Hello, USART! Hello, USART! Hello, USART! "
 		"Hello, USART! Hello, USART! Hello, USART! Hello, USART!"
 		" Hello, USART! Hello, USART! Hello, USART!";
-uint8_t txData2[] = "Hello, RS485!";
 
 // CAN1 runs in loopback: every frame sent is received back through filter
 // bank 0 into FIFO0 and counted by the RX ISR callback.
@@ -140,19 +135,6 @@ void task_adc_drain() {
 	}
 }
 
-// Periodic: push test traffic over RS-485 / USART6 and the test TCP client.
-void task_tcp_send() {
-	UART_sTATUS = UartHandle<USART2>::sendBuffer(txData2, sizeof(txData2));
-	UartHandle<USART6>::sendBuffer(txData1, sizeof(txData1));
-	// Only a peer of our test server: since active open exists, slot 9 may
-	// just as well be an outgoing connection (the MQTT/TLS link), and these
-	// bytes would land in the middle of its TLS stream.
-	tcp_conn_t &test = tcp_clients[TEST_CLIENT_INDEX];
-	if (test.state == tcp_state_t::TCP_ESTABLISHED && test.server_port == TCP_LISTEN_PORT) {
-		NET_TCP_SendUser(&test, test_data, sizeof(test_data));
-	}
-}
-
 // Periodic: send a CAN1 test frame (byte 1 carries a rolling counter).
 void task_can_send() {
 	tx_can.data[1] = static_cast<uint8_t>(can_tx_count);
@@ -198,6 +180,15 @@ void task_dns_demo() {
 	dns_demo_result = NET_DNS_Resolve(DNS_DEMO_HOST, dns_demo_ip);
 }
 
+// Unbounded recursion for fault_test 4: 256+ bytes per level until the stack
+// runs off its bottom (0x20000000) into reserved address space
+[[gnu::noinline]] int stack_eater(int depth) {
+	volatile uint8_t pad[256];
+	pad[0] = static_cast<uint8_t>(depth);
+	if (depth > 100000) return 0;              // never reached: 8 KB run out at ~30 levels
+	return stack_eater(depth + 1) + pad[0];    // not a tail call: the frame stays
+}
+
 // Periodic: provoke the fault requested from the debugger (see fault_test).
 void task_fault_test() {
 	switch (fault_test) {
@@ -211,6 +202,9 @@ void task_fault_test() {
 	}
 	case 3:  // even address = Thumb bit clear: UsageFault INVSTATE
 		reinterpret_cast<void (*)()>(0x0800'0000)();
+		break;
+	case 4:  // stack overflow: must fault at the stack bottom, not corrupt data
+		fault_sink = stack_eater(0);
 		break;
 	default:
 		break;
@@ -356,10 +350,9 @@ int main() {
 
 	spi4_rx.on_complete([] { spi_dma_count.fetch_add(1, std::memory_order_relaxed); });
 
-	sched::Scheduler<12> scheduler;
+	sched::Scheduler<11> scheduler;
 	scheduler.every(0,                       task_poll_io);    // ETH RX + inputs
 	scheduler.every(0,                       task_adc_drain);  // drain ADC SPSC queue
-	scheduler.every(TCP_SEND_INTERVAL_MS,    task_tcp_send);
 	scheduler.every(TCP_TIMER_INTERVAL_MS,   task_net_timers);
 	scheduler.every(SNAKE_TIMER_INTERVAL_MS, task_snake);
 	scheduler.every(CAN_SEND_INTERVAL_MS,    task_can_send);

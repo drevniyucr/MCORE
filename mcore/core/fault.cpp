@@ -15,8 +15,10 @@ constexpr uint32_t AIRCR_VECTKEY = 0x5FA;
 constexpr uint32_t EXC_RETURN_PSP = 1U << 2;   // frame was stacked on PSP
 constexpr size_t   FAULT_STACK_WORDS = 512;    // 2 KB: the handler + print() at the next boot never run here
 constexpr size_t   FRAME_WORDS = 8;            // r0-r3, r12, lr, pc, xPSR
+constexpr uint32_t STACK_GUARD_BYTES = 1024;   // MPU no-access bottom of the stack (core/mpu.cpp)
 
-// Valid stacked frame: word-aligned and entirely inside SRAM.
+// Valid stacked frame: word-aligned and entirely inside SRAM, above the MPU
+// stack guard at its start (reading the guard would fault inside the handler)
 constexpr uint32_t RAM_START = 0x20000000;
 constexpr uint32_t RAM_END   = 0x20080000;
 
@@ -81,10 +83,10 @@ extern "C" [[noreturn, gnu::used]] void fault_capture(const uint32_t* frame, uin
     r.magic = FAULT_MAGIC;
 
     const auto addr = reinterpret_cast<uint32_t>(frame);
-    if ((addr & 3U) == 0 && addr >= RAM_START && addr + FRAME_WORDS * 4 <= RAM_END) {
+    r.sp = addr;                    // kept even when unreadable: below the stack = overflow
+    if ((addr & 3U) == 0 && addr >= RAM_START + STACK_GUARD_BYTES && addr + FRAME_WORDS * 4 <= RAM_END) {
         r.r0 = frame[0]; r.r1 = frame[1]; r.r2 = frame[2]; r.r3 = frame[3];
         r.r12 = frame[4]; r.lr = frame[5]; r.pc = frame[6]; r.xpsr = frame[7];
-        r.sp = addr;
     }
 
     uint32_t ipsr;
@@ -143,6 +145,13 @@ bool Fault_TakeLast(FaultRecord& out) {
 }
 
 const char* Fault_Reason(const FaultRecord& f) {
+    // The MSP stack starts at the bottom of RAM (linker script): a frame at
+    // or below its first word means the stack ran out, whatever the bus says
+    extern uint8_t _sstack[];
+    const bool on_msp = (f.exc_return & EXC_RETURN_PSP) == 0;
+    if (on_msp && f.sp < reinterpret_cast<uint32_t>(_sstack) + STACK_GUARD_BYTES + FRAME_WORDS * 4) {
+        return "stack overflow (MSP below its reserved area)";
+    }
     for (const auto& b : CFSR_REASONS) {
         if (f.cfsr & b.mask) return b.text;
     }

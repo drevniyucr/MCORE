@@ -18,6 +18,7 @@ namespace {
 	// Constants for frame processing
 	constexpr uint16_t ETH_HDR_SIZE = 14;            // Ethernet header size
 	constexpr uint16_t IP_MIN_HDR_SIZE = 20;         // Minimum IP header size
+	constexpr uint16_t L4_MIN_HDR_LEN = 8;           // UDP header = minimal ICMP message
 	constexpr uint8_t ICMP_ECHO_REQUEST = 8;        // ICMP echo request type
 	constexpr uint8_t ICMP_ECHO_REPLY = 0;          // ICMP echo reply type
 }
@@ -162,8 +163,10 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 
 	const uint16_t ip_len = static_cast<uint16_t>((ip_hdr[2] << 8) | ip_hdr[3]);
 	
-	// Validate IP length matches frame size
-	if (ip_len > (RxDesc->BuffLen - ETH_HDR_SIZE)) {
+	// Validate IP length matches frame size, and covers its own header:
+	// handlers compute payload lengths as ip_len - ip_hdr_len - <L4 header>,
+	// which must never go negative (a uint16_t underflow reads past the frame)
+	if (ip_len > (RxDesc->BuffLen - ETH_HDR_SIZE) || ip_len < ip_hdr_len) {
 		return;  // IP length mismatch
 	}
 
@@ -178,9 +181,15 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 	ip_frame.scr_addr = &rx_buff[SCR_ADDR_POS];
 	ip_frame.scr_mac = &rx_buff[6];
 
-	// Route to protocol handlers based on hardware-detected protocol
+	// Route to protocol handlers based on hardware-detected protocol; each
+	// gets at least its fixed L4 header (TCP checks its options length itself)
 	const uint8_t ip_protocol = ExtStatus & ETH_DMAPTPRXDESC_IPPT;
-	
+	const uint16_t l4_len = ip_len - ip_hdr_len;
+	const uint16_t l4_min = (ip_protocol == ETH_DMAPTPRXDESC_IPPT_TCP) ? TCP_HDR_LEN : L4_MIN_HDR_LEN;
+	if (l4_len < l4_min) {
+		return;  // truncated transport header
+	}
+
 	if (ip_protocol == ETH_DMAPTPRXDESC_IPPT_ICMP) {
 		NET_ProcessICMP(&ip_frame);
 	} else if (ip_protocol == ETH_DMAPTPRXDESC_IPPT_UDP) {

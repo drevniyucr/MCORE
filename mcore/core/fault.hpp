@@ -26,7 +26,7 @@ struct FaultRecord {
     uint32_t lr;          // return address of the function that faulted
     uint32_t pc;          // faulting instruction (precise faults)
     uint32_t xpsr;
-    uint32_t sp;          // address of the stacked frame, 0 if it was unreadable
+    uint32_t sp;          // address of the stacked frame (registers above are 0 if it was unreadable)
     uint32_t exc_return;  // LR on handler entry: which stack, FP frame or not
     uint32_t vector;      // IPSR: 3 HardFault, 4 MemManage, 5 BusFault, 6 UsageFault
     uint32_t cfsr;        // UFSR:BFSR:MMFSR

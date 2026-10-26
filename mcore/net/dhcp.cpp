@@ -230,6 +230,9 @@ void NET_DHCP_ProcessRx(ipv4_frame *frame) {
 	dhcp_client_t &c = dhcp_client;
 	const uint8_t *udp = &frame->ip_hdr[frame->ip_hdr_len];
 	const uint8_t *bootp = udp + UDP_HDR_LEN;
+	if (frame->ip_len < frame->ip_hdr_len + UDP_HDR_LEN) {
+		return;  // truncated (NET_ProcessRx checks it too; this is public)
+	}
 	const uint16_t bootp_len = static_cast<uint16_t>(
 			frame->ip_len - frame->ip_hdr_len - UDP_HDR_LEN);
 

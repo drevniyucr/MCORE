@@ -35,16 +35,20 @@
 /* Entry Point */
 ENTRY(Reset_Handler)
 
-/* Highest address of the user mode stack */
-_estack = ORIGIN(RAM) + LENGTH(RAM); /* end of "RAM" Ram type memory */
-
-_Min_Heap_Size = 0x0; /* required amount of heap */
-_Min_Stack_Size = 0x10; /* required amount of stack */
+/* The MSP stack is the first thing in RAM (.stack below), in DTCM, top at
+   _estack, growing DOWN. Its lowest 1 KB is an MPU no-access guard
+   (core/mpu.cpp): an overflow faults at once (MemManage, recorded by
+   core/fault.cpp) instead of running into data. 9 KB = 8 KB usable + guard.
+   Measured peak: ~2.4 KB with TLS/MQTT running. */
+_Min_Stack_Size = 0x2400; /* reserved MSP stack incl. the 1 KB guard */
+_Min_Heap_Size = 0x0;     /* required amount of heap (newlib malloc, barely used) */
 
 /* Memories definition */
 MEMORY
 {
-  RAM      (xrw)     : ORIGIN = 0x20000000,   LENGTH = 512K
+  /* 480 KB: the top 32 KB (0x20078000..) is the Ethernet DMA area below,
+     kept out of RAM so .bss can never grow into it unnoticed */
+  RAM      (xrw)     : ORIGIN = 0x20000000,   LENGTH = 480K
   FLASH    (rx)      : ORIGIN = 0x08000000,   LENGTH = 2048K
   ETH_RX_BUFFER (rw) : ORIGIN = 0x2007B200,   LENGTH = 0x3000
   ETH_TX_BUFFER (rw) : ORIGIN = 0x20078200,   LENGTH = 0x3000
@@ -138,6 +142,16 @@ SECTIONS
   /* Used by the startup to initialize data */
   _sidata = LOADADDR(.data);
 
+  /* MSP stack at the start of RAM, see _Min_Stack_Size */
+  .stack (NOLOAD) :
+  {
+    . = ALIGN(8);
+    _sstack = .;
+    . = . + _Min_Stack_Size;
+    . = ALIGN(8);
+    _estack = .;
+  } >RAM
+
   /* Initialized data sections into "RAM" Ram type memory */
   .data :
   {
@@ -179,16 +193,17 @@ SECTIONS
     . = ALIGN(4);
   } >RAM
 
-  /* User_heap_stack section, used to check that there is enough "RAM" Ram  type memory left */
+  /* Heap from here up to _heap_limit (end of RAM, below the DMA area);
+     this section only checks that _Min_Heap_Size fits */
   ._user_heap_stack :
   {
     . = ALIGN(8);
     PROVIDE ( end = . );
     PROVIDE ( _end = . );
     . = . + _Min_Heap_Size;
-    . = . + _Min_Stack_Size;
     . = ALIGN(8);
   } >RAM
+  _heap_limit = ORIGIN(RAM) + LENGTH(RAM);
   .RxDecripSection   (NOLOAD) : { *(.RxDecripSection) } >Memory_B1
   .TxDescripSection  (NOLOAD) : { *(.TxDecripSection) } >Memory_B2
   .RxPoolSection     (NOLOAD) : { *(.RxPoolSection)   } >ETH_RX_BUFFER

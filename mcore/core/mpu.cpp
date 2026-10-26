@@ -40,7 +40,31 @@ namespace {
 		.size = _MPU::regionSize::REGION_SIZE_32KB,
 		.enable = true
 	};
+
+	// MPU Region 2: stack guard. The MSP stack is the first thing in RAM
+	// (linker script, .stack at 0x20000000) and grows down; its lowest 1 KB is
+	// no-access, so running past the usable 8 KB is a precise MemManage fault
+	// (MMFAR = the address) that core/fault.cpp records. Without it an overflow
+	// walks on through 0x1FFF0020..0x1FFFFFFF, which silently swallows writes
+	// on this part, and faults only ~64 KB further down. 1 KB, not 32 B: a
+	// function frame larger than the guard steps over it (push above, locals
+	// below) - frames here stay well under 1 KB.
+	constexpr _MPU::RegionConfig region2_stack_guard = {
+		.regionNum = _MPU::regionNumber::REGION_2,
+		.baseAddress = 0x20000000,  // = _sstack, checked in MPU_Config
+		.instructionAccessDisable = true,
+		.accessPermission = _MPU::regionPermission::REGION_NO_ACCESS,
+		.texLevel = _MPU::regionTEX::REGION_TEX_LEVEL0,
+		.shareable = false,
+		.cacheable = false,
+		.bufferable = false,
+		.subregionDisable = 0,
+		.size = _MPU::regionSize::REGION_SIZE_1KB,
+		.enable = true
+	};
 }
+
+extern "C" uint8_t _sstack[];   // linker script
 
 void MPU_Config() {
 	// Disable MPU before configuration (required by ARM architecture)
@@ -49,6 +73,9 @@ void MPU_Config() {
 	// Configure regions in order
 	_MPU::configure<region0>();        // Default deny region
 	_MPU::configure<region1_eth_pool>(); // Ethernet RX buffer
+	if (reinterpret_cast<uintptr_t>(_sstack) == region2_stack_guard.baseAddress) {
+		_MPU::configure<region2_stack_guard>();  // only where the stack really starts
+	}
 	
 	// Enable MPU with privileged default memory map
 	_MPU::enable();

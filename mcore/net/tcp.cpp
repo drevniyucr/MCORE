@@ -611,6 +611,17 @@ void NET_TCP_Timers() {
 void NET_ProcessTCP(ipv4_frame *frame) {
 	const tcp_hdr_t *tcp = reinterpret_cast<const tcp_hdr_t*>(&frame->ip_hdr[frame->ip_hdr_len]);
 
+	// The header (with options) must fit into the IP payload: data length,
+	// payload pointer and the MSS option parser all trust the data offset
+	if (frame->ip_len < frame->ip_hdr_len + TCP_MIN_HDR_LEN) {
+		return;
+	}
+	const uint16_t seg_len = static_cast<uint16_t>(frame->ip_len - frame->ip_hdr_len);
+	const uint16_t hdr_len = static_cast<uint16_t>((tcp->offset_reserved >> 4) * 4);
+	if (hdr_len < TCP_MIN_HDR_LEN || hdr_len > seg_len) {
+		return;  // malformed: drop silently, no RST to a forged segment
+	}
+
 	// Extract TCP header fields (network byte order)
 	uint8_t client_flags = tcp->flags;
 	uint16_t client_window = bswap16(tcp->window);

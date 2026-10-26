@@ -123,6 +123,13 @@ topic and reconnects by itself.
   a `.noinit` record, then halt on `BKPT` if a debugger is attached or reset.
   After the reboot `Fault_TakeLast()` + `Fault_Print()` report it
   (e.g. `pc=0800060c ... integer divide by zero`)
+- **Stack guard**: the 9 KB MSP stack is the first thing in RAM (DTCM, linker
+  script), its lowest 1 KB an MPU no-access region — an overflow is a precise
+  MemManage fault reported as "stack overflow", never silent data corruption.
+  Measured peak with TLS/MQTT running: ~2.4 KB. The Ethernet DMA area is kept
+  out of the linker's RAM region and the newlib heap is bounded below it.
+- **Randomness**: TCP ISNs, ephemeral ports, DNS ids, NTP nonces and DHCP xids
+  come from the hardware RNG (`drivers/rng.hpp`), the same source as TLS.
 - OpenOCD configs (`debug/`) + VS Code launch/tasks
 
 ## Project layout
