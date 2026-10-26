@@ -15,6 +15,7 @@ spsc::RingBuffer<AdcSample, 16> adc_queue;
 uint16_t adc_latest[2] = { 0, 0 };  // last value per rank, drained in the loop
 uint8_t adc_idx = 0;                 // ISR-owned scan position (rank 0 / 1)
 uint8_t hue = 0;
+bool eeprom_ok = true;               // EEPROM self-test result (watch in the debugger)
 alignas(32) uint8_t rx_usart6_buf[128];   // DMA receive: whole cache lines
 alignas(32) uint8_t rx_usart2_buf[128];
 
@@ -333,8 +334,12 @@ int main() {
 	if (memcmp(tx, rx, sizeof(tx)) == 0 && i2cstat) {
 		// Data matches
 	} else {
-		// Data does not match
+		// Data does not match (or no EEPROM). Release builds stop here; Debug
+		// builds go on, so a bench board without the 47L16 still runs the rest
+		eeprom_ok = false;
+#ifdef NDEBUG
 		Error_Handler();
+#endif
 	}
 
 	// Main loop: a cooperative scheduler replaces the hand-rolled tick diffs.
@@ -703,20 +708,20 @@ extern "C" void ADC_IRQHandler() {
 	}
 }
 
-extern "C" void DMA1_Stream0_IRQHandler() {}
+extern "C" void DMA1_Stream0_IRQHandler() {DMA_IRQHandler<i2c1_rx>();}
 extern "C" void DMA1_Stream1_IRQHandler() {}
 extern "C" void DMA1_Stream2_IRQHandler() {}
 extern "C" void DMA1_Stream3_IRQHandler() {}
 extern "C" void DMA1_Stream4_IRQHandler() {}
-extern "C" void DMA1_Stream5_IRQHandler() {}
-extern "C" void DMA1_Stream6_IRQHandler() {}
-extern "C" void DMA1_Stream7_IRQHandler() {}
+extern "C" void DMA1_Stream5_IRQHandler() {DMA_IRQHandler<usart2_rx>();}
+extern "C" void DMA1_Stream6_IRQHandler() {DMA_IRQHandler<usart2_tx>();}
+extern "C" void DMA1_Stream7_IRQHandler() {DMA_IRQHandler<i2c1_tx>();}
 
 
 extern "C" void DMA2_Stream0_IRQHandler() {DMA_IRQHandler<spi4_rx>();}
 extern "C" void DMA2_Stream2_IRQHandler() {DMA_IRQHandler<tim1_ch2>();}
 extern "C" void DMA2_Stream3_IRQHandler() {DMA_IRQHandler<tim1_ch1>();}
-extern "C" void DMA2_Stream1_IRQHandler() {}
+extern "C" void DMA2_Stream1_IRQHandler() {DMA_IRQHandler<usart6_rx>();}
 extern "C" void DMA2_Stream4_IRQHandler() {DMA_IRQHandler<spi4_tx>();}
 extern "C" void DMA2_Stream5_IRQHandler() {}
 extern "C" void DMA2_Stream6_IRQHandler() {}

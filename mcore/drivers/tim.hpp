@@ -396,8 +396,7 @@ template<typename TIMx, TimCh ch, auto& hdma>
 static inline void TIM_PWM_ChannelDMAEnable(uint32_t pData, uint16_t Size) {
     using Traits = TimChannelTraits<TIMx, ch>;
 
-    auto& h = hdma;
-    if (h.state != DmaState::READY)
+    if (!hdma.ready())
         return;
 
     //TIMx::_EGR::UG::set();

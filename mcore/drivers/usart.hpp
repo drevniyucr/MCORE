@@ -280,21 +280,11 @@ struct UartHandle {
 
 	template<auto& hdma>
 	static inline DrvStatus UartTxDMA(uint8_t* pData, uint16_t Size) {
-
-		auto& h = hdma;
-		if (h.state != DmaState::READY)
-			return DrvStatus::Busy;
-
 		return DMA_StartIT<hdma>(reinterpret_cast<uint32_t>(pData), USARTx::_TDR::address , Size);
 	}
 
 	template<auto& hdma>
 	static inline DrvStatus UartRxDMA(uint8_t* pData, uint16_t Size) {
-
-		auto& h = hdma;
-		if (h.state != DmaState::READY)
-			return DrvStatus::Busy;
-
 		return DMA_StartIT<hdma>(USARTx::_RDR::address, reinterpret_cast<uint32_t>(pData), Size);
 	}
 

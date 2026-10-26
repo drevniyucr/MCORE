@@ -1,6 +1,21 @@
 /*
  * dma.hpp — DMA stream driver (config, IT transfers, ISR dispatch)
  *
+ *   DmaHandle<DmaStream::DMA2_Stream_0> spi4_rx;          // one per stream
+ *   DMA_Config<spi4_rx, cfg>();                           // once (or again when idle)
+ *   DMA_StartIT<spi4_rx>(src, dst, n);                    // n items of PSIZE
+ *   extern "C" void DMA2_Stream0_IRQHandler() { DMA_IRQHandler<spi4_rx>(); }
+ *   spi4_rx.on_complete(cb);  spi4_rx.ready();  DMA_Wait<spi4_rx>();
+ *   DMA_Stop<spi4_rx>();                                  // abort / leave ERROR
+ *
+ * State: RESET (not configured) -> READY -> BUSY while the stream runs ->
+ * READY at transfer complete, or ERROR on a transfer error (the hardware
+ * stops the stream; DMA_Stop or DMA_Config makes it usable again). A circular
+ * stream stays BUSY until DMA_Stop: it never completes.
+ *
+ * D-cache maintenance is done here (see dma_cache_start); a circular receive
+ * read between interrupts goes through DMA_InvalidateRx.
+ *
  *  Created on: 26 февр. 2026 г.
  *      Author: AkimovMA
  */
@@ -97,20 +112,27 @@ enum class DmaStream : uint32_t {
 };
 
 // Stream lifecycle STATE (what the handle is doing right now). Operation
-// RESULTS are reported separately as DrvStatus — the old COMPLETE value lived
-// in this enum only as a return sentinel and is gone.
+// RESULTS are reported separately as DrvStatus. "Half done" is an event
+// (on_half), not a state: the stream is still BUSY then.
 enum class DmaState : uint8_t {
     RESET,
     READY,
     BUSY,
-    HALF,
     ERROR
 };
+
+// DmaHandle::errors bits, collected since the last start
+namespace dma_err {
+constexpr uint8_t Transfer   = 1u << 0;  // bus error: the stream was stopped (state ERROR)
+constexpr uint8_t DirectMode = 1u << 1;  // direct mode error: data lost, transfer goes on
+constexpr uint8_t Fifo       = 1u << 2;  // FIFO overrun / underrun, transfer goes on
+} // namespace dma_err
 
 template<DmaStream S>
 struct DmaHandle
 {
     static inline volatile DmaState state = DmaState::RESET;
+    static inline volatile uint8_t errors = 0;   // dma_err bits since the last start
     static inline const DmaStream Stream = S;
     static inline uint32_t src;
     static inline uint32_t dst;
@@ -122,16 +144,18 @@ struct DmaHandle
 
     // --- Async completion API -------------------------------------------
     // Register callbacks fired from the DMA ISR (see DMA_IRQHandler): on
-    // transfer-complete, half-transfer, and transfer-error. This replaces
-    // polling `state == DmaState::READY` at call sites with event-driven flow.
-    // Callbacks run in interrupt context — keep them short.
+    // transfer-complete (every lap for a circular stream), half-transfer, and
+    // transfer error (the stream has stopped; FIFO / direct mode errors only
+    // set bits in `errors`). Received data is already visible to the CPU
+    // (D-cache invalidated) when they run. Interrupt context: keep them short.
     static void on_complete(void (*cb)()) noexcept { tc_callback = cb; }
     static void on_half(void (*cb)())     noexcept { ht_callback = cb; }
     static void on_error(void (*cb)())    noexcept { err_callback = cb; }
 
     // --- State queries (so callers need not compare the raw DmaState) ---
-    static bool ready() noexcept { return state == DmaState::READY; }
-    static bool busy()  noexcept { return state == DmaState::BUSY; }
+    static bool ready()  noexcept { return state == DmaState::READY; }
+    static bool busy()   noexcept { return state == DmaState::BUSY; }
+    static bool failed() noexcept { return state == DmaState::ERROR; }
 };
 
 
@@ -343,43 +367,78 @@ inline void dma_cache_received(uint32_t dst, uint16_t len)
     }
 }
 
-template<DmaStream Stream>
-static inline bool DMA_IsEnabled()
+template<auto& Handle>
+inline bool DMA_IsEnabled()
 {
-    using traits = DmaTraits<Stream>;
-    return traits::CR::EN::is_set();
+    return DmaTraits<Handle.Stream>::CR::EN::is_set();
 }
 
-template<DmaStream Stream>
-static inline uint16_t DMA_Remaining()
+// Items still to transfer in this pass (NDTR)
+template<auto& Handle>
+inline uint16_t DMA_Remaining()
 {
-    using traits = DmaTraits<Stream>;
-    return traits::NDTR::read();
+    return DmaTraits<Handle.Stream>::NDTR::read();
 }
 
-template<DmaStream Stream>
-static inline DmaState DMA_Wait()
+// Items transferred so far in this pass; for a circular receive, the index
+// the stream writes next
+template<auto& Handle>
+inline uint16_t DMA_Received()
 {
-    uint32_t starttick = get_tick();
-    while (DmaHandle<Stream>::state == DmaState::BUSY) {
-        if (get_tick() - starttick > DMA_TIMEOUT_MS) {
-            return DmaState::ERROR;
-        };
+    const uint16_t left = DMA_Remaining<Handle>();
+    return left <= Handle.len ? static_cast<uint16_t>(Handle.len - left) : 0;
+}
+
+// Make `count` received items from index `first` visible to the CPU (D-cache
+// invalidate; wraps around the end of the buffer). Needed only for data read
+// before the half / complete interrupt, e.g. a circular UART receive polled
+// with DMA_Received(); the interrupt handler does the rest.
+template<auto& Handle>
+inline void DMA_InvalidateRx(uint16_t first, uint16_t count)
+{
+    using traits = DmaTraits<Handle.Stream>;
+    const uint16_t len = Handle.len;
+    if (len == 0 || count == 0) return;
+    if (count > len) count = len;
+    first %= len;
+    const uint32_t shift = traits::CR::PSIZE::read();
+    const uint16_t first_part = (first + count > len) ? static_cast<uint16_t>(len - first) : count;
+    cache::invalidate(Handle.dst + (uint32_t{first} << shift), uint32_t{first_part} << shift);
+    if (first_part < count) cache::invalidate(Handle.dst, uint32_t(count - first_part) << shift);
+}
+
+// Wait until the transfer ends: Ok when complete, Error after a transfer
+// error, Timeout otherwise (always for a circular stream)
+template<auto& Handle>
+inline DrvStatus DMA_Wait(uint32_t timeout_ms = DMA_TIMEOUT_MS)
+{
+    const uint32_t starttick = get_tick();
+    while (Handle.state == DmaState::BUSY) {
+        if (get_tick() - starttick > timeout_ms) return DrvStatus::Timeout;
     }
-    return DmaHandle<Stream>::state;
+    return Handle.state == DmaState::READY ? DrvStatus::Ok : DrvStatus::Error;
 }
 
-template<DmaStream Stream>
-static inline DrvStatus DMA_Stop()
+// Stop the stream (abort a transfer, end a circular one, or leave ERROR) and
+// make it READY for the next start with the same configuration
+template<auto& Handle>
+inline DrvStatus DMA_Stop()
 {
-    DmaTraits<Stream>::CR::EN::clear();
-    uint32_t starttick = get_tick();
-    while (DmaTraits<Stream>::CR::EN::is_set()) {
-        if (get_tick() - starttick > DMA_TIMEOUT_MS) {
-            return DrvStatus::Timeout;
-        };
+    auto& h = Handle;
+    using traits = DmaTraits<h.Stream>;
+
+    // interrupts off first: disabling the stream raises TCIF, which must not
+    // reach on_complete
+    traits::CR::template clearMask<traits::CR::TCIE::BitMsk | traits::CR::HTIE::BitMsk |
+                                   traits::CR::TEIE::BitMsk | traits::CR::DMEIE::BitMsk>();
+    traits::FCR::FEIE::clear();
+    traits::CR::EN::clear();
+    const uint32_t starttick = get_tick();
+    while (traits::CR::EN::is_set()) {
+        if (get_tick() - starttick > DMA_TIMEOUT_MS) return DrvStatus::Timeout;
     }
-    DmaHandle<Stream>::state = DmaState::RESET;
+    traits::IFCR::overwrite(INTRPT_CLR_MASK << traits::intrpt_idx);
+    if (h.state != DmaState::RESET) h.state = DmaState::READY;
     return DrvStatus::Ok;
 }
 
@@ -390,7 +449,7 @@ DrvStatus DMA_Config()
     auto& h = Handle;
     using traits = DmaTraits<h.Stream>;
 
-    if (h.state != DmaState::RESET) return DrvStatus::Error;
+    if (h.state == DmaState::BUSY) return DrvStatus::Busy;   // DMA_Stop first
 
 
     RccEnable<typename traits::DMAx>::enable();
@@ -416,6 +475,7 @@ DrvStatus DMA_Config()
     traits::CR::PSIZE::write(static_cast<uint32_t>(cfg.PeriphDataAlignment));
 
     if constexpr (cfg.Mode != DmaMode::PERIPH_FLOW_CTRL) {
+        traits::CR::PFCTRL::clear();
         traits::CR::CIRC::write(cfg.Mode);
     }
     else {
@@ -480,55 +540,42 @@ DrvStatus DMA_Config()
         traits::FCR::FTH::write(static_cast<uint32_t>(cfg.FIFOThreshold));
     }
 
-    traits::IFCR::setMask(INTRPT_CLR_MASK << traits::intrpt_idx);
+    traits::IFCR::overwrite(INTRPT_CLR_MASK << traits::intrpt_idx);   // write-only, w1c
 
     h.state = DmaState::READY;
 
     return DrvStatus::Ok;
 }
 
+// Start a transfer of len items (of PSIZE) with interrupts. src / dst are
+// the addresses in transfer direction: for PERIPH_TO_MEM src is the
+// peripheral register. Busy while the stream runs, Error after a transfer
+// error until DMA_Stop.
 template<auto& Handle>
-DrvStatus DMA_SetTransfer(uint32_t src, uint32_t dst, uint16_t len)
+DrvStatus DMA_StartIT(uint32_t src, uint32_t dst, uint16_t len)
 {
     auto& h = Handle;
     using traits = DmaTraits<h.Stream>;
 
+    if (len == 0) return DrvStatus::InvalidArg;
+    if (h.state == DmaState::ERROR) return DrvStatus::Error;
     if (h.state != DmaState::READY) return DrvStatus::Busy;
 
-    h.state = DmaState::BUSY;
+    traits::IFCR::overwrite(INTRPT_CLR_MASK << traits::intrpt_idx);
 
     traits::CR::DBM::clear();
-
     traits::NDTR::NDT::write(len);
-
-    if (traits::CR::DIR::read() == static_cast<uint32_t>(DmaDir::MEM_TO_PERIPH))
-    {
+    if (traits::CR::DIR::read() == static_cast<uint32_t>(DmaDir::MEM_TO_PERIPH)) {
         traits::PAR::PA::write(dst);
         traits::M0AR::M0A::write(src);
-    }
-    else
-    {
+    } else {                                      // PAR = source for MEM_MEM too
         traits::PAR::PA::write(src);
         traits::M0AR::M0A::write(dst);
     }
-    return DrvStatus::Ok;
-}
-
-
-template<auto& Handle>
-DrvStatus DMA_StartIT(uint32_t ScrAddr, uint32_t DstAddr, uint16_t DataLen) {
-
-    auto& h = Handle;
-    using traits = DmaTraits<h.Stream>;
-
-    traits::IFCR::setMask(INTRPT_CLR_MASK << traits::intrpt_idx);
-
-    if (DrvStatus st = DMA_SetTransfer<Handle>(ScrAddr, DstAddr, DataLen); st != DrvStatus::Ok)
-        return st;
-
-    h.src = ScrAddr;
-    h.dst = DstAddr;
-    h.len = DataLen;
+    h.src = src;
+    h.dst = dst;
+    h.len = len;
+    h.errors = 0;
 
     traits::CR::setMask(
         traits::CR::TCIE::BitMsk
@@ -536,10 +583,9 @@ DrvStatus DMA_StartIT(uint32_t ScrAddr, uint32_t DstAddr, uint16_t DataLen) {
         | traits::CR::TEIE::BitMsk
         | traits::CR::DMEIE::BitMsk
     );
-
     traits::FCR::FEIE::set();
 
-    dma_cache_start<traits>(ScrAddr, DstAddr, DataLen);
+    dma_cache_start<traits>(src, dst, len);
 
     h.state = DmaState::BUSY;
 
@@ -554,35 +600,35 @@ template<auto& Handle>
 void DMA_IRQHandler()
 {
     auto& h = Handle;
-
     using traits = DmaTraits<h.Stream>;
 
-    auto flags = traits::ISR::read();
+    const uint32_t flags = traits::ISR::read() & (INTRPT_CLR_MASK << traits::intrpt_idx);
+    traits::IFCR::overwrite(flags);
 
-    traits::IFCR::setMask(INTRPT_CLR_MASK << traits::intrpt_idx);
+    if (flags & traits::DmError::BitMsk) h.errors |= dma_err::DirectMode;
+    if (flags & traits::FifoError::BitMsk) h.errors |= dma_err::Fifo;
 
     if (flags & traits::TxError::BitMsk)
     {
+        h.errors |= dma_err::Transfer;            // the hardware has cleared EN
         h.state = DmaState::ERROR;
-
         if (h.err_callback)
             h.err_callback();
         return;
     }
+
     if (flags & (traits::TxHalf::BitMsk | traits::TxComplete::BitMsk))
         dma_cache_received<traits>(h.dst, h.len);
 
     if (flags & traits::TxHalf::BitMsk)
     {
-        h.state = DmaState::HALF;
-
         if (h.ht_callback)
             h.ht_callback();
     }
     if (flags & traits::TxComplete::BitMsk)
     {
-        h.state = DmaState::READY;
-
+        if (!traits::CR::CIRC::is_set())          // a circular stream runs on
+            h.state = DmaState::READY;
         if (h.tc_callback)
             h.tc_callback();
     }

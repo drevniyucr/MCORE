@@ -30,7 +30,7 @@ public:
 	// =========================
 
 	static bool ready() {
-		return dma.state == DmaState::READY;
+		return dma.ready();
 	}
 
 	// Animations (rainbow etc.) are application code — see app/main.cpp.

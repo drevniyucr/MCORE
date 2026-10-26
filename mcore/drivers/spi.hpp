@@ -191,8 +191,7 @@ struct SpiHandle {
 
         st = DMA_StartIT<htx>(reinterpret_cast<uint32_t>(tx), dr, len);
         if (st != DrvStatus::Ok) {
-            (void)DMA_Stop<hrx.Stream>();
-            hrx.state = DmaState::READY;
+            (void)DMA_Stop<hrx>();                // back to READY
             return st;
         }
 
