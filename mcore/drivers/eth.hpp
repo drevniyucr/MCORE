@@ -200,14 +200,26 @@ extern ETH_TxDescListStruct TxDescList;
 
 
 /* Глобальные Rx/Tx дескрипторы */
+
+// MAC, DMA and PHY set up, autonegotiation started; does NOT wait for a
+// cable: the link is followed by ETH_RxWorker (below). Errors only for a
+// missing / unresponsive PHY or a MAC that does not come out of reset.
 ETH_Status ETH_Init(void);
 void ETH_RxDescInit(void);
 void ETH_TxDescInit(void);
+// Received frames to NET_ProcessRx; also polls the PHY every
+// ETH_LINK_POLL_MS: on link up the MAC is started with the negotiated speed
+// and duplex, on link down it is stopped. Call it on every loop pass.
 void ETH_RxWorker(void);
 bool ETH_SendFrame(uint32_t len);
-bool ETH_IsTxBufferAvailable(void);
+bool ETH_IsTxBufferAvailable(void);   // false while the link is down
 
-ETH_Status PHY_Init(ETH_LinkState *lnk);
+constexpr uint32_t ETH_LINK_POLL_MS = 200;
+bool ETH_LinkUp(void);
+ETH_LinkState ETH_LinkMode(void);     // valid while ETH_LinkUp()
+uint32_t ETH_LinkChanges(void);       // up/down transitions since ETH_Init
+
+ETH_Status PHY_Init(void);            // ID check, reset, autonegotiation started
 bool PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue);
 bool PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue);
 void PHY_SetMDIOClock(void);

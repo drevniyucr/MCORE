@@ -52,7 +52,7 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 | ADC | working |
 | TIM (PWM, input capture, DMA requests) | working |
 | WS2812 LED strip over TIM+DMA | working |
-| Ethernet MAC + PHY (RMII) | working |
+| Ethernet MAC + PHY (RMII; cable followed at run time: MAC started on link up with the negotiated speed/duplex, stopped on link down) | working |
 | CAN (bxCAN: compile-time bit timing, filters, 3 TX mailboxes, IRQ callbacks; tested in loopback) | working |
 | SPI (master, 4..16-bit frames, polling + full-duplex DMA, RAII chip select) | working |
 | IWDG (compile-time timeout, window mode, debug freeze, runtime stretch) + reset-cause query | working |
@@ -353,3 +353,29 @@ see exactly what changes, then regenerate.
 - [x] Split framework / board / application layers
 - [x] Register header generated from SVD + core XML + patches, checked in CI
       (`--svd/--patches` for another STM32; core XML is Cortex-M7 only for now)
+- [x] Priority levels without an RTOS, internal flash driver, Ethernet link followed at run time
+- [ ] RDP for the stored key, no execution from SRAM (XN)
+
+### Speed-up candidates
+
+Measured against the same application on ST HAL + FreeRTOS + lwIP
+(goz-shuttle, one NUCLEO-F767ZI, same TLS broker). MCORE is already ahead in
+the control cycle (min 7.6 vs 10 us, worst 17 vs 410 us), timing (state
+every 1000.0 vs 1018 ms) and short UDP replies (0.14 vs 0.21 ms); these are
+the places where it is behind:
+
+- [ ] **D-cache on.** Off today because the Ethernet DMA reads and writes RAM
+      directly; make the descriptors and RX/TX buffers non-cacheable with an
+      MPU region (as the HAL template does) and enable `SCB_EnableDCache`.
+      Expected: the 1 KB UDP reply (0.41 vs 0.38 ms) and memcpy/JSON-heavy
+      paths, also the control cycle.
+- [ ] **Faster first link-up.** The PHY is polled every 200 ms
+      (`ETH_LINK_POLL_MS`); poll every ~10 ms until the link has come up once.
+      Expected: up to 0.2 s off reset -> first reply (1.49 vs 1.38 s).
+- [ ] **Larger ECC slices in the TLS handshake.** `TLS_ECP_MAX_OPS = 400`
+      keeps each background step short; with the control cycle on its own
+      priority level a larger value (or none) costs nothing there. Expected:
+      part of reset -> MQTT ONLINE (1.85 vs 1.65 s).
+- [ ] **TX queue per NetClient.** `MCORE_NETCLIENT_TX_LEN` is one size for
+      all instances (4 x 10 KB in the shuttle); a per-instance size frees
+      ~30 KB RAM (not speed, but it pays for the cache-friendly layout above).

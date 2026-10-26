@@ -33,8 +33,6 @@ namespace {
 	constexpr uint32_t ETH_RESET_TIMEOUT_MS = 10;
 	constexpr uint32_t PHY_RESET_TIMEOUT_MS = 1000;
 	constexpr uint32_t PHY_STABILIZATION_DELAY_MS = 40;
-	constexpr uint32_t PHY_AUTONEG_TIMEOUT_MS = 5000;
-	constexpr uint32_t PHY_LINK_TIMEOUT_MS = 5000;
 	constexpr uint32_t PHY_MDIO_TIMEOUT_MS = 50;
 	constexpr uint32_t ETH_INIT_DELAY_MS = 1;
 	
@@ -66,6 +64,110 @@ namespace {
 	volatile uint32_t rx_frames_dropped = 0;
 	volatile uint32_t tx_frames_sent = 0;
 	volatile uint32_t tx_frames_dropped = 0;
+
+	// Link, followed by link_poll() from ETH_RxWorker
+	bool link_up = false;
+	ETH_LinkState link_mode = {0, 0};
+	uint32_t link_changes = 0;
+	uint32_t link_polled_at = 0;
+
+	// Speed and duplex into MACCR / MACFCR; the MAC must be stopped (TE/RE off)
+	void mac_configure(const ETH_LinkState &link) {
+		uint32_t DM = 0, FES = 0, JD = 0, CSD = 0, RD = 0, DC = 0, FCB_BPA = 0;
+		if (link.speed) {             // 100 Mbit/s, else 10
+			FES = 1;
+		}
+		if (link.duplex) {            // full duplex
+			DM  = 1;
+			CSD = 1;
+			JD  = 1;
+			RD  = 1;
+		} else {                      // half duplex
+			FCB_BPA = 1;
+			DC = 1;
+			JD = 1;
+		}
+
+		Ethernet_MAC::_MACCR::overwrite(
+		Ethernet_MAC::_MACCR::CSTF::BitMsk      |  // Strip CRC from Type frames
+		(static_cast<uint32_t>(MACCR_IFG::_96bit)
+		<< Ethernet_MAC::_MACCR::IFG::pos)      |  // 96-bit interframe gap
+		(FES << Ethernet_MAC::_MACCR::FES::pos) |  // Fast Ethernet 10/100 Mbps
+		(DM  << Ethernet_MAC::_MACCR::DM::pos)  |  // Duplex mode
+		(JD  << Ethernet_MAC::_MACCR::JD::pos)  |  // Jabber disable
+		(CSD << Ethernet_MAC::_MACCR::CSD::pos) |  // Carrier sense disable
+		(RD  << Ethernet_MAC::_MACCR::RD::pos)  |  // Retry disable
+		(DC  << Ethernet_MAC::_MACCR::DC::pos)  |  // Deferral check
+		Ethernet_MAC::_MACCR::IPCO::BitMsk      |  // Hardware IPv4 checksum offload
+		Ethernet_MAC::_MACCR::APCS::BitMsk		   //Automatic pad/CRC stripping
+		);
+
+		Ethernet_MAC::_MACFCR::overwrite(
+		Ethernet_MAC::_MACFCR::ZQPD::BitMsk        |  // Ignore PAUSE frames with zero pause
+		(static_cast<uint32_t>(MACFCR_PLT::Minus4)
+		<< Ethernet_MAC::_MACFCR::PLT::pos)        |
+		Ethernet_MAC::_MACFCR::RFCE::BitMsk        |
+		Ethernet_MAC::_MACFCR::TFCE::BitMsk        |
+		(FCB_BPA << Ethernet_MAC::_MACFCR::FCB::pos)  //Flow Control Busy / Back Pressure Activate
+		);
+	}
+
+	// Speed / duplex resolved by autonegotiation (LAN8742A special status)
+	bool phy_link_mode(ETH_LinkState *lnk) {
+		uint32_t sr;
+		if (!PHY_Read(PHY_ADDR, PHY_SC_SR, &sr)) return false;
+		if ((sr & PHY_FULLDUPLEX_100M) == PHY_FULLDUPLEX_100M) {
+			*lnk = {1, 1};
+		} else if ((sr & PHY_HALFDUPLEX_100M) == PHY_HALFDUPLEX_100M) {
+			*lnk = {1, 0};
+		} else if ((sr & PHY_FULLDUPLEX_10M) == PHY_FULLDUPLEX_10M) {
+			*lnk = {0, 1};
+		} else if ((sr & PHY_HALFDUPLEX_10M) == PHY_HALFDUPLEX_10M) {
+			*lnk = {0, 0};
+		} else {
+			return false;
+		}
+		return true;
+	}
+
+	// Follow the cable: start the MAC on link up, stop it on link down
+	void link_poll() {
+		const uint32_t now = get_tick();
+		if (now - link_polled_at < ETH_LINK_POLL_MS) return;
+		link_polled_at = now;
+
+		uint32_t bsr;
+		// The link bit latches low: the first read reports a drop since the last one
+		if (!PHY_Read(PHY_ADDR, PHY_BSR, &bsr) || !PHY_Read(PHY_ADDR, PHY_BSR, &bsr)) return;
+		const bool up = (bsr & PHY_LINKED_STATUS) && (bsr & PHY_AUTONEG_DONE);
+
+		if (up && !link_up) {
+			ETH_LinkState mode;
+			if (!phy_link_mode(&mode)) return;           // next poll
+			link_mode = mode;
+			mac_configure(mode);
+			Ethernet_MAC::_MACCR::bitSet<Ethernet_MAC::_MACCR::TE, Ethernet_MAC::_MACCR::RE>();
+			link_up = true;
+			link_changes++;
+		} else if (!up && link_up) {
+			Ethernet_MAC::_MACCR::TE::clear();
+			Ethernet_MAC::_MACCR::RE::clear();
+			link_up = false;
+			link_changes++;
+		}
+	}
+}
+
+bool ETH_LinkUp() {
+	return link_up;
+}
+
+ETH_LinkState ETH_LinkMode() {
+	return link_mode;
+}
+
+uint32_t ETH_LinkChanges() {
+	return link_changes;
 }
 
 ETH_Status ETH_Init() {
@@ -96,53 +198,13 @@ ETH_Status ETH_Init() {
 	// Configure MDIO clock based on system clock
 	PHY_SetMDIOClock();
 	
-	// Initialize PHY (autonegotiation, link detection)
-	uint8_t DM = 0,FES = 0,JD = 0,CSD = 0,RD = 0,DC = 0,FCB_BPA = 0;
-	ETH_LinkState link = {0,0};
-	ETH_Status status = PHY_Init(&link);
+	// PHY: identity, reset, autonegotiation started (not waited for: the
+	// link is followed by link_poll(), which also sets speed and duplex)
+	const ETH_Status status = PHY_Init();
 	if (status != ETH_Status::OK) {
 		return status;
 	}
-	if(link.speed){//100mbps
-		FES = 1;
-	}//else 10mbps
-	if(link.duplex){//fullduplex
-		DM  = 1;
-		CSD = 1;
-		JD  = 1;
-		RD  = 1;
-	}else{//halfduplex
-		FCB_BPA = 1;
-		DC = 1;
-		JD = 1;
-	}
-
-	// MAC Control Register configuration
-	Ethernet_MAC::_MACCR::overwrite(
-	Ethernet_MAC::_MACCR::CSTF::BitMsk      |  // Strip CRC from Type frames
-	(static_cast<uint32_t>(MACCR_IFG::_96bit)
-	<< Ethernet_MAC::_MACCR::IFG::pos)      |  // 96-bit interframe gap
-	(FES << Ethernet_MAC::_MACCR::FES::pos) |  // Fast Ethernet 10/100 Mbps
-	(DM  << Ethernet_MAC::_MACCR::DM::pos)  |  // Duplex mode
-	(JD  << Ethernet_MAC::_MACCR::JD::pos)  |  // Jabber disable
-	(CSD << Ethernet_MAC::_MACCR::CSD::pos) |  // Carrier sense disable
-	(RD  << Ethernet_MAC::_MACCR::RD::pos)  |  // Retry disable
-	(DC  << Ethernet_MAC::_MACCR::DC::pos)  |  // Deferral check
-	Ethernet_MAC::_MACCR::IPCO::BitMsk      |  // Hardware IPv4 checksum offload
-	Ethernet_MAC::_MACCR::APCS::BitMsk		   //Automatic pad/CRC stripping
-	);
-	delay_ms(ETH_INIT_DELAY_MS);
-	
-	// MAC Flow Control Register configuration
-	Ethernet_MAC::_MACFCR::overwrite(
-	Ethernet_MAC::_MACFCR::ZQPD::BitMsk        |  // Ignore PAUSE frames with zero pause
-	(static_cast<uint32_t>(MACFCR_PLT::Minus4)
-	<< Ethernet_MAC::_MACFCR::PLT::pos)        |
-	Ethernet_MAC::_MACFCR::RFCE::BitMsk        |
-	Ethernet_MAC::_MACFCR::TFCE::BitMsk        |
-	(FCB_BPA << Ethernet_MAC::_MACFCR::FCB::pos)  //Flow Control Busy / Back Pressure Activate
-	);
-	
+	mac_configure({1, 1});   // placeholder until the link reports its mode; MAC stays off
 	delay_ms(ETH_INIT_DELAY_MS);
 	
 	// DMA Operation Mode Register configuration
@@ -211,15 +273,9 @@ ETH_Status ETH_Init() {
 	>();
 	
 	delay_ms(ETH_INIT_DELAY_MS);
-	
-	// Enable MAC transmitter and receiver
-	Ethernet_MAC::_MACCR::bitSet<
-		Ethernet_MAC::_MACCR::TE,  // Transmit enable
-		Ethernet_MAC::_MACCR::RE    // Receive enable
-	>();
-	
-	delay_ms(ETH_INIT_DELAY_MS);
-	
+
+	// The MAC transmitter and receiver are enabled by link_poll() on link up
+
 	// Flush transmit FIFO
 	Ethernet_DMA::_DMAOMR::FTF::set();
 	delay_ms(ETH_INIT_DELAY_MS);
@@ -232,7 +288,11 @@ ETH_Status ETH_Init() {
 	// Configure and enable Ethernet interrupt
 	NVIC_API::SetPriority<IRQn_Type::ETH_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::ETH_IRQn>();
-	
+
+	link_up = false;
+	link_changes = 0;
+	link_polled_at = get_tick() - ETH_LINK_POLL_MS;   // first poll right away
+	link_poll();
 	return ETH_Status::OK;
 }
 
@@ -292,29 +352,39 @@ extern "C" void ETH_IRQHandler(void) {
 	//constexpr uint32_t TIE = Ethernet_DMA::_DMAIER::TIE::BitMsk; // Transmit interrupt enable
 	constexpr uint32_t NIS = Ethernet_DMA::_DMASR::NIS::BitMsk; // Normal interrupt summary
 	
-	// TX interrupt handling
-	if (Ethernet_DMA::_DMASR::TS::is_set()) {
-		Ethernet_DMA::_DMASR::setMask(TS | NIS);  // Clear status bits
+	// DMASR is write-1-to-clear: plain stores only. A read-modify-write
+	// (setMask) wrote back every pending bit and cleared RS while handling TS,
+	// so a frame received meanwhile waited for the next RX interrupt.
+	const uint32_t sr = Ethernet_DMA::_DMASR::read();
 
-		eth_tx_event = 1;  // Signal TX completion
-	}
-	// RX interrupt handling
-	if (Ethernet_DMA::_DMASR::RS::is_set()) {
-		Ethernet_DMA::_DMASR::setMask(RS | NIS);  // Clear status bits
-		 // Продвигаем tail безопасно
+	// Descriptors the DMA has sent are free again (here, not only on RX:
+	// a transmit burst must not wait for incoming traffic to reclaim them)
+	auto reclaim_tx = [] {
 		uint8_t tail = TxDescList.CurrTailNum;
-		uint8_t head = TxDescList.CurrHeadNum;
-        // Продвигаем tail пока OWN=0 и tail != head
+		const uint8_t head = TxDescList.CurrHeadNum;
 		while (tail != head && !(TxDescList.TxDesc[tail]->DESC0 & ETH_DMATXDESC_OWN)) {
 			tail = (tail + 1) % ETH_TX_DESC_CNT;
 		}
 		TxDescList.CurrTailNum = tail;
+	};
+
+	// TX interrupt handling
+	if (sr & TS) {
+		Ethernet_DMA::_DMASR::overwrite(TS | NIS);
+		reclaim_tx();
+		eth_tx_event = 1;  // Signal TX completion
+	}
+	// RX interrupt handling
+	if (sr & RS) {
+		Ethernet_DMA::_DMASR::overwrite(RS | NIS);
+		reclaim_tx();
 		eth_rx_event = 1;
 	}
 }
 
 void ETH_RxWorker() {
-	
+	link_poll();
+
 	if (eth_rx_event == 0) {
 			return;  // No RX event to process
 		}
@@ -384,6 +454,10 @@ void ETH_RxWorker() {
 }
 
 bool ETH_IsTxBufferAvailable() {
+	// No link: the MAC transmitter is off, a queued frame would only wait
+	if (!link_up) {
+		return false;
+	}
 	// Check if there's space in TX queue
 	// Head pointer advances when we send, tail advances when DMA completes
 	const uint8_t next_head = (TxDescList.CurrHeadNum + 1) % ETH_TX_DESC_CNT;
@@ -427,8 +501,8 @@ bool ETH_SendFrame(uint32_t len) {
 	return true;
 }
 
-ETH_Status PHY_Init(ETH_LinkState *lnk) {
-	uint32_t bcr, bsr, id1, id2, tickstart;
+ETH_Status PHY_Init() {
+	uint32_t bcr, id1, id2, tickstart;
 	
 	// Verify PHY ID (LAN8742A)
 	PHY_Read(PHY_ADDR, PHY_ID1, &id1);
@@ -450,45 +524,12 @@ ETH_Status PHY_Init(ETH_LinkState *lnk) {
 	// Wait for PHY stabilization after reset
 	delay_ms(PHY_STABILIZATION_DELAY_MS);
 	
-	// Start autonegotiation
-	PHY_Write(PHY_ADDR, PHY_BCR, PHY_AUTONEG_EN | PHY_RESTART_AUTONEG);
-	tickstart = get_tick();
-	do {
-		PHY_Read(PHY_ADDR, PHY_BSR, &bsr);
-		PHY_Read(PHY_ADDR, PHY_BSR, &bsr);  // Double read (PHY requirement)
-		if ((get_tick() - tickstart) > PHY_AUTONEG_TIMEOUT_MS) {
-			return ETH_Status::PHY_AUTONEG_FAULT;
-		}
-	} while (!(bsr & PHY_AUTONEG_DONE));
-	
-	// Wait for link establishment
-	tickstart = get_tick();
-	do {
-		PHY_Read(PHY_ADDR, PHY_BSR, &bsr);
-		PHY_Read(PHY_ADDR, PHY_BSR, &bsr);  // Double read (PHY requirement)
-		if ((get_tick() - tickstart) > PHY_LINK_TIMEOUT_MS) {
-			return ETH_Status::PHY_LINK_DOWN;
-		}
-	} while (!(bsr & PHY_LINKED_STATUS));
-	
-	// Check connection mode
-		PHY_Read(PHY_ADDR, PHY_SC_SR, &bsr);
-		if((bsr & PHY_FULLDUPLEX_100M) == PHY_FULLDUPLEX_100M){
-			lnk->duplex = 1;
-			lnk->speed  = 1;
-		}else if((bsr & PHY_HALFDUPLEX_100M) == PHY_HALFDUPLEX_100M){
-			lnk->duplex = 0;
-			lnk->speed  = 1;
-		}else if((bsr & PHY_FULLDUPLEX_10M) == PHY_FULLDUPLEX_10M){
-			lnk->duplex = 1;
-			lnk->speed  = 0;
-		}else if((bsr & PHY_HALFDUPLEX_10M) == PHY_HALFDUPLEX_10M){
-			lnk->duplex = 0;
-			lnk->speed  = 0;
-		}else{
-			return ETH_Status::UNEXPECT_FAULT;
-		}
-		return ETH_Status::OK;
+	// Start autonegotiation; the PHY keeps renegotiating whenever a cable
+	// is plugged in, link_poll() picks up the result
+	if (!PHY_Write(PHY_ADDR, PHY_BCR, PHY_AUTONEG_EN | PHY_RESTART_AUTONEG)) {
+		return ETH_Status::UNEXPECT_FAULT;
+	}
+	return ETH_Status::OK;
 }
 
 void PHY_SetMDIOClock() {
