@@ -15,8 +15,8 @@ spsc::RingBuffer<AdcSample, 16> adc_queue;
 uint16_t adc_latest[2] = { 0, 0 };  // last value per rank, drained in the loop
 uint8_t adc_idx = 0;                 // ISR-owned scan position (rank 0 / 1)
 uint8_t hue = 0;
-uint8_t rx_usart6_buf[100];
-uint8_t rx_usart2_buf[100];
+alignas(32) uint8_t rx_usart6_buf[128];   // DMA receive: whole cache lines
+alignas(32) uint8_t rx_usart2_buf[128];
 
 DmaHandle<DmaStream::DMA2_Stream_1> usart6_rx;
 DmaHandle<DmaStream::DMA2_Stream_7> usart6_tx;
@@ -46,7 +46,7 @@ DmaHandle<DmaStream::DMA2_Stream_4> spi4_tx;  // channel 5
 // received byte is 0xFF (pull-up, as configured) or 0x00 (pull-down).
 // Observable via debugger.
 uint8_t spi_rx_poll[4];
-uint8_t spi_dma_buf[16];
+alignas(32) uint8_t spi_dma_buf[32];
 DrvStatus spi_status;
 std::atomic<uint32_t> spi_dma_count{ 0 };
 
@@ -288,7 +288,7 @@ int main() {
 		RCC_Init();
 		MPU_Config();
 		SCB_EnableICache();
-		//SCB_EnableDCache();
+		SCB_EnableDCache();   // DMA buffers: the DMA driver does the cache maintenance
 		GPIO_Init();
 		uart_init();
 		i2c_init();

@@ -3,6 +3,7 @@
  *
  *   flash::erase_sector(9);                       // 256 KB at 0x08140000
  *   flash::program(0x08140000, data, n);          // n and address multiples of 4
+ *   flash::enable_read_protection();              // RDP level 1, see below
  *
  * Single-bank layout only (option bit nDBANK = 1, the factory default):
  * sectors 0-3 32 KB, 4 128 KB, 5-11 256 KB. In dual-bank mode sector numbers
@@ -22,6 +23,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "core/cache.hpp"
 #include "core/regs.hpp"
 #include "core/system.hpp"
 #include "drivers/common.hpp"
@@ -35,6 +37,9 @@ constexpr uint32_t KEY2 = 0xCDEF89AB;
 constexpr uint32_t PSIZE_X32 = 0b10;
 constexpr uint32_t ERASE_TIMEOUT_MS = 4000;     // 256 KB sector: 1..2 s typical (RM0410)
 constexpr uint32_t PROGRAM_TIMEOUT_MS = 5;
+constexpr uint32_t OPTKEY1 = 0x08192A3B;
+constexpr uint32_t OPTKEY2 = 0x4C5D6E7F;
+constexpr uint32_t OPTION_TIMEOUT_MS = 1000;
 
 // OPERR | WRPERR | PGAERR | PGPERR | ERSERR (bit 7, "PGSERR" in the SVD)
 constexpr uint32_t SR_ERRORS = Flash::_SR::OPERR::BitMsk | Flash::_SR::WRPERR::BitMsk |
@@ -78,17 +83,6 @@ inline DrvStatus wait_idle(uint32_t timeout_ms) {
 	return (sr & SR_ERRORS) ? DrvStatus::Error : DrvStatus::Ok;
 }
 
-// Flash is read through the D-cache when it is on: drop the stale lines
-inline void invalidate_dcache(uint32_t addr, uint32_t n) {
-	if (!SCB::_CCR::DC::is_set()) return;
-	__DSB();
-	for (uint32_t a = addr & ~31U; a < addr + n; a += 32) {
-		Cache::_DCIMVAC::overwrite(a);
-	}
-	__DSB();
-	__ISB();
-}
-
 } // namespace detail
 
 // Erase one sector (blocks; see the stall note above)
@@ -106,7 +100,7 @@ inline DrvStatus erase_sector(uint8_t sector) {
 		Flash::_CR::overwrite(0u);
 	}
 	detail::lock();
-	detail::invalidate_dcache(sector_addr(sector), sector_size(sector));
+	cache::invalidate(sector_addr(sector), sector_size(sector));
 	return st;
 }
 
@@ -133,10 +127,54 @@ inline DrvStatus program(uint32_t addr, const void *data, size_t n) {
 		Flash::_CR::overwrite(0u);
 	}
 	detail::lock();
-	detail::invalidate_dcache(addr, static_cast<uint32_t>(n));
+	cache::invalidate(addr, static_cast<uint32_t>(n));
 	if (st == DrvStatus::Ok && memcmp(reinterpret_cast<const void *>(addr), data, n) != 0) {
 		st = DrvStatus::Error;
 	}
+	return st;
+}
+
+// ---- read-out protection (RDP option byte) ----
+//
+// Level 0: no protection. Level 1: flash cannot be read, erased or programmed
+// through the debug port (SWD), from RAM-booted code or the system bootloader;
+// the firmware itself runs and uses its flash as before. Going back to level 0
+// (debugger: openocd "stm32f2x unlock 0", or STM32CubeProgrammer) mass-erases
+// all of flash, so the code and the data in it cannot be taken out that way.
+// Level 2 (also no debug port at all, permanently, cannot be undone) is left
+// to the production programming station on purpose; this driver never sets it.
+//
+// Without a debug probe the firmware keeps running and the level applies from
+// the next reset. With a probe attached it applies at once: the CPU loses its
+// own flash and locks up (checked on the bench), so call this in production
+// firmware, not under a debugger. The device then runs again after a power
+// cycle without the probe.
+
+enum class Rdp : uint8_t { Level0, Level1, Level2 };
+
+inline Rdp rdp_level() {
+	const uint32_t v = Flash::_OPTCR::RDP::read();
+	return v == 0xAA ? Rdp::Level0 : v == 0xCC ? Rdp::Level2 : Rdp::Level1;
+}
+
+// Raise RDP to level 1 (does nothing at level 1 or 2). Blocks for the option
+// byte programming time (flash fetches stall meanwhile, a few ms).
+inline DrvStatus enable_read_protection() {
+	if (rdp_level() != Rdp::Level0) return DrvStatus::Ok;
+	if (Flash::_OPTCR::OPTLOCK::is_set()) {
+		Flash::_OPTKEYR::overwrite(OPTKEY1);
+		Flash::_OPTKEYR::overwrite(OPTKEY2);
+		if (Flash::_OPTCR::OPTLOCK::is_set()) return DrvStatus::Error;
+	}
+	DrvStatus st = detail::wait_idle(PROGRAM_TIMEOUT_MS);
+	if (st == DrvStatus::Ok) {
+		Flash::_OPTCR::RDP::write(0x55U);          // anything but 0xAA / 0xCC = level 1
+		Flash::_OPTCR::OPTSTRT::set();
+		__DSB();
+		st = detail::wait_idle(OPTION_TIMEOUT_MS);
+	}
+	Flash::_OPTCR::OPTLOCK::set();
+	if (st == DrvStatus::Ok && rdp_level() != Rdp::Level1) st = DrvStatus::Error;
 	return st;
 }
 

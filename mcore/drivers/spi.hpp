@@ -173,7 +173,8 @@ struct SpiHandle {
      * PERIPH_TO_MEM, htx as MEM_TO_PERIPH, both without peripheral increment
      * and with PSIZE matching Word. tx and rx may be the same buffer
      * (in-place exchange: each RX write lands behind the TX read).
-     * With the D-cache on, buffers must be cleaned / invalidated by the caller.
+     * With the D-cache on, the DMA driver cleans / invalidates the buffers;
+     * rx should be alignas(32) (core/cache.hpp).
      */
     template<auto& hrx, auto& htx>
     static DrvStatus transfer_dma(const Word* tx, Word* rx, uint16_t len) {

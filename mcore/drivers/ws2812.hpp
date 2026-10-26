@@ -56,8 +56,8 @@ private:
 	static constexpr uint32_t TOTAL_SLOTS = DATA_SLOTS + RESET_SLOTS;
 
 	// NOT volatile: the CPU only writes this buffer before the transfer starts,
-	// and DMA_StartIT() issues a __DSB() before enabling the stream — that is
-	// what publishes the data to the DMA master. volatile here would only
+	// and DMA_StartIT() cleans it from the D-cache and issues a __DSB() before
+	// enabling the stream — that is what publishes the data to the DMA master. volatile here would only
 	// forbid the compiler from optimising the encode loop (one halfword store
 	// per slot instead of coalesced writes).
 	static inline uint16_t dma_buffer[TOTAL_SLOTS];

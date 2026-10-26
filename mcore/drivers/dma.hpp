@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include "core/cache.hpp"
 #include "core/regs.hpp"
 #include "core/rcc.hpp"
 #include "core/system.hpp"
@@ -317,6 +318,31 @@ struct DmaTraits
     static constexpr uint8_t intrpt_idx = offset_table[stream_index % 4];
 };
 
+// D-cache: memory the stream reads is cleaned before the start; memory it
+// writes is cleaned + invalidated before (no dirty line may later be evicted
+// over received data) and invalidated again at half / full completion (the
+// CPU may have pulled lines in speculatively meanwhile). Nothing happens with
+// the cache off or for DTCM. Bytes = NDTR x PSIZE in every direction.
+// Receive buffers: alignas(32), see core/cache.hpp.
+template<typename traits>
+inline void dma_cache_start(uint32_t src, uint32_t dst, uint16_t len)
+{
+    const uint32_t n = uint32_t{len} << traits::CR::PSIZE::read();
+    switch (static_cast<DmaDir>(traits::CR::DIR::read())) {
+    case DmaDir::MEM_TO_PERIPH: cache::clean(src, n); break;
+    case DmaDir::PERIPH_TO_MEM: cache::clean_invalidate(dst, n); break;
+    case DmaDir::MEM_MEM:       cache::clean(src, n); cache::clean_invalidate(dst, n); break;
+    }
+}
+
+template<typename traits>
+inline void dma_cache_received(uint32_t dst, uint16_t len)
+{
+    if (traits::CR::DIR::read() != static_cast<uint32_t>(DmaDir::MEM_TO_PERIPH)) {
+        cache::invalidate(dst, uint32_t{len} << traits::CR::PSIZE::read());
+    }
+}
+
 template<DmaStream Stream>
 static inline bool DMA_IsEnabled()
 {
@@ -513,6 +539,8 @@ DrvStatus DMA_StartIT(uint32_t ScrAddr, uint32_t DstAddr, uint16_t DataLen) {
 
     traits::FCR::FEIE::set();
 
+    dma_cache_start<traits>(ScrAddr, DstAddr, DataLen);
+
     h.state = DmaState::BUSY;
 
     __DSB();
@@ -541,6 +569,9 @@ void DMA_IRQHandler()
             h.err_callback();
         return;
     }
+    if (flags & (traits::TxHalf::BitMsk | traits::TxComplete::BitMsk))
+        dma_cache_received<traits>(h.dst, h.len);
+
     if (flags & traits::TxHalf::BitMsk)
     {
         h.state = DmaState::HALF;

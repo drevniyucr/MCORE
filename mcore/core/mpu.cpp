@@ -25,10 +25,31 @@ namespace {
 		.enable = true
 	};
 
-	// MPU Region 1: Ethernet RX Buffer (16KB at 0x20078000)
-	// Non-cacheable, shareable memory for DMA-accessible Ethernet receive buffers
-	constexpr _MPU::RegionConfig region1_eth_pool = {
+	// MPU Region 1: all 512 KB of SRAM (DTCM, SRAM1, SRAM2) execute-never.
+	// Nothing runs from RAM here (.RamFunc is empty), so an instruction fetch
+	// from it - a corrupted return address or function pointer - is a precise
+	// MemManage fault (IACCVIOL) instead of executing data. Normal memory,
+	// write-back read/write-allocate, non-shareable: the same as the default
+	// map, so caching does not change. Higher regions override it.
+	constexpr _MPU::RegionConfig region1_sram_xn = {
 		.regionNum = _MPU::regionNumber::REGION_1,
+		.baseAddress = 0x20000000,
+		.instructionAccessDisable = true,
+		.accessPermission = _MPU::regionPermission::REGION_FULL_ACCESS,
+		.texLevel = _MPU::regionTEX::REGION_TEX_LEVEL1,
+		.shareable = false,
+		.cacheable = true,
+		.bufferable = true,
+		.subregionDisable = 0,
+		.size = _MPU::regionSize::REGION_SIZE_512KB,
+		.enable = true
+	};
+
+	// MPU Region 2: Ethernet DMA area (32 KB at 0x20078000: descriptors and
+	// RX/TX buffers). Non-cacheable, shareable memory, so the Ethernet DMA and
+	// the CPU see the same bytes without cache maintenance
+	constexpr _MPU::RegionConfig region2_eth_pool = {
+		.regionNum = _MPU::regionNumber::REGION_2,
 		.baseAddress = 0x20078000,  // ETH RX buffer base address
 		.instructionAccessDisable = true,
 		.accessPermission = _MPU::regionPermission::REGION_FULL_ACCESS,
@@ -41,7 +62,7 @@ namespace {
 		.enable = true
 	};
 
-	// MPU Region 2: stack guard. The MSP stack is the first thing in RAM
+	// MPU Region 3: stack guard. The MSP stack is the first thing in RAM
 	// (linker script, .stack at 0x20000000) and grows down; its lowest 1 KB is
 	// no-access, so running past the usable 8 KB is a precise MemManage fault
 	// (MMFAR = the address) that core/fault.cpp records. Without it an overflow
@@ -49,8 +70,8 @@ namespace {
 	// on this part, and faults only ~64 KB further down. 1 KB, not 32 B: a
 	// function frame larger than the guard steps over it (push above, locals
 	// below) - frames here stay well under 1 KB.
-	constexpr _MPU::RegionConfig region2_stack_guard = {
-		.regionNum = _MPU::regionNumber::REGION_2,
+	constexpr _MPU::RegionConfig region3_stack_guard = {
+		.regionNum = _MPU::regionNumber::REGION_3,
 		.baseAddress = 0x20000000,  // = _sstack, checked in MPU_Config
 		.instructionAccessDisable = true,
 		.accessPermission = _MPU::regionPermission::REGION_NO_ACCESS,
@@ -72,9 +93,10 @@ void MPU_Config() {
 	
 	// Configure regions in order
 	_MPU::configure<region0>();        // Default deny region
-	_MPU::configure<region1_eth_pool>(); // Ethernet RX buffer
-	if (reinterpret_cast<uintptr_t>(_sstack) == region2_stack_guard.baseAddress) {
-		_MPU::configure<region2_stack_guard>();  // only where the stack really starts
+	_MPU::configure<region1_sram_xn>();  // SRAM execute-never
+	_MPU::configure<region2_eth_pool>(); // Ethernet DMA area, non-cacheable
+	if (reinterpret_cast<uintptr_t>(_sstack) == region3_stack_guard.baseAddress) {
+		_MPU::configure<region3_stack_guard>();  // only where the stack really starts
 	}
 	
 	// Enable MPU with privileged default memory map

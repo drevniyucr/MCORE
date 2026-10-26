@@ -46,7 +46,7 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 |---|---|
 | RCC (PLL, 216 MHz, bus prescalers) | working |
 | GPIO / NVIC / MPU / SysTick | working |
-| DMA (`DmaHandle<DmaStream::...>`) | working |
+| DMA (`DmaHandle<DmaStream::...>`; D-cache clean / invalidate done by the driver) | working |
 | USART + DMA RX/TX | working |
 | I2C (tested with 47L16 EEPROM) | working |
 | ADC | working |
@@ -56,7 +56,7 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 | CAN (bxCAN: compile-time bit timing, filters, 3 TX mailboxes, IRQ callbacks; tested in loopback) | working |
 | SPI (master, 4..16-bit frames, polling + full-duplex DMA, RAII chip select) | working |
 | IWDG (compile-time timeout, window mode, debug freeze, runtime stretch) + reset-cause query | working |
-| Internal flash (sector erase, word program with verify; single-bank layout) | working |
+| Internal flash (sector erase, word program with verify; single-bank layout; read-out protection level 1) | working |
 | RTC (LSE/LSI, calendar kept across resets, 1 Hz wakeup IRQ, backup registers) | working |
 
 ### 5. Scheduling: a superloop plus preemptive levels, no RTOS
@@ -184,6 +184,17 @@ topic and reconnects by itself.
   MemManage fault reported as "stack overflow", never silent data corruption.
   Measured peak with TLS/MQTT running: ~2.4 KB. The Ethernet DMA area is kept
   out of the linker's RAM region and the newlib heap is bounded below it.
+- **No code from RAM**: all 512 KB of SRAM is an execute-never MPU region, so a
+  jump into data (corrupted return address or function pointer) is a precise
+  MemManage fault (IACCVIOL) instead of running it.
+- **D-cache**: `core/cache.hpp` (clean / invalidate by range, skipped for DTCM);
+  the DMA driver cleans what a stream reads and invalidates what it writes, the
+  flash driver what it programs, the Ethernet area is non-cacheable. Checked on
+  the board with a buffer in SRAM1: every SPI DMA exchange read back right,
+  every one wrong with the maintenance removed. DMA receive buffers: `alignas(32)`.
+- **Read-out protection**: `flash::enable_read_protection()` sets RDP level 1
+  (no flash access over SWD; removing it mass-erases the chip). Level 2 is
+  permanent and left to the production programmer.
 - **Randomness**: TCP ISNs, ephemeral ports, DNS ids, NTP nonces and DHCP xids
   come from the hardware RNG (`drivers/rng.hpp`), the same source as TLS.
 - OpenOCD configs (`debug/`) + VS Code launch/tasks
@@ -195,7 +206,7 @@ mcore/               framework (include root: #include "drivers/gpio.hpp")
 ├── mcore.hpp        umbrella header
 ├── core/            regs.hpp (generated), utils.hpp, def.hpp,
 │                    device.hpp (MCU seam), mcore_config.hpp (config contract),
-│                    system, rcc, nvic, nvic_def, mpu, fault
+│                    system, rcc, nvic, nvic_def, mpu, cache, fault
 ├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, iwdg, rtc, ws2812, eth
 └── net/             net, arp, dns, ntp, dhcp, tcp, netclient, tls, mqtt, eth_utils
 app/                 application: main.cpp, board.hpp (pin maps),
@@ -354,7 +365,7 @@ see exactly what changes, then regenerate.
 - [x] Register header generated from SVD + core XML + patches, checked in CI
       (`--svd/--patches` for another STM32; core XML is Cortex-M7 only for now)
 - [x] Priority levels without an RTOS, internal flash driver, Ethernet link followed at run time
-- [ ] RDP for the stored key, no execution from SRAM (XN)
+- [x] RDP level 1 for the stored key, no execution from SRAM (XN), D-cache with DMA
 
 ### Speed-up candidates
 
@@ -374,8 +385,7 @@ three runs, autonegotiation alone varies by ~±50 ms):
 
 - [x] **D-cache on** in the shuttle: the Ethernet DMA area is already a
       non-cacheable MPU region and nothing else there uses DMA. Control cycle
-      -34%, 1 KB reply -28%. The MCORE demo keeps it off: its USART/SPI/WS2812
-      DMA buffers would need cache maintenance in the DMA driver first.
+      -34%, 1 KB reply -28%.
 - [x] **No PHY soft reset at init** (the ST driver does not do one either):
       the PHY is already negotiating after its hardware reset; -70 ms to the
       first reply. A PHY left powered down / isolated / in loopback is still reset.
@@ -385,4 +395,4 @@ three runs, autonegotiation alone varies by ~±50 ms):
 - [x] **TX queue per NetClient** (`NetClientBuf<N>`): -30 KB RAM in the shuttle.
 - [ ] Larger ECC slices / no restartable ECC: measured, only 10-14 ms; the
       slices keep the background loop answering during a handshake, so they stay.
-- [ ] D-cache in the MCORE demo: cache clean / invalidate in the DMA driver.
+- [x] D-cache in the MCORE demo: cache clean / invalidate in the DMA driver.
