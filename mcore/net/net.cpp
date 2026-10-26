@@ -11,6 +11,7 @@
 #include "net/dns.hpp"
 #include "net/ntp.hpp"
 #include "net/dhcp.hpp"
+#include "net/udp.hpp"
 #include "net/eth_utils.hpp"
 #include "drivers/eth.hpp"
 
@@ -21,6 +22,8 @@ namespace {
 	constexpr uint16_t L4_MIN_HDR_LEN = 8;           // UDP header = minimal ICMP message
 	constexpr uint8_t ICMP_ECHO_REQUEST = 8;        // ICMP echo request type
 	constexpr uint8_t ICMP_ECHO_REPLY = 0;          // ICMP echo reply type
+	constexpr uint16_t IP_FLAG_MF = 0x2000;          // more fragments
+	constexpr uint16_t IP_FRAG_OFFSET_MASK = 0x1FFF;
 }
 
 uint8_t MAC_ADDR[MAC_ADDR_LEN] = { 0x02, 0x12, 0x34, 0x56, 0x78, 0x9A };
@@ -170,6 +173,13 @@ void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 		return;  // IP length mismatch
 	}
 
+	// No reassembly: a fragment's payload is not a transport header (a later
+	// fragment would be parsed as UDP/TCP from the middle of the data)
+	const uint16_t frag = static_cast<uint16_t>((ip_hdr[6] << 8) | ip_hdr[7]);
+	if ((frag & (IP_FLAG_MF | IP_FRAG_OFFSET_MASK)) != 0) {
+		return;
+	}
+
 	// Prepare frame structure for protocol handlers
 	ipv4_frame ip_frame;
 	ip_frame.rx_buff = rx_buff;
@@ -225,17 +235,15 @@ void NET_ProcessUDP(ipv4_frame* frame) {
 		return;
 	}
 
-	if (dst_port != UDP_DST_PORT) {
-		// Port not for us - send ICMP unreachable.
-		// Never answer broadcast datagrams (RFC 1122).
-		if (!frame->is_broadcast) {
-			NET_SendICMP_Unreachable(frame);
-		}
+	if (NET_UDP_Deliver(frame, dst_port)) {
 		return;
 	}
 
-	// TODO: Route to UDP handler based on port
-	// send_UDP_echo(RxDesc);
+	// Port not for us - send ICMP unreachable.
+	// Never answer broadcast datagrams (RFC 1122).
+	if (!frame->is_broadcast) {
+		NET_SendICMP_Unreachable(frame);
+	}
 }
 
 void NET_SetIPAddr(const uint8_t *ip) {

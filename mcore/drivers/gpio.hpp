@@ -124,6 +124,22 @@ struct PinGroup {
 		((states[i++] = Pins::read()), ...);
 	}
 
+	// Битовая маска уровней: бит i = i-й пин группы (порядок пакета).
+	static uint32_t read_mask() {
+		static_assert(count <= 32);
+		uint32_t v = 0;
+		uint32_t i = 0;
+		((v |= static_cast<uint32_t>(Pins::read()) << i++), ...);
+		return v;
+	}
+
+	// Обратная операция: бит i маски → уровень i-го пина.
+	static void write_mask(uint32_t v) {
+		static_assert(count <= 32);
+		uint32_t i = 0;
+		(((v >> i++) & 1u ? Pins::set() : Pins::reset()), ...);
+	}
+
 	// Compile-time конфигурация группы: одна RMW-запись на порт на регистр.
 	// cfg передаётся как non-type template parameter → все маски сворачиваются в константы.
 	template<GPIO_Config Cfg>

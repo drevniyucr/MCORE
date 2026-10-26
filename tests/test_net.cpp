@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "net/net.hpp"
+#include "net/udp.hpp"
 #include "net/eth_utils.hpp"
 #include "drivers/eth.hpp"
 #include "helpers.hpp"
@@ -109,8 +110,9 @@ TEST_CASE("ICMP: non-echo-request type is ignored") {
 	CHECK(g_tx_frames.empty());
 }
 
-TEST_CASE("UDP: datagram to the open port is accepted silently") {
+TEST_CASE("UDP: datagram to a bound port is accepted silently") {
 	test_reset();
+	REQUIRE(NET_UDP_Bind(UDP_DST_PORT, [](void *, const uint8_t *, uint16_t, const uint8_t *, uint16_t) {}));
 	uint8_t frame[ETH_MAX_PACKET_SIZE];
 	const uint16_t l4_len = UDP_HDR_LEN + 4;
 	uint8_t *udp = build_ipv4(frame, 17 /*UDP*/, l4_len);
@@ -120,6 +122,7 @@ TEST_CASE("UDP: datagram to the open port is accepted silently") {
 
 	process_rx(frame, ETH_HDR_LEN + IP_HDR_LEN + l4_len, DESC4_UDP);
 	CHECK(g_tx_frames.empty());                    // no ICMP unreachable
+	NET_UDP_Unbind(UDP_DST_PORT);
 }
 
 TEST_CASE("UDP: datagram to a closed port triggers ICMP port unreachable") {

@@ -97,10 +97,25 @@ constexpr uint32_t ETH_DMATXDESC_CHECKSUMTCPUDPICMPFULL             = 0x00C00000
 constexpr uint32_t HEAP_POINTER = 0x20078000;
 
 
+// LAN8742A (NUCLEO-F767ZI): MDIO address and registers. These lived in the
+// application's config.hpp, which made the driver unbuildable without it.
 constexpr uint32_t PHY_ADDR            = 0x00;
+constexpr uint32_t PHY_BCR             = 0x00;          // basic control
+constexpr uint32_t PHY_BSR             = 0x01;          // basic status
+constexpr uint32_t PHY_ID1             = 0x02;
+constexpr uint32_t PHY_ID2             = 0x03;
+constexpr uint32_t PHY_SC_SR           = 0x1F;          // special control/status (speed, duplex)
+
+constexpr uint32_t PHY_RESET           = (1U << 15);    // BCR
 constexpr uint32_t PHY_AUTONEG_EN      = (1U << 12);
 constexpr uint32_t PHY_RESTART_AUTONEG = (1U << 9);
-constexpr uint32_t PHY_AUTONEG_DONE    = (1U << 5);
+constexpr uint32_t PHY_AUTONEG_DONE    = (1U << 5);     // BSR
+constexpr uint32_t PHY_LINKED_STATUS   = (1U << 2);
+
+constexpr uint32_t PHY_FULLDUPLEX_100M = 0x0018;        // SC_SR speed indication
+constexpr uint32_t PHY_HALFDUPLEX_100M = 0x0008;
+constexpr uint32_t PHY_FULLDUPLEX_10M  = 0x0014;
+constexpr uint32_t PHY_HALFDUPLEX_10M  = 0x0004;
 
 enum class MACMIIAR_CR : uint8_t {
 	Div42  = 0b000, /* HCLK:60-100 MHz; MDC clock= HCLK/42 */

@@ -149,19 +149,34 @@ struct TimChannelTraits {
     // поэтому таймеры без CH5/CH6 или без CCxDE-битов продолжают собираться.
     struct ChConsts { uint32_t pol; uint32_t en; uint32_t dma; uint32_t ccr; };
 
+    // CCxDE (DMA-запрос канала): у TIM9/TIM12 и других урезанных таймеров
+    // его нет — тогда 0, а TIM_PWM_ChannelDMAEnable для них не соберётся.
+    static consteval uint32_t dma_bit() {
+        if constexpr (ch == TimCh::CH1 && requires { TIMx::_DIER::CC1DE::BitMsk; })
+            return TIMx::_DIER::CC1DE::BitMsk;
+        else if constexpr (ch == TimCh::CH2 && requires { TIMx::_DIER::CC2DE::BitMsk; })
+            return TIMx::_DIER::CC2DE::BitMsk;
+        else if constexpr (ch == TimCh::CH3 && requires { TIMx::_DIER::CC3DE::BitMsk; })
+            return TIMx::_DIER::CC3DE::BitMsk;
+        else if constexpr (ch == TimCh::CH4 && requires { TIMx::_DIER::CC4DE::BitMsk; })
+            return TIMx::_DIER::CC4DE::BitMsk;
+        else
+            return 0;
+    }
+
     static consteval ChConsts ch_consts() {
         if constexpr (ch == TimCh::CH1)
             return { TIMx::_CCER::CC1P::BitMsk, TIMx::_CCER::CC1E::BitMsk,
-                     TIMx::_DIER::CC1DE::BitMsk, TIMx::_CCR1::address };
+                     dma_bit(), TIMx::_CCR1::address };
         else if constexpr (ch == TimCh::CH2)
             return { TIMx::_CCER::CC2P::BitMsk, TIMx::_CCER::CC2E::BitMsk,
-                     TIMx::_DIER::CC2DE::BitMsk, TIMx::_CCR2::address };
+                     dma_bit(), TIMx::_CCR2::address };
         else if constexpr (ch == TimCh::CH3)
             return { TIMx::_CCER::CC3P::BitMsk, TIMx::_CCER::CC3E::BitMsk,
-                     TIMx::_DIER::CC3DE::BitMsk, TIMx::_CCR3::address };
+                     dma_bit(), TIMx::_CCR3::address };
         else if constexpr (ch == TimCh::CH4)
             return { TIMx::_CCER::CC4P::BitMsk, TIMx::_CCER::CC4E::BitMsk,
-                     TIMx::_DIER::CC4DE::BitMsk, TIMx::_CCR4::address };
+                     dma_bit(), TIMx::_CCR4::address };
         else if constexpr (ch == TimCh::CH5)
             return { TIMx::_CCER::CC5P::BitMsk, TIMx::_CCER::CC5E::BitMsk,
                      0, TIMx::_CCR5::address };  // CH5/CH6: нет DMA-запроса
@@ -299,8 +314,13 @@ void TIM_BaseConfig() {
         TIMx::_RCR::overwrite(cfg.RepetitionCounter);
     }
 
-    tmp &= ~(TIMx::_CR1::DIR::BitMsk | TIMx::_CR1::CMS::BitMsk);
-    tmp |= static_cast<uint32_t>(cfg.CounterMode);
+    // TIM9..TIM14 count up only (no DIR/CMS)
+    if constexpr (requires { TIMx::_CR1::DIR::BitMsk; TIMx::_CR1::CMS::BitMsk; }) {
+        tmp &= ~(TIMx::_CR1::DIR::BitMsk | TIMx::_CR1::CMS::BitMsk);
+        tmp |= static_cast<uint32_t>(cfg.CounterMode);
+    } else {
+        static_assert(cfg.CounterMode == TimCounterMode::Up, "this timer only counts up");
+    }
 
     TIMx::_PSC::overwrite(cfg.Prescaler);
     TIMx::_ARR::overwrite(cfg.Period);
@@ -315,7 +335,6 @@ static inline void TIM_PWM_ConfigChannel() {
 
     uint32_t tmpccer = TIMx::_CCER::read();
     uint32_t tmpccmr = Traits::CCMR::read();
-    uint32_t tmpcr2 = TIMx::_CR2::read();
 
     // 1. Disable channel
     tmpccer &= ~Traits::enable_mask;
@@ -346,13 +365,15 @@ static inline void TIM_PWM_ConfigChannel() {
         Traits::set_complementary(tmpccer, cfg.OCNPolarity);
     }
 
-    // 6. Idle state / Break (только для advanced)
-    Traits::set_idle(tmpcr2, cfg.OCIdleState, cfg.OCNIdleState);
-
-    // 7. Write registers
+    // 6. Write registers; idle state / break only on advanced timers
+    // (TIM9..TIM14 have no CR2 at all)
     Traits::CCMR::overwrite(tmpccmr);
     TIMx::_CCER::overwrite(tmpccer);
-    TIMx::_CR2::overwrite(tmpcr2);
+    if constexpr (TimFlags<TIMx>::f.isAdvanced) {
+        uint32_t tmpcr2 = TIMx::_CR2::read();
+        Traits::set_idle(tmpcr2, cfg.OCIdleState, cfg.OCNIdleState);
+        TIMx::_CR2::overwrite(tmpcr2);
+    }
     Traits::write_ccr(cfg.Pulse);
     TIMx::_EGR::UG::set();
     TIMx::_SR::UIF::clear();

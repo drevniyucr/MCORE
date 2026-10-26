@@ -41,11 +41,11 @@ constexpr uint8_t IP_TTL         = 64;
 
 
 struct UDP_SendFrameStruct{
-	uint8_t *DstMAC;
-	uint8_t *DstIP;
+	const uint8_t *DstMAC;
+	const uint8_t *DstIP;
 	uint16_t DstPort;
 	uint16_t SrcPort;
-	uint8_t *pDataBuff;
+	const uint8_t *pDataBuff;
 	uint16_t DataBuffLen;
 };
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/def.hpp"
 #include "core/nvic_def.hpp"
 #include "core/utils.hpp"
 
@@ -49,7 +50,19 @@ struct NVIC_API
         IRQ::Enable::setMask(static_cast<uint32_t>(1<<(IRQ::irq_number % 32)));
     }
 
-    [[gnu::always_inline]] 
+    // ICER is write-1-to-clear: a plain store, never a read-modify-write
+    // (that would write back every enabled bit and disable them all). The
+    // barriers make the IRQ masked before the next instruction runs.
+    template<typename IRQ>
+    [[gnu::always_inline]]
+    static inline void DisableIRQ()
+    {
+        IRQ::Disable::overwrite(static_cast<uint32_t>(1u << (IRQ::irq_number % 32)));
+        __DSB();
+        __ISB();
+    }
+
+    [[gnu::always_inline]]
     static void EnableIRQGlobal()
     {
         asm volatile("cpsie i" : : : "memory");

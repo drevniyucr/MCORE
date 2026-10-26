@@ -106,6 +106,17 @@ uint8_t ip[4];
 if (NET_DNS_Resolve("pool.ntp.org", ip) == net_result_t::OK) { /* ... */ }
 ```
 
+**UDP sockets** (`net/udp`): bind a port to a handler (called from the RX
+path with source address and payload, UDP length checked), send to any
+address with the same `OK / PENDING / UNREACHABLE` shape. Unbound ports get
+ICMP port unreachable; IP fragments are dropped (no reassembly).
+
+```cpp
+NET_UDP_Bind(4001, [](void *, const uint8_t *ip, uint16_t port, const uint8_t *d, uint16_t n) {
+    NET_UDP_SendTo(4001, ip, port, d, n);    // echo
+});
+```
+
 **SNTP client** (`net/ntp`): sets the RTC to UTC from an NTP server and
 resyncs hourly — server time + half the round trip, replies tied to the
 request by a random origin timestamp, kiss-of-death and unsynchronised servers
@@ -206,6 +217,25 @@ Toolchain discovery: pass `-DSTM32_TOOLCHAIN_PATH=...` or set the `STM32_TOOLCHA
 Flash/debug: OpenOCD (`debug/MCORE_Debug.cfg`) or the provided VS Code tasks.
 
 The first configure downloads mbedTLS; offline, pass `-DMBEDTLS_DIR=<unpacked mbedtls-3.6.7>`.
+
+### Using MCORE from another project
+
+`mcore.cmake` turns the framework into a target for any arm-none-eabi CMake
+project (an OBJECT library, so its interrupt handlers always override the weak
+ones of the startup file):
+
+```cmake
+include(path/to/MCORE/mcore.cmake)
+mcore_add_library(mcore)
+add_executable(app.elf main.cpp)
+target_link_libraries(app.elf PRIVATE mcore)
+target_link_options(app.elf PRIVATE ${MCORE_LINK_OPTIONS} -specs=nano.specs -specs=nosys.specs)
+```
+
+The mbedTLS glue and the C MQTT client are left out (they need mbedTLS and
+its config). A C11 application with its own platform layer has been brought
+up this way: a superloop on `sched::Scheduler`, I/O through `PinGroup`
+masks, step pulses on TIM2/3/5, RS-485 by interrupts, UDP sockets.
 
 ### MQTT over TLS bench
 

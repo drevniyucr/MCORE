@@ -26,6 +26,7 @@ add_executable(net_tests
     test_ntp.cpp
     test_rx_lengths.cpp
     test_tcp_buf.cpp
+    test_udp.cpp
     # Real stack sources under test (system.cpp/eth.cpp are NOT linked —
     # their symbols are provided by stubs.cpp)
     ${MCORE_ROOT}/mcore/net/eth_utils.cpp
@@ -36,6 +37,7 @@ add_executable(net_tests
     ${MCORE_ROOT}/mcore/net/arp.cpp
     ${MCORE_ROOT}/mcore/net/dns.cpp
     ${MCORE_ROOT}/mcore/net/ntp.cpp
+    ${MCORE_ROOT}/mcore/net/udp.cpp
 )
 
 target_include_directories(net_tests PRIVATE
