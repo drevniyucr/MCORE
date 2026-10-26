@@ -359,23 +359,30 @@ see exactly what changes, then regenerate.
 ### Speed-up candidates
 
 Measured against the same application on ST HAL + FreeRTOS + lwIP
-(goz-shuttle, one NUCLEO-F767ZI, same TLS broker). MCORE is already ahead in
-the control cycle (min 7.6 vs 10 us, worst 17 vs 410 us), timing (state
-every 1000.0 vs 1018 ms) and short UDP replies (0.14 vs 0.21 ms); these are
-the places where it is behind:
+(goz-shuttle, one NUCLEO-F767ZI, same TLS broker; boot times are medians of
+three runs, autonegotiation alone varies by ~±50 ms):
 
-- [ ] **D-cache on.** Off today because the Ethernet DMA reads and writes RAM
-      directly; make the descriptors and RX/TX buffers non-cacheable with an
-      MPU region (as the HAL template does) and enable `SCB_EnableDCache`.
-      Expected: the 1 KB UDP reply (0.41 vs 0.38 ms) and memcpy/JSON-heavy
-      paths, also the control cycle.
-- [ ] **Faster first link-up.** The PHY is polled every 200 ms
-      (`ETH_LINK_POLL_MS`); poll every ~10 ms until the link has come up once.
-      Expected: up to 0.2 s off reset -> first reply (1.49 vs 1.38 s).
-- [ ] **Larger ECC slices in the TLS handshake.** `TLS_ECP_MAX_OPS = 400`
-      keeps each background step short; with the control cycle on its own
-      priority level a larger value (or none) costs nothing there. Expected:
-      part of reset -> MQTT ONLINE (1.85 vs 1.65 s).
-- [ ] **TX queue per NetClient.** `MCORE_NETCLIENT_TX_LEN` is one size for
-      all instances (4 x 10 KB in the shuttle); a per-instance size frees
-      ~30 KB RAM (not speed, but it pays for the cache-friendly layout above).
+| | MCORE before | MCORE now | HAL |
+|---|---|---|---|
+| control cycle, min / worst (CPU cycles) | 1643 / 3658 | **1098 / 3263** | 2159 / 88630 |
+| `state` period | 1000.0 ms | 1000.0 ms | 1018 ms |
+| short UDP reply (median) | 0.14 ms | 0.14 ms | 0.20 ms |
+| 1 KB UDP reply (median) | 0.41 ms | **0.30 ms** | 0.36 ms |
+| reset -> first UDP reply | 1.49 s | 1.42 s | 1.41 s |
+| TLS handshake | 350 ms | **255 ms** | ~250 ms |
+| flash | 239 KB | 252 KB | 322 KB |
+
+- [x] **D-cache on** in the shuttle: the Ethernet DMA area is already a
+      non-cacheable MPU region and nothing else there uses DMA. Control cycle
+      -34%, 1 KB reply -28%. The MCORE demo keeps it off: its USART/SPI/WS2812
+      DMA buffers would need cache maintenance in the DMA driver first.
+- [x] **No PHY soft reset at init** (the ST driver does not do one either):
+      the PHY is already negotiating after its hardware reset; -70 ms to the
+      first reply. A PHY left powered down / isolated / in loopback is still reset.
+- [x] **Faster first link-up poll** (10 ms until the link has come up once):
+      no measurable effect, kept for cables plugged in late.
+- [x] **mbedTLS at -O2** instead of -Os: handshake 324 -> 255 ms for +12 KB flash.
+- [x] **TX queue per NetClient** (`NetClientBuf<N>`): -30 KB RAM in the shuttle.
+- [ ] Larger ECC slices / no restartable ECC: measured, only 10-14 ms; the
+      slices keep the background loop answering during a handshake, so they stay.
+- [ ] D-cache in the MCORE demo: cache clean / invalidate in the DMA driver.

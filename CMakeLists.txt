@@ -108,7 +108,9 @@ add_library(mcore_mbedtls STATIC ${MBEDTLS_SOURCES})
 target_include_directories(mcore_mbedtls SYSTEM PUBLIC ${MBEDTLS_SRC_DIR}/include)
 target_include_directories(mcore_mbedtls PUBLIC mcore/net/tls PRIVATE ${MBEDTLS_SRC_DIR}/library)
 target_compile_definitions(mcore_mbedtls PUBLIC "MBEDTLS_CONFIG_FILE=\"mcore_mbedtls_config.h\"")
-target_compile_options(mcore_mbedtls PRIVATE ${C_FLAGS} -w)
+# -O2 after C_FLAGS' -Os (the last one wins): the TLS handshake is bignum
+# arithmetic, ~20% faster for ~12 KB of flash (measured in goz-shuttle)
+target_compile_options(mcore_mbedtls PRIVATE ${C_FLAGS} -O2 -w)
 target_link_libraries(${PROJECT_NAME} PRIVATE mcore_mbedtls)
 
 set(LINKER_MAP_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")

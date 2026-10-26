@@ -52,7 +52,9 @@ void TLS_Init() {
 	if (initialised) return;
 	initialised = true;
 	mbedtls_memory_buffer_alloc_init(arena, sizeof(arena));
-	mbedtls_ecp_set_max_ops(TLS_ECP_MAX_OPS);
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+	mbedtls_ecp_set_max_ops(TLS_ECP_MAX_OPS);     // without it the handshake runs in one piece
+#endif
 }
 
 mbedtls_ctr_drbg_context* TLS_Drbg() {

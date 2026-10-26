@@ -279,12 +279,12 @@ void NetClient::poll() {
 }
 
 bool NetClient::write(const uint8_t *data, size_t n) {
-	if (!up() || n > NETCLIENT_TX_LEN - tx_count_) {
+	if (!up() || n > tx_cap_ - tx_count_) {
 		return false;
 	}
 	for (size_t i = 0; i < n; i++) {
 		tx_[tx_head_] = data[i];
-		tx_head_ = (tx_head_ + 1) % NETCLIENT_TX_LEN;
+		tx_head_ = (tx_head_ + 1) % tx_cap_;
 	}
 	tx_count_ += n;
 	drain_tx();                       // start right away, the rest goes in poll()
@@ -294,7 +294,7 @@ bool NetClient::write(const uint8_t *data, size_t n) {
 void NetClient::drain_tx() {
 	while (tx_count_ > 0 && up()) {
 		// contiguous run from the tail (the ring may wrap)
-		size_t run = NETCLIENT_TX_LEN - tx_tail_;
+		size_t run = tx_cap_ - tx_tail_;
 		if (run > tx_count_) run = tx_count_;
 		int done;
 #if MCORE_NET_TLS
@@ -314,7 +314,7 @@ void NetClient::drain_tx() {
 			if (done < 0) { fail("TCP write"); return; }
 			if (done == 0) return;    // TX share or pool full: next poll
 		}
-		tx_tail_ = (tx_tail_ + static_cast<size_t>(done)) % NETCLIENT_TX_LEN;
+		tx_tail_ = (tx_tail_ + static_cast<size_t>(done)) % tx_cap_;
 		tx_count_ -= static_cast<size_t>(done);
 	}
 }

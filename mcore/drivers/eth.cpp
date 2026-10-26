@@ -130,10 +130,15 @@ namespace {
 		return true;
 	}
 
-	// Follow the cable: start the MAC on link up, stop it on link down
+	// Follow the cable: start the MAC on link up, stop it on link down.
+	// Until the link has come up once, poll every ETH_LINK_POLL_FIRST_MS:
+	// boot -> first frame should not wait up to a whole ETH_LINK_POLL_MS.
+	constexpr uint32_t ETH_LINK_POLL_FIRST_MS = 10;
+
 	void link_poll() {
 		const uint32_t now = get_tick();
-		if (now - link_polled_at < ETH_LINK_POLL_MS) return;
+		const uint32_t period = link_changes ? ETH_LINK_POLL_MS : ETH_LINK_POLL_FIRST_MS;
+		if (now - link_polled_at < period) return;
 		link_polled_at = now;
 
 		uint32_t bsr;
@@ -511,6 +516,19 @@ ETH_Status PHY_Init() {
 		return ETH_Status::PHY_ID_FAULT;
 	}
 	
+	// The PHY comes out of its hardware reset (NRST on the NUCLEO) already
+	// negotiating; a soft reset here would throw that progress away and
+	// delay the first link by the time the MCU took to get here. Only a PHY
+	// left in a special state (powered down, isolated, loopback, fixed mode)
+	// is reset, as the ST LAN8742 driver leaves it alone too.
+	if (!PHY_Read(PHY_ADDR, PHY_BCR, &bcr)) {
+		return ETH_Status::UNEXPECT_FAULT;
+	}
+	constexpr uint32_t BCR_SPECIAL = PHY_LOOPBACK | PHY_POWERDOWN | PHY_ISOLATE;
+	if ((bcr & PHY_AUTONEG_EN) && !(bcr & BCR_SPECIAL)) {
+		return ETH_Status::OK;
+	}
+
 	// Reset PHY
 	PHY_Write(PHY_ADDR, PHY_BCR, PHY_RESET);
 	tickstart = get_tick();

@@ -107,6 +107,9 @@ constexpr uint32_t PHY_ID2             = 0x03;
 constexpr uint32_t PHY_SC_SR           = 0x1F;          // special control/status (speed, duplex)
 
 constexpr uint32_t PHY_RESET           = (1U << 15);    // BCR
+constexpr uint32_t PHY_LOOPBACK        = (1U << 14);
+constexpr uint32_t PHY_POWERDOWN       = (1U << 11);
+constexpr uint32_t PHY_ISOLATE         = (1U << 10);
 constexpr uint32_t PHY_AUTONEG_EN      = (1U << 12);
 constexpr uint32_t PHY_RESTART_AUTONEG = (1U << 9);
 constexpr uint32_t PHY_AUTONEG_DONE    = (1U << 5);     // BSR
@@ -219,7 +222,7 @@ bool ETH_LinkUp(void);
 ETH_LinkState ETH_LinkMode(void);     // valid while ETH_LinkUp()
 uint32_t ETH_LinkChanges(void);       // up/down transitions since ETH_Init
 
-ETH_Status PHY_Init(void);            // ID check, reset, autonegotiation started
+ETH_Status PHY_Init(void);            // ID check; reset + autonegotiation only if the PHY needs it
 bool PHY_Write(uint32_t phy_addr, uint32_t phy_reg, uint32_t RegValue);
 bool PHY_Read(uint32_t phy_addr, uint32_t phy_reg, uint32_t *pRegValue);
 void PHY_SetMDIOClock(void);

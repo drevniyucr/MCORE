@@ -5,7 +5,7 @@
  * TLS, and give me a reliable byte stream". poll() advances it from the
  * superloop; nothing ever waits:
  *
- *   NetClient link;
+ *   NetClientBuf<> link;                             // TX queue of NETCLIENT_TX_LEN bytes
  *   link.open({ "broker.local", 8883, &creds });     // creds == nullptr: plain TCP
  *   ... every loop pass:
  *   link.poll();
@@ -13,15 +13,17 @@
  *   if (link.failed()) { log link.error(); retry open() later }
  *
  * write() queues a message whole or not at all (the MQTT client relies on
- * that); poll() drains the queue into TCP/TLS as the window allows.
+ * that); poll() drains the queue into TCP/TLS as the window allows. The
+ * queue belongs to the instance: NetClientBuf<N> holds N bytes, the largest
+ * message write() has to take in one piece (an MQTT link with big messages
+ * needs kilobytes, an HTTP GET or a Modbus poll a few hundred bytes).
  * Only one NetClient may use TLS at a time (one static mbedTLS session).
  *
  * Build options (define them PUBLIC on the target, the class layout depends
  * on them):
  *   MCORE_NET_TLS           1 (default): TLS through mbedTLS (net/tls.cpp);
  *                           0: plain TCP only, no mbedTLS needed
- *   MCORE_NETCLIENT_TX_LEN  TX queue bytes, default 2048: the largest
- *                           message write() has to take in one piece
+ *   MCORE_NETCLIENT_TX_LEN  default N of NetClientBuf<>, 2048
  */
 #pragma once
 
@@ -59,6 +61,11 @@ enum class netclient_state_t : uint8_t {
 
 class NetClient {
 public:
+	// The TX queue is the caller's (NetClientBuf below owns one)
+	NetClient(uint8_t *tx, size_t tx_cap) : tx_(tx), tx_cap_(tx_cap) {}
+	NetClient(const NetClient &) = delete;
+	NetClient &operator=(const NetClient &) = delete;
+
 	void open(const NetClientConfig &cfg);
 	void close();                     // graceful: TLS close_notify, TCP FIN
 	void poll();
@@ -77,7 +84,8 @@ public:
 	const char* cipher() const;
 
 	size_t tx_queued() const { return tx_count_; }
-	size_t tx_free() const { return NETCLIENT_TX_LEN - tx_count_; }
+	size_t tx_free() const { return tx_cap_ - tx_count_; }
+	size_t tx_capacity() const { return tx_cap_; }
 	uint32_t handshake_ms() const { return handshake_ms_; }
 
 	// mbedTLS BIO callbacks (public only for the C trampolines)
@@ -102,7 +110,19 @@ private:
 	bool tls_ = false;
 	char error_[96] = {};
 
-	uint8_t tx_[NETCLIENT_TX_LEN] = {};
+	uint8_t *const tx_;
+	const size_t tx_cap_;
 	size_t tx_head_ = 0, tx_tail_ = 0, tx_count_ = 0;
 	size_t tls_pending_ = 0;          // length of an ssl_write that returned WANT_WRITE
+};
+
+// A NetClient with its own TX queue of N bytes
+template<size_t N = NETCLIENT_TX_LEN>
+class NetClientBuf : public NetClient {
+	static_assert(N > 0);
+public:
+	NetClientBuf() : NetClient(buf_, N) {}   // buf_ is storage here, filled later
+
+private:
+	uint8_t buf_[N] = {};
 };

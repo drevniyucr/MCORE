@@ -24,7 +24,13 @@ constexpr size_t TLS_ARENA_SIZE = MCORE_TLS_ARENA_SIZE;
 
 // ECC work per handshake step (mbedtls_ecp_set_max_ops). Keeps every call
 // into the handshake short enough for the superloop and the 1 s watchdog.
-constexpr unsigned TLS_ECP_MAX_OPS = 400;
+// An application whose time-critical work runs on a priority level
+// (core/levels.hpp) can take larger steps, or 0 = no slicing, with
+// MCORE_TLS_ECP_MAX_OPS: the handshake then finishes sooner.
+#ifndef MCORE_TLS_ECP_MAX_OPS
+#define MCORE_TLS_ECP_MAX_OPS 400
+#endif
+constexpr unsigned TLS_ECP_MAX_OPS = MCORE_TLS_ECP_MAX_OPS;
 
 struct TlsCredentials {
 	const uint8_t *ca = nullptr;       // DER of the CA that signed the broker (or several, back to back)

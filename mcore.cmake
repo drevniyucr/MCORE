@@ -25,6 +25,8 @@
 # from its own copy. Sizes can be set on the target, PUBLIC:
 #   MCORE_NETCLIENT_TX_LEN=<bytes>   NetClient TX queue (default 2048)
 #   MCORE_TLS_ARENA_SIZE=<bytes>     mbedTLS heap (default 32 KB)
+#   MCORE_TLS_ECP_MAX_OPS=<n>        ECC work per handshake step (default 400)
+# Per-instance TX queues: NetClientBuf<N> instead of NetClient.
 #
 # The application may provide "config.hpp" on its include path to override
 # the clock values of core/mcore_config.hpp.
@@ -38,6 +40,9 @@ set(MCORE_CPU_FLAGS -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard)
 set(MCORE_LINK_OPTIONS ${MCORE_CPU_FLAGS} -T${MCORE_LINKER_SCRIPT} -Wl,--gc-sections)
 
 set(MCORE_MBEDTLS_VERSION 3.6.7)
+# Optimisation of the mbedTLS library: the handshake is bignum arithmetic,
+# -O2 makes it ~20% faster than -Os for ~12 KB more flash (measured on F767)
+set(MCORE_MBEDTLS_OPT -O2 CACHE STRING "compiler optimisation for mbedTLS (-O2 / -Os)")
 set(MCORE_MBEDTLS_SHA256 a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6)
 
 # mbedTLS sources (downloaded once per build tree) as a static library
@@ -62,7 +67,7 @@ function(_mcore_mbedtls target config_header)
   target_include_directories(${target} SYSTEM PUBLIC ${src_dir}/include)
   target_include_directories(${target} PUBLIC ${config_dir} PRIVATE ${src_dir}/library)
   target_compile_definitions(${target} PUBLIC "MBEDTLS_CONFIG_FILE=\"${config_name}\"")
-  target_compile_options(${target} PRIVATE ${MCORE_CPU_FLAGS} -Os -ffunction-sections -fdata-sections -w)
+  target_compile_options(${target} PRIVATE ${MCORE_CPU_FLAGS} ${MCORE_MBEDTLS_OPT} -ffunction-sections -fdata-sections -w)
 endfunction()
 
 function(mcore_add_library name)

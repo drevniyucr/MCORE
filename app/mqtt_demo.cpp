@@ -42,7 +42,7 @@ const NetClientConfig link_cfg = { BENCH_BROKER_HOST, 8883, &creds };
 const NetClientConfig link_cfg = { "192.168.99.10", 1883, nullptr };
 #endif
 
-NetClient link;
+NetClientBuf<> link;
 sh_mqtt mqtt;
 uint8_t mqtt_rx[1024];
 uint32_t retry_at = 0;
