@@ -15,6 +15,13 @@
  * write() queues a message whole or not at all (the MQTT client relies on
  * that); poll() drains the queue into TCP/TLS as the window allows.
  * Only one NetClient may use TLS at a time (one static mbedTLS session).
+ *
+ * Build options (define them PUBLIC on the target, the class layout depends
+ * on them):
+ *   MCORE_NET_TLS           1 (default): TLS through mbedTLS (net/tls.cpp);
+ *                           0: plain TCP only, no mbedTLS needed
+ *   MCORE_NETCLIENT_TX_LEN  TX queue bytes, default 2048: the largest
+ *                           message write() has to take in one piece
  */
 #pragma once
 
@@ -25,7 +32,14 @@
 #include "net/tcp.hpp"
 #include "net/tls.hpp"
 
-constexpr size_t   NETCLIENT_TX_LEN        = 2048;
+#ifndef MCORE_NET_TLS
+#define MCORE_NET_TLS 1
+#endif
+#ifndef MCORE_NETCLIENT_TX_LEN
+#define MCORE_NETCLIENT_TX_LEN 2048
+#endif
+
+constexpr size_t   NETCLIENT_TX_LEN        = MCORE_NETCLIENT_TX_LEN;
 constexpr uint32_t NETCLIENT_OPEN_TIMEOUT_MS = 20000;   // DNS + connect + handshake
 
 struct NetClientConfig {
@@ -60,6 +74,7 @@ public:
 	size_t read(uint8_t *buf, size_t cap);
 
 	size_t tx_queued() const { return tx_count_; }
+	size_t tx_free() const { return NETCLIENT_TX_LEN - tx_count_; }
 	uint32_t handshake_ms() const { return handshake_ms_; }
 
 	// mbedTLS BIO callbacks (public only for the C trampolines)

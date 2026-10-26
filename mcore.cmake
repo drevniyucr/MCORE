@@ -12,9 +12,11 @@
 # archive they would be pulled in only when something else references them.
 # --gc-sections drops whatever the application does not use.
 #
-# Not included: the mbedTLS glue (net/tls.cpp, net/netclient.cpp: they need
-# mbedTLS and its config) and the C MQTT client (net/mqtt.c), which the
-# application can take from its own copy.
+# Not included: the mbedTLS glue (net/tls.cpp needs mbedTLS and its config;
+# NetClient is built for plain TCP, MCORE_NET_TLS=0) and the C MQTT client
+# (net/mqtt.c), which the application can take from its own copy.
+# The NetClient TX queue can be enlarged with
+#   target_compile_definitions(mcore PUBLIC MCORE_NETCLIENT_TX_LEN=<bytes>)
 #
 # The application may provide "config.hpp" on its include path to override
 # the clock values of core/mcore_config.hpp.
@@ -30,9 +32,10 @@ set(MCORE_LINK_OPTIONS ${MCORE_CPU_FLAGS} -T${MCORE_LINKER_SCRIPT} -Wl,--gc-sect
 function(mcore_add_library name)
   enable_language(CXX ASM)
   file(GLOB_RECURSE src CONFIGURE_DEPENDS ${MCORE_DIR}/mcore/*.cpp)
-  list(FILTER src EXCLUDE REGEX "/net/(tls|netclient)\\.cpp$")
+  list(FILTER src EXCLUDE REGEX "/net/tls\\.cpp$")
   add_library(${name} OBJECT ${src} ${MCORE_STARTUP})
   target_include_directories(${name} PUBLIC ${MCORE_DIR}/mcore)
+  target_compile_definitions(${name} PUBLIC MCORE_NET_TLS=0)
   target_compile_options(${name} PRIVATE
     ${MCORE_CPU_FLAGS} -Os -ffunction-sections -fdata-sections -Wall -Wextra
     $<$<COMPILE_LANGUAGE:CXX>:-std=c++20 -fno-rtti -fno-exceptions>)

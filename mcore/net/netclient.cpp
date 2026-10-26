@@ -1,5 +1,8 @@
 /*
  * netclient.cpp — DNS -> ARP -> TCP -> TLS state machine, TX queue
+ *
+ * With MCORE_NET_TLS == 0 the TLS parts are left out (no mbedTLS needed);
+ * open() with credentials then fails instead of falling back to plain TCP.
  */
 #include "net/netclient.hpp"
 
@@ -9,15 +12,18 @@
 #include "core/system.hpp"
 #include "net/dns.hpp"
 
+#if MCORE_NET_TLS
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/error.h"
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/x509_crt.h"
+#endif
 
 namespace {
 
+#if MCORE_NET_TLS
 // One TLS session for the whole firmware: ~1 KB of contexts plus the arena.
 struct TlsSession {
 	mbedtls_ssl_context ssl;
@@ -39,6 +45,7 @@ bool in_progress(int r) {
 	return r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE ||
 	       r == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS;
 }
+#endif
 
 } // namespace
 
@@ -54,14 +61,22 @@ void NetClient::open(const NetClientConfig &cfg) {
 		fail("no host/port");
 		return;
 	}
+#if MCORE_NET_TLS
 	if (tls_ && tls.owner != nullptr && tls.owner != this) {
 		fail("TLS session in use by another NetClient");
 		return;
 	}
+#else
+	if (tls_) {
+		fail("TLS not built in (MCORE_NET_TLS=0)");
+		return;
+	}
+#endif
 	state_ = netclient_state_t::RESOLVING;
 }
 
 void NetClient::fail(const char *what, int err) {
+#if MCORE_NET_TLS
 	if (err != 0) {
 		char why[64];
 		mbedtls_strerror(err, why, sizeof(why));
@@ -69,11 +84,16 @@ void NetClient::fail(const char *what, int err) {
 	} else {
 		snprintf(error_, sizeof(error_), "%s", what);
 	}
+#else
+	(void)err;
+	snprintf(error_, sizeof(error_), "%s", what);
+#endif
 	release();
 	state_ = netclient_state_t::FAILED;
 }
 
 void NetClient::release() {
+#if MCORE_NET_TLS
 	if (tls.owner == this) {
 		mbedtls_ssl_free(&tls.ssl);
 		mbedtls_ssl_config_free(&tls.conf);
@@ -82,6 +102,7 @@ void NetClient::release() {
 		mbedtls_pk_free(&tls.key);
 		tls.owner = nullptr;
 	}
+#endif
 	if (tcp_alive()) {
 		NET_TCP_Abort(conn_);
 	}
@@ -91,9 +112,11 @@ void NetClient::release() {
 
 void NetClient::close() {
 	if (state_ == netclient_state_t::UP) {
+#if MCORE_NET_TLS
 		if (tls_) {
 			(void)mbedtls_ssl_close_notify(&tls.ssl);  // best effort, one try
 		}
+#endif
 		if (tcp_alive()) {
 			NET_TCP_Close(conn_);                       // FIN; the slot finishes on its own
 		}
@@ -104,6 +127,7 @@ void NetClient::close() {
 }
 
 bool NetClient::tls_setup() {
+#if MCORE_NET_TLS
 	TLS_Init();
 	mbedtls_ctr_drbg_context *drbg = TLS_Drbg();
 	if (drbg == nullptr) {
@@ -153,6 +177,10 @@ bool NetClient::tls_setup() {
 	}
 	mbedtls_ssl_set_bio(&tls.ssl, this, bio_send_cb, bio_recv_cb, nullptr);
 	return true;
+#else
+	fail("TLS not built in (MCORE_NET_TLS=0)");
+	return false;
+#endif
 }
 
 void NetClient::poll() {
@@ -190,6 +218,7 @@ void NetClient::poll() {
 		[[fallthrough]];
 
 	case netclient_state_t::HANDSHAKE: {
+#if MCORE_NET_TLS
 		const int r = mbedtls_ssl_handshake(&tls.ssl);
 		if (r == 0) {
 			handshake_ms_ = get_tick() - handshake_started_;
@@ -207,6 +236,7 @@ void NetClient::poll() {
 				fail("TLS handshake", r);
 			}
 		}
+#endif
 		return;
 	}
 
@@ -239,6 +269,7 @@ void NetClient::drain_tx() {
 		size_t run = NETCLIENT_TX_LEN - tx_tail_;
 		if (run > tx_count_) run = tx_count_;
 		int done;
+#if MCORE_NET_TLS
 		if (tls_) {
 			// mbedTLS wants the very same buffer again after WANT_WRITE
 			if (tls_pending_ == 0) {
@@ -248,10 +279,12 @@ void NetClient::drain_tx() {
 			if (in_progress(done)) return;
 			if (done < 0) { fail("TLS write", done); return; }
 			tls_pending_ = 0;
-		} else {
+		} else
+#endif
+		{
 			done = NET_TCP_SendUser(conn_, &tx_[tx_tail_], static_cast<uint16_t>(run > 0xFFFF ? 0xFFFF : run));
 			if (done < 0) { fail("TCP write"); return; }
-			if (done == 0) return;    // window or TX slots full: next poll
+			if (done == 0) return;    // TX share or pool full: next poll
 		}
 		tx_tail_ = (tx_tail_ + static_cast<size_t>(done)) % NETCLIENT_TX_LEN;
 		tx_count_ -= static_cast<size_t>(done);
@@ -266,6 +299,7 @@ size_t NetClient::read(uint8_t *buf, size_t cap) {
 		const int n = NET_TCP_Read(conn_, buf, static_cast<uint16_t>(cap > 0xFFFF ? 0xFFFF : cap));
 		return n > 0 ? static_cast<size_t>(n) : 0;
 	}
+#if MCORE_NET_TLS
 	const int n = mbedtls_ssl_read(&tls.ssl, buf, cap);
 	if (n > 0) return static_cast<size_t>(n);
 	if (n == 0 || n == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
@@ -273,9 +307,11 @@ size_t NetClient::read(uint8_t *buf, size_t cap) {
 	} else if (!in_progress(n)) {
 		fail("TLS read", n);
 	}
+#endif
 	return 0;
 }
 
+#if MCORE_NET_TLS
 int NetClient::bio_send(const unsigned char *buf, size_t len) {
 	if (!tcp_alive()) return MBEDTLS_ERR_NET_CONN_RESET;
 	const int n = NET_TCP_SendUser(conn_, buf, static_cast<uint16_t>(len > 0xFFFF ? 0xFFFF : len));
@@ -288,3 +324,4 @@ int NetClient::bio_recv(unsigned char *buf, size_t len) {
 	const int n = NET_TCP_Read(conn_, buf, static_cast<uint16_t>(len > 0xFFFF ? 0xFFFF : len));
 	return n > 0 ? n : MBEDTLS_ERR_SSL_WANT_READ;
 }
+#endif
