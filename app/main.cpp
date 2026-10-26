@@ -420,10 +420,12 @@ void dma_init() {
 			.Priority = DmaPrior::VERY_HIGH, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
+	// USART6 TX: one burst per task_snake call. CIRCULAR here kept the line
+	// 100% busy (the burst repeated back to back) and starved polled writes.
 	constexpr const DmaHwConfig cfg_dma2_s7 = { .Channel = DmaChannel::CHNL_5,
 			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
-			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
+			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::NORMAL,
 			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
@@ -666,7 +668,7 @@ void GPIO_Init() {
 	constexpr GPIO_Config out_cfg    { .mode=Mode::Out, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF0  };
 	constexpr GPIO_Config rs485_cfg  { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::PullUp, .af=AF::AF7  }; // USART2
 	constexpr GPIO_Config can1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::PullUp, .af=AF::AF9  };  // RX idles recessive without a transceiver
-	constexpr GPIO_Config usart6_cfg { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF8  };
+	constexpr GPIO_Config usart6_cfg { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::PullUp, .af=AF::AF8  };  // RX idles high when nothing is connected
 	constexpr GPIO_Config tim1_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF1  };
 	constexpr GPIO_Config tim4_cfg   { .mode=Mode::Alt, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF2  };
 	constexpr GPIO_Config adc3_cfg   { .mode=Mode::Ang, .otype=OType::PP, .speed=Speed::VeryHigh, .pull=Pull::None,   .af=AF::AF0  };

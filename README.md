@@ -124,7 +124,8 @@ small client: ECDHE-ECDSA-AES128-GCM-SHA256 / P-256 only, broker certificate
 always verified (dates against the RTC), optional client certificate,
 entropy from the RNG peripheral. Restartable ECC slices the handshake math so
 no superloop pass blocks (handshake ≈ 0.5 s in total, the 1 s watchdog stays
-on). mbedTLS gets a 40 KB static arena — the only heap in MCORE (≈ 26 KB peak).
+on). mbedTLS gets a 32 KB static arena — the only heap in MCORE (≈ 26 KB peak,
+reconnects included); AES tables are `const` in flash rather than built in RAM.
 
 **MQTT 3.1.1** (`net/mqtt.c`): the transport-agnostic, heap-free client from
 the goz-shuttle firmware (C11, its own tests in `tests/c`), on top of NetClient.

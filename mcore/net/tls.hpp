@@ -13,8 +13,9 @@
 
 struct mbedtls_ctr_drbg_context;
 
-// The only heap in MCORE, and only mbedTLS allocates from it.
-constexpr size_t TLS_ARENA_SIZE = 40 * 1024;
+// The only heap in MCORE, and only mbedTLS allocates from it. Measured peak
+// on the bench (mTLS, P-256, 16 KB input record buffer): 25.7 KB.
+constexpr size_t TLS_ARENA_SIZE = 32 * 1024;
 
 // ECC work per handshake step (mbedtls_ecp_set_max_ops). Keeps every call
 // into the handshake short enough for the superloop and the 1 s watchdog.
