@@ -135,10 +135,11 @@ void mqtt_demo_poll(const MqttTelemetry &t) {
 		last_telemetry = now;
 		char json[192];
 		snprintf(json, sizeof(json),
-		         "{\"uptime_ms\":%lu,\"unix_time\":%lu,\"adc\":[%u,%u],\"can_rx\":%lu,\"tls_heap_peak\":%lu}",
+		         "{\"uptime_ms\":%lu,\"unix_time\":%lu,\"adc\":[%u,%u],\"can_rx\":%lu,\"ntp_syncs\":%lu,\"tls_heap_peak\":%lu}",
 		         // newlib-nano printf has no %lld; unsigned 32-bit seconds last until 2106
 		         static_cast<unsigned long>(t.uptime_ms), static_cast<unsigned long>(t.unix_time),
 		         t.adc[0], t.adc[1], static_cast<unsigned long>(t.can_rx),
+		         static_cast<unsigned long>(t.ntp_syncs),
 		         static_cast<unsigned long>(mqtt_demo.tls_heap_peak));
 		publish(TOPIC_TELEMETRY, json);
 	}

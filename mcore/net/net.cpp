@@ -9,14 +9,13 @@
 #include "net/net.hpp"
 #include "net/arp.hpp"
 #include "net/dns.hpp"
+#include "net/ntp.hpp"
 #include "net/dhcp.hpp"
 #include "net/eth_utils.hpp"
 #include "drivers/eth.hpp"
 
 namespace {
 	// Constants for frame processing
-	constexpr uint16_t ETH_MIN_FRAME_SIZE = 60;      // Minimum Ethernet frame
-	constexpr uint16_t ETH_MAX_FRAME_SIZE = 1518;    // Maximum Ethernet frame
 	constexpr uint16_t ETH_HDR_SIZE = 14;            // Ethernet header size
 	constexpr uint16_t IP_MIN_HDR_SIZE = 20;         // Minimum IP header size
 	constexpr uint8_t ICMP_ECHO_REQUEST = 8;        // ICMP echo request type
@@ -210,6 +209,10 @@ void NET_ProcessUDP(ipv4_frame* frame) {
 	}
 	if (dst_port == NET_DNS_LocalPort()) {
 		NET_DNS_ProcessRx(frame);
+		return;
+	}
+	if (dst_port == NET_NTP_LocalPort()) {
+		NET_NTP_ProcessRx(frame);
 		return;
 	}
 

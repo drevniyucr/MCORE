@@ -189,6 +189,7 @@ void task_mqtt() {
 	const MqttTelemetry t = {
 		get_tick(), RTC_UnixTime(), { adc_latest[0], adc_latest[1] },
 		can_rx_count.load(std::memory_order_relaxed),
+		ntp_client.syncs,
 	};
 	mqtt_demo_poll(t);
 }
@@ -249,6 +250,7 @@ void task_net_timers() {
 	NET_DHCP_Poll();
 	NET_ARP_Poll();
 	NET_DNS_Poll();
+	NET_NTP_Poll();
 	hue += 12;
 	fill_rainbow<LedStrip1>(hue);
 	fill_rainbow<LedStrip2>(hue);
@@ -314,6 +316,12 @@ int main() {
 		const uint8_t bench_ip[4] = { 192, 168, 99, 123 };
 		NET_SetIPAddr(bench_ip);
 		NET_DHCP_Start();  // falls back to the static IP if no server answers
+		// RTC from the network (UTC), hourly. Bench: bench/ntp_server.py on the
+		// PC (port 123 there belongs to the Windows time service); on a network
+		// with Internet access: NET_NTP_Start("pool.ntp.org", NTP_PORT, ...)
+		NET_NTP_Start("192.168.99.10", 12300, [](int64_t unix_s, uint16_t ms) {
+			RTC_SetUnixTime(unix_s + (ms >= 500 ? 1 : 0));
+		});
 		UartHandle<USART2>::UartRxDMA<usart2_rx>(rx_usart2_buf,sizeof(rx_usart2_buf));
 		UartHandle<USART6>::UartRxDMA<usart6_rx>(rx_usart6_buf,sizeof(rx_usart6_buf));
 	}
@@ -579,14 +587,16 @@ void rtc_init()
 			Error_Handler();
 		}
 	}
-	// Seed with the build time on the first boot after the backup domain lost
-	// power, and whenever the clock is behind it (firmware cannot be older
-	// than now): TLS rejects certificates "valid from the future" otherwise.
-	// __TIME__ is the build PC's local time, the RTC is read as UTC: up to a
-	// few hours ahead, harmless for certificate dates.
-	constexpr RtcDateTime build_time = rtc_build_time();
-	if (!RTC_IsTimeSet() || RTC_UnixTime() < rtc_unix(build_time)) {
-		RTC_SetDateTime(build_time);
+	// The RTC keeps UTC (NTP sets it). Until the first sync, and after the
+	// backup domain lost power, it must at least not be older than the
+	// firmware: TLS rejects certificates "valid from the future" otherwise.
+#ifdef MCORE_BUILD_UNIX
+	constexpr int64_t build_unix = MCORE_BUILD_UNIX;              // UTC, from CMake
+#else
+	constexpr int64_t build_unix = rtc_unix(rtc_build_time());    // local time: may be ahead of UTC
+#endif
+	if (!RTC_IsTimeSet() || RTC_UnixTime() < build_unix) {
+		RTC_SetUnixTime(build_unix);
 	}
 
 	RTC_WakeupStart(1, [] { rtc_wakeups.fetch_add(1, std::memory_order_relaxed); });

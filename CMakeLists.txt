@@ -73,6 +73,12 @@ list(APPEND SRC platform/startup_stm32f767zitx.s)
 
 add_executable(${PROJECT_NAME} ${SRC})
 
+# Lower bound for the RTC at boot, in UTC (__DATE__/__TIME__ are the build
+# PC's local time). Taken at configure time; only main.cpp sees it, so a
+# reconfigure does not rebuild everything.
+string(TIMESTAMP MCORE_BUILD_UNIX "%s" UTC)
+set_source_files_properties(app/main.cpp PROPERTIES COMPILE_DEFINITIONS "MCORE_BUILD_UNIX=${MCORE_BUILD_UNIX}LL")
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     mcore
     app

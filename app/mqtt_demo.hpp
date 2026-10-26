@@ -19,6 +19,7 @@ struct MqttTelemetry {
 	int64_t unix_time;
 	uint16_t adc[2];
 	uint32_t can_rx;
+	uint32_t ntp_syncs;
 };
 
 // Debugger view of the demo

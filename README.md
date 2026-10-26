@@ -88,6 +88,13 @@ uint8_t ip[4];
 if (NET_DNS_Resolve("pool.ntp.org", ip) == net_result_t::OK) { /* ... */ }
 ```
 
+**SNTP client** (`net/ntp`): sets the RTC to UTC from an NTP server and
+resyncs hourly — server time + half the round trip, replies tied to the
+request by a random origin timestamp, kiss-of-death and unsynchronised servers
+rejected, exponential backoff (15 s .. 15 min), the 2036 era rule. The time
+goes to a callback, so the net layer stays free of the RTC driver. Until the
+first sync the RTC is at least the firmware's configure time (UTC).
+
 **TCP client** (`NET_TCP_Connect`): active open from an ephemeral port,
 SYN_SENT with MSS, SYN retransmission, refusal by RST, same API shape.
 
@@ -127,7 +134,7 @@ mcore/               framework (include root: #include "drivers/gpio.hpp")
 │                    device.hpp (MCU seam), mcore_config.hpp (config contract),
 │                    system, rcc, nvic, nvic_def, mpu, fault
 ├── drivers/         gpio, dma, tim, usart, i2c, spi, adc, can, iwdg, rtc, ws2812, eth
-└── net/             net, arp, dns, dhcp, tcp, netclient, tls, mqtt, eth_utils
+└── net/             net, arp, dns, ntp, dhcp, tcp, netclient, tls, mqtt, eth_utils
 app/                 application: main.cpp, board.hpp (pin maps),
                      config.hpp (HSE/MAC/PHY), syscalls.c
 platform/            startup_stm32f767zitx.s, linker scripts (.ld)
@@ -189,6 +196,10 @@ mosquitto_pub -h 127.0.0.1 -t mcore/mcore-01/cmd -m ping    # -> mcore/mcore-01/
 
 Without the generated credentials the demo builds for plain MQTT on 1883.
 
+NTP on the bench: `python bench/ntp_server.py` (UDP 12300 — on Windows port
+123 belongs to the time service). On a network with Internet access point
+`NET_NTP_Start` at `pool.ntp.org` / `NTP_PORT` instead.
+
 ## Testing
 
 The network stack (checksums, RX dispatch, ARP/ICMP/UDP handlers, the full
@@ -208,7 +219,7 @@ minitest suite of the shared MQTT client, C11).
 Covered scenarios include the TCP three-way handshake, in-order/out-of-order
 data, passive close, RST handling, retransmission with controlled time,
 keepalive probing, connection-table exhaustion, the TCP active open
-(SYN_SENT, refusal, SYN retransmission), ARP and DNS. Tests also run in CI on
+(SYN_SENT, refusal, SYN retransmission), ARP, DNS and SNTP. Tests also run in CI on
 every push.
 
 ## Regenerating the register layer
@@ -252,7 +263,7 @@ see exactly what changes, then regenerate.
 - [x] DHCP client
 - [x] ARP cache, gateway routing, DNS resolver
 - [x] TCP client (active open), NetClient, TLS 1.2 (mbedTLS), MQTT 3.1.1
-- [ ] NTP client (RTC from the network instead of the build time)
+- [x] SNTP client (RTC in UTC from the network)
 - [ ] TCP: out-of-order reassembly, zero-window probing, delayed ACK
 - [x] HardFault handler with register dump (kept across the reset)
 - [x] Split framework / board / application layers

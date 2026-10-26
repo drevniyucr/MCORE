@@ -83,6 +83,22 @@ constexpr int64_t days_from_civil(int64_t y, unsigned m, unsigned d) {
 static_assert(days_from_civil(1970, 1, 1) == 0);
 static_assert(days_from_civil(2000, 3, 1) == 11017);
 
+// ...and back: civil date of a day count since 1970-01-01
+struct civil_t { int64_t y; unsigned m, d; };
+constexpr civil_t civil_from_days(int64_t z) {
+	z += 719468;
+	const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+	const auto doe = static_cast<unsigned>(z - era * 146097);
+	const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+	const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+	const unsigned mp = (5 * doy + 2) / 153;
+	const unsigned d = doy - (153 * mp + 2) / 5 + 1;
+	const unsigned m = mp < 10 ? mp + 3 : mp - 9;
+	return { static_cast<int64_t>(yoe) + era * 400 + (m <= 2), m, d };
+}
+static_assert(civil_from_days(0).y == 1970 && civil_from_days(0).m == 1 && civil_from_days(0).d == 1);
+static_assert(civil_from_days(11017).y == 2000 && civil_from_days(11017).m == 3 && civil_from_days(11017).d == 1);
+
 constexpr bool valid(const RtcDateTime& t) {
     return t.year >= 2000 && t.year <= 2099 && t.month >= 1 && t.month <= 12
         && t.day >= 1 && t.day <= days_in_month(t.year, t.month)
@@ -269,11 +285,34 @@ constexpr int64_t rtc_unix(const RtcDateTime &t) {
 	     + t.hour * 3600 + t.minute * 60 + t.second;
 }
 
+/** Calendar value of Unix time (weekday filled in). */
+constexpr RtcDateTime rtc_from_unix(int64_t unix_s) {
+	const int64_t days = (unix_s >= 0 ? unix_s : unix_s - 86399) / 86400;
+	const auto secs = static_cast<uint32_t>(unix_s - days * 86400);
+	const rtc_detail::civil_t c = rtc_detail::civil_from_days(days);
+	RtcDateTime t{};
+	t.year = static_cast<uint16_t>(c.y);
+	t.month = static_cast<uint8_t>(c.m);
+	t.day = static_cast<uint8_t>(c.d);
+	t.hour = static_cast<uint8_t>(secs / 3600);
+	t.minute = static_cast<uint8_t>(secs / 60 % 60);
+	t.second = static_cast<uint8_t>(secs % 60);
+	t.weekday = rtc_detail::weekday(t.year, t.month, t.day);
+	return t;
+}
+static_assert(rtc_unix(rtc_from_unix(1793006848)) == 1793006848);
+static_assert(rtc_from_unix(1793006848).weekday == 1);   // 2026-10-26: Monday
+
 /** The RTC calendar as Unix time. */
 inline int64_t RTC_UnixTime() noexcept {
 	RtcDateTime t;
 	RTC_GetDateTime(t);
 	return rtc_unix(t);
+}
+
+/** Set the calendar from Unix time (InvalidArg outside 2000..2099). */
+inline DrvStatus RTC_SetUnixTime(int64_t unix_s) {
+	return RTC_SetDateTime(rtc_from_unix(unix_s));
 }
 
 void rtc_bad_build_timestamp();  // not constexpr: a call is a compile error

@@ -23,6 +23,7 @@
 #include "net/dhcp.hpp"
 #include "net/arp.hpp"
 #include "net/dns.hpp"
+#include "net/ntp.hpp"
 #include "drivers/common.hpp"
 #include "drivers/usart.hpp"
 #include "drivers/i2c.hpp"
