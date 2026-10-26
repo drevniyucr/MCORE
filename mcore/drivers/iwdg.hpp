@@ -94,6 +94,32 @@ static inline DrvStatus IWDG_Start() {
     IWDG::_KR::template overwrite<uint32_t{IWDG_KEY_REFRESH}>();
 }
 
+// Change the timeout of the running watchdog, e.g. around a flash sector
+// erase that stalls the CPU for seconds; refreshes it before and after.
+// Not for window mode (the window is not rescaled). False if out of range
+// or the register update does not complete.
+inline bool IWDG_SetTimeout(uint32_t timeout_ms) noexcept {
+    uint8_t pr = 0;
+    uint64_t ticks = 0;
+    for (; pr < IWDG_PRESCALER_STEPS; ++pr) {
+        ticks = uint64_t{timeout_ms} * LSI_VALUE / (uint64_t{4U << pr} * 1000U);
+        if (ticks >= 1 && ticks <= IWDG_RELOAD_MAX + 1U) break;
+    }
+    if (pr == IWDG_PRESCALER_STEPS) return false;
+
+    IWDG_Refresh();
+    IWDG::_KR::template overwrite<uint32_t{IWDG_KEY_UNLOCK}>();
+    IWDG::_PR::overwrite(uint32_t{pr});
+    IWDG::_RLR::overwrite(static_cast<uint32_t>(ticks - 1));
+    using SR = IWDG::_SR;
+    const uint32_t tickstart = get_tick();
+    while (SR::read() & (SR::PVU::BitMsk | SR::RVU::BitMsk)) {
+        if ((get_tick() - tickstart) > IWDG_TIMEOUT_MS) return false;
+    }
+    IWDG_Refresh();                 // reload with the new value
+    return true;
+}
+
 
 // ---------------------------------------------------------------------------
 // Reset cause

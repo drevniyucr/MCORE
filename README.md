@@ -55,7 +55,8 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 | Ethernet MAC + PHY (RMII) | working |
 | CAN (bxCAN: compile-time bit timing, filters, 3 TX mailboxes, IRQ callbacks; tested in loopback) | working |
 | SPI (master, 4..16-bit frames, polling + full-duplex DMA, RAII chip select) | working |
-| IWDG (compile-time timeout, window mode, debug freeze) + reset-cause query | working |
+| IWDG (compile-time timeout, window mode, debug freeze, runtime stretch) + reset-cause query | working |
+| Internal flash (sector erase, word program with verify; single-bank layout) | working |
 | RTC (LSE/LSI, calendar kept across resets, 1 Hz wakeup IRQ, backup registers) | working |
 
 ### 5. Scheduling: a superloop plus preemptive levels, no RTOS

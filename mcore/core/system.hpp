@@ -27,3 +27,6 @@ void print(const char *fmt, ...);
 // (core/levels.hpp pends its priority levels from here). nullptr = none.
 using TickHook = void (*)();
 void SysTick_SetHook(TickHook fn);
+
+// Software reset (SYSRESETREQ); RCC_ResetCause() reports it as Software
+[[noreturn]] void system_reset();

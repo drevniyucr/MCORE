@@ -11,7 +11,6 @@
 namespace {
 constexpr uint32_t FAULT_MAGIC = 0xFA017EC0;
 constexpr uint32_t CHECKSUM_SEED = 0x5EED5EED;
-constexpr uint32_t AIRCR_VECTKEY = 0x5FA;
 constexpr uint32_t EXC_RETURN_PSP = 1U << 2;   // frame was stacked on PSP
 constexpr size_t   FAULT_STACK_WORDS = 512;    // 2 KB: the handler + print() at the next boot never run here
 constexpr size_t   FRAME_WORDS = 8;            // r0-r3, r12, lr, pc, xPSR
@@ -58,15 +57,6 @@ constexpr CfsrBit CFSR_REASONS[] = {
     { SCB::_CFSR::DACCVIOL::BitMsk,    "MPU data access violation (see MMFAR)" },
     { SCB::_CFSR::IACCVIOL::BitMsk,    "MPU / XN instruction fetch violation" },
 };
-
-[[noreturn]] void system_reset() {
-    __DSB();
-    SCB::_AIRCR::overwrite((AIRCR_VECTKEY << SCB::_AIRCR::VECTKEY::pos)
-                           | (SCB::_AIRCR::read() & SCB::_AIRCR::PRIGROUP::BitMsk)
-                           | SCB::_AIRCR::SYSRESETREQ::BitMsk);
-    __DSB();
-    while (true) {}
-}
 }  // namespace
 
 // The handler runs here, not on the stack that faulted (a stack overflow

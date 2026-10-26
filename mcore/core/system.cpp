@@ -167,6 +167,17 @@ void SysTick_SetHook(TickHook fn) {
 	tick_hook = fn;
 }
 
+void system_reset() {
+	constexpr uint32_t VECTKEY = 0x5FA;
+	__DSB();
+	SCB::_AIRCR::overwrite((VECTKEY << SCB::_AIRCR::VECTKEY::pos) |
+	                       (SCB::_AIRCR::read() & SCB::_AIRCR::PRIGROUP::BitMsk) |
+	                       SCB::_AIRCR::SYSRESETREQ::BitMsk);
+	__DSB();
+	while (true) {
+	}
+}
+
 extern "C" void SysTick_Handler(void) {
 	myTick += 1;   // каждый тик увеличиваем счетчик
 	if (const TickHook h = tick_hook) {
