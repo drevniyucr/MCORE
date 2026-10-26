@@ -159,8 +159,19 @@ extern "C" void PendSV_Handler(void) {
 
 }
 
+namespace {
+TickHook volatile tick_hook = nullptr;
+}
+
+void SysTick_SetHook(TickHook fn) {
+	tick_hook = fn;
+}
+
 extern "C" void SysTick_Handler(void) {
 	myTick += 1;   // каждый тик увеличиваем счетчик
+	if (const TickHook h = tick_hook) {
+		h();
+	}
 }
 
 

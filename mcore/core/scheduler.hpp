@@ -40,11 +40,20 @@ public:
     }
 
     // Run every task whose period has elapsed. Call as often as possible.
+    //
+    // The next deadline stays on the task's grid (last + period), so a late
+    // poll does not shift every later run; only when a whole period was
+    // missed does it restart from `now` (no burst of catch-up runs).
     void poll(uint32_t now) noexcept {
         for (size_t i = 0; i < count_; ++i) {
             Task& t = tasks_[i];
-            if (t.period == 0 || (now - t.last) >= t.period) {
-                t.last = now;
+            if (t.period == 0) {
+                t.fn();
+                continue;
+            }
+            const uint32_t late = now - t.last;
+            if (late >= t.period) {
+                t.last = (late >= 2 * t.period) ? now : t.last + t.period;
                 t.fn();
             }
         }

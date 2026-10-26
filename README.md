@@ -58,7 +58,32 @@ Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain decl
 | IWDG (compile-time timeout, window mode, debug freeze) + reset-cause query | working |
 | RTC (LSE/LSI, calendar kept across resets, 1 Hz wakeup IRQ, backup registers) | working |
 
-### 5. Custom network stack (`mcore/net/`)
+### 5. Scheduling: a superloop plus preemptive levels, no RTOS
+
+`sched::Scheduler` (`core/scheduler.hpp`) runs periodic callbacks
+cooperatively; deadlines stay on their grid (a late run does not shift the
+next ones, a missed period resyncs instead of bursting). It has no priorities
+by itself: the longest task delays all others.
+
+`sched::Level` (`core/levels.hpp`) adds priorities in the "Super Simple
+Tasker" way: a level is a spare interrupt vector with an NVIC priority and its
+own scheduler, pended by SysTick every millisecond. A higher level preempts
+lower ones and the background loop; tasks still run to completion on the one
+stack. Shared data is guarded by a priority ceiling, `sched::Lock<prio>`
+(BASEPRI), which holds that level off and leaves higher interrupts running.
+
+```cpp
+using Fast = sched::Level<IRQn_Type::SPDIF_RX_IRQn, 5, 4>;   // unused vector, priority 5
+extern "C" void SPDIF_RX_IRQHandler() { Fast::run(); }
+Fast::every(1, control_cycle);                              // 1 kHz, preempts the background
+Fast::start(get_tick());
+// background:  { sched::Lock<Fast::priority> lock; /* touch shared state */ }
+```
+
+Measured on the board (goz-shuttle on MCORE): the background stalled for
+300 ms, the 1 kHz cycle on its level kept running without a missed period.
+
+### 6. Custom network stack (`mcore/net/`)
 
 Hand-written ARP / ICMP / UDP / **TCP** on top of the own ETH DMA driver. No lwIP.
 
@@ -144,7 +169,7 @@ the goz-shuttle firmware (C11, its own tests in `tests/c`), on top of NetClient.
 `online` status with an `offline` last will, answers `ping` on its command
 topic and reconnects by itself.
 
-### 6. Debug & profiling
+### 7. Debug & profiling
 
 - `print()` over **ITM/SWO** (`mcore/core/system.cpp`)
 - Cycle-exact profiling via **DWT** counter

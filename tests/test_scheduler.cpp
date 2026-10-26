@@ -53,6 +53,28 @@ TEST_CASE("scheduler: independent tasks keep independent deadlines") {
 	CHECK(c2 == 2);   // 400 ms task at t=400 and t=800
 }
 
+TEST_CASE("scheduler: a late poll does not shift the period grid") {
+	reset();
+	sched::Scheduler<1> s;
+	s.every(100, hit0);
+	s.start(0);
+	s.poll(130);  CHECK(c0 == 1);    // 30 late
+	s.poll(199);  CHECK(c0 == 1);
+	s.poll(200);  CHECK(c0 == 2);    // still due at 200, not at 230
+	s.poll(300);  CHECK(c0 == 3);
+}
+
+TEST_CASE("scheduler: after a missed period it resyncs instead of bursting") {
+	reset();
+	sched::Scheduler<1> s;
+	s.every(100, hit0);
+	s.start(0);
+	s.poll(550);  CHECK(c0 == 1);    // 5 periods missed: one run, not five
+	s.poll(560);  CHECK(c0 == 1);
+	s.poll(649);  CHECK(c0 == 1);
+	s.poll(650);  CHECK(c0 == 2);    // new grid from 550
+}
+
 TEST_CASE("scheduler: unsigned tick wrap is handled") {
 	reset();
 	sched::Scheduler<1> s;

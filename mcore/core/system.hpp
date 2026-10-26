@@ -22,3 +22,8 @@ uint32_t get_tick();
 extern "C" void SystemInit();
 uint32_t SysTick_Config(uint32_t ticks);
 void print(const char *fmt, ...);
+
+// Called from SysTick_Handler on every 1 ms tick, in interrupt context
+// (core/levels.hpp pends its priority levels from here). nullptr = none.
+using TickHook = void (*)();
+void SysTick_SetHook(TickHook fn);
