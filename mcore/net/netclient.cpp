@@ -45,6 +45,34 @@ bool in_progress(int r) {
 	return r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE ||
 	       r == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS;
 }
+
+// Length of the DER element at p (tag, length, contents); 0 if malformed
+size_t der_len(const uint8_t *p, size_t avail) {
+	if (avail < 2) return 0;
+	size_t len = p[1];
+	size_t hdr = 2;
+	if (len & 0x80) {
+		const size_t nb = len & 0x7F;
+		if (nb == 0 || nb > 3 || avail < 2 + nb) return 0;
+		len = 0;
+		for (size_t i = 0; i < nb; ++i) len = (len << 8) | p[2 + i];
+		hdr += nb;
+	}
+	return (hdr + len <= avail) ? hdr + len : 0;
+}
+
+// The CA item may hold a chain: DER certificates one after the other
+int parse_ca(mbedtls_x509_crt *chain, const uint8_t *der, size_t n) {
+	size_t off = 0;
+	while (off < n) {
+		const size_t len = der_len(der + off, n - off);
+		if (len == 0) return MBEDTLS_ERR_X509_INVALID_FORMAT;
+		const int r = mbedtls_x509_crt_parse_der(chain, der + off, len);
+		if (r != 0) return r;
+		off += len;
+	}
+	return n ? 0 : MBEDTLS_ERR_X509_INVALID_FORMAT;
+}
 #endif
 
 } // namespace
@@ -142,7 +170,7 @@ bool NetClient::tls_setup() {
 	mbedtls_pk_init(&tls.key);
 
 	const TlsCredentials &c = *cfg_.tls;
-	int r = mbedtls_x509_crt_parse_der(&tls.ca, c.ca, c.ca_len);
+	int r = parse_ca(&tls.ca, c.ca, c.ca_len);
 	if (r != 0) { fail("CA certificate", r); return false; }
 	if (c.cert != nullptr) {
 		if ((r = mbedtls_x509_crt_parse_der(&tls.own, c.cert, c.cert_len)) != 0) {
@@ -309,6 +337,15 @@ size_t NetClient::read(uint8_t *buf, size_t cap) {
 	}
 #endif
 	return 0;
+}
+
+const char* NetClient::cipher() const {
+#if MCORE_NET_TLS
+	if (tls_ && up() && tls.owner == this) {
+		return mbedtls_ssl_get_ciphersuite(&tls.ssl);
+	}
+#endif
+	return "";
 }
 
 #if MCORE_NET_TLS

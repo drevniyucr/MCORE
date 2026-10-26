@@ -73,6 +73,9 @@ public:
 	// Received (decrypted) bytes available right now; 0 if none.
 	size_t read(uint8_t *buf, size_t cap);
 
+	// Negotiated TLS cipher suite while up over TLS, "" otherwise
+	const char* cipher() const;
+
 	size_t tx_queued() const { return tx_count_; }
 	size_t tx_free() const { return NETCLIENT_TX_LEN - tx_count_; }
 	uint32_t handshake_ms() const { return handshake_ms_; }

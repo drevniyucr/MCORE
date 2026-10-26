@@ -33,6 +33,8 @@ constexpr uint8_t  TCP_MAX_LISTEN_PORTS = 4;
 constexpr uint16_t TCP_CONN_RX_BLOCKS      = 32;
 constexpr uint16_t TCP_CONN_TX_BLOCKS      = 32;
 constexpr uint16_t TCP_POOL_RESERVE_BLOCKS = 16;  // 8 KB
+static_assert(TCP_POOL_BLOCKS > 2 * TCP_POOL_RESERVE_BLOCKS,
+              "MCORE_TCP_POOL_BLOCKS too small for the active-open reserve");
 constexpr uint32_t TCP_RX_BUFF_MAX = uint32_t{TCP_CONN_RX_BLOCKS} * TCP_BLOCK_SIZE;
 constexpr uint32_t TCP_TX_BUFF_MAX = uint32_t{TCP_CONN_TX_BLOCKS} * TCP_BLOCK_SIZE;
 

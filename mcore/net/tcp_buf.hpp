@@ -18,8 +18,14 @@
 #include <cstddef>
 #include <cstdint>
 
+// Pool size: an application with few connections can shrink it with
+// MCORE_TCP_POOL_BLOCKS (PUBLIC on the target); 96 KB by default.
+#ifndef MCORE_TCP_POOL_BLOCKS
+#define MCORE_TCP_POOL_BLOCKS 192
+#endif
+
 constexpr uint16_t TCP_BLOCK_SIZE  = 512;
-constexpr uint16_t TCP_POOL_BLOCKS = 192;                        // 96 KB shared by all connections
+constexpr uint16_t TCP_POOL_BLOCKS = MCORE_TCP_POOL_BLOCKS;      // shared by all connections
 constexpr uint32_t TCP_POOL_BYTES  = uint32_t{TCP_BLOCK_SIZE} * TCP_POOL_BLOCKS;
 
 struct tcp_fifo_t {

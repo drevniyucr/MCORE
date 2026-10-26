@@ -14,15 +14,20 @@
 struct mbedtls_ctr_drbg_context;
 
 // The only heap in MCORE, and only mbedTLS allocates from it. Measured peak
-// on the bench (mTLS, P-256, 16 KB input record buffer): 25.7 KB.
-constexpr size_t TLS_ARENA_SIZE = 32 * 1024;
+// on the bench (mTLS, P-256, 16 KB input record buffer): 25.7 KB. An
+// application that also parses certificates beside an open session can
+// enlarge it with MCORE_TLS_ARENA_SIZE (bytes).
+#ifndef MCORE_TLS_ARENA_SIZE
+#define MCORE_TLS_ARENA_SIZE (32 * 1024)
+#endif
+constexpr size_t TLS_ARENA_SIZE = MCORE_TLS_ARENA_SIZE;
 
 // ECC work per handshake step (mbedtls_ecp_set_max_ops). Keeps every call
 // into the handshake short enough for the superloop and the 1 s watchdog.
 constexpr unsigned TLS_ECP_MAX_OPS = 400;
 
 struct TlsCredentials {
-	const uint8_t *ca = nullptr;       // DER of the CA that signed the broker
+	const uint8_t *ca = nullptr;       // DER of the CA that signed the broker (or several, back to back)
 	size_t ca_len = 0;
 	const uint8_t *cert = nullptr;     // optional client certificate (DER)
 	size_t cert_len = 0;
