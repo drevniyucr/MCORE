@@ -475,6 +475,35 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 	// Find existing connection
 	tcp_conn_t *conn = NET_TCP_FindConnection(client_ip, client_port, server_port);
 
+	// Active open in progress (RFC 793, SYN-SENT STATE)
+	if (conn && conn->state == tcp_state_t::TCP_SYN_SENT) {
+		const bool ack_ok = (client_flags & TCP_ACK) && (client_ack == conn->tcp_my_seq);
+		if (client_flags & TCP_RST) {
+			if (ack_ok) {
+				NET_TCP_ClientRemove(conn->socket_tag);   // connection refused
+			}
+			return;
+		}
+		if ((client_flags & TCP_ACK) && !ack_ok) {
+			NET_SendTCP_RST(frame, server_port, client_port, client_ack, 0, TCP_RST);
+			return;
+		}
+		if ((client_flags & TCP_SYN) && ack_ok) {
+			conn->tcp_client_seq = client_seq;
+			conn->rcv_next = client_seq + 1;          // SYN consumes 1
+			conn->client_window = client_window;
+			conn->peer_mss = parse_mss_option(tcp);
+			conn->snd_unack = client_ack;
+			tx_release_acked(conn, client_ack);
+			conn->last_activity = get_tick();
+			conn->keep_alive_count = 0;
+			conn->window_size = SOCKET_RX_BUFF_LEN - conn->rx_count;
+			conn->state = tcp_state_t::TCP_ESTABLISHED;
+			NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_ACK, nullptr, 0);
+		}
+		return;   // simultaneous open is not supported
+	}
+
 	// Handle RST flag: only accept an in-sequence RST (anti-spoofing, RFC 793)
 	if (conn && (client_flags & TCP_RST)) {
 		if (client_seq == conn->rcv_next) {
@@ -701,10 +730,12 @@ void NET_ProcessTCP(ipv4_frame *frame) {
 }
 
 uint16_t NET_TCP_Available(tcp_conn_t *conn) {
+	NetGuard guard;
 	return (conn != nullptr) ? conn->rx_count : 0;
 }
 
 int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen) {
+	NetGuard guard;
 	if (conn == nullptr || dst == nullptr) {
 		return -1;
 	}
@@ -740,7 +771,94 @@ int NET_TCP_Read(tcp_conn_t *conn, uint8_t *dst, uint16_t maxlen) {
 	return n;
 }
 
+namespace {
+uint16_t next_ephemeral_port = 0;
+
+bool local_port_in_use(uint16_t port) {
+	for (int i = 0; i < active_conn; i++) {
+		if (tcp_clients[active_list[i]].server_port == port) {
+			return true;
+		}
+	}
+	return NET_TCP_IsListening(port);
+}
+
+// RFC 6335 dynamic range 49152..65535, starting at a random point
+uint16_t alloc_ephemeral_port() {
+	if (next_ephemeral_port < 49152U) {
+		next_ephemeral_port = static_cast<uint16_t>(49152U + (NET_Entropy() % 16384U));
+	}
+	for (uint32_t tries = 0; tries < 16384U; ++tries) {
+		const uint16_t p = next_ephemeral_port;
+		next_ephemeral_port = (p == 65535U) ? 49152U : static_cast<uint16_t>(p + 1U);
+		if (!local_port_in_use(p)) {
+			return p;
+		}
+	}
+	return 0;
+}
+} // namespace
+
+tcp_conn_t *NET_TCP_Connect(const uint8_t *ip, uint16_t port) {
+	NetGuard guard;
+	if (ip == nullptr || port == 0) {
+		return nullptr;
+	}
+	uint8_t mac[MAC_ADDR_LEN];
+	if (!NET_ARP_Resolve(ip, mac) || !ETH_IsTxBufferAvailable()) {
+		return nullptr;
+	}
+	const uint16_t lport = alloc_ephemeral_port();
+	if (lport == 0) {
+		return nullptr;
+	}
+	const int num = NET_TCP_ClientAdd();
+	if (num < 0) {
+		return nullptr;
+	}
+
+	tcp_conn_t *conn = &tcp_clients[num];
+	conn->socket_tag = static_cast<uint8_t>(num);
+	conn->client_ip = BuffU8ToU32(const_cast<uint8_t *>(ip));
+	memcpy(conn->client_mac, mac, MAC_ADDR_LEN);
+	conn->client_port = port;
+	conn->server_port = lport;
+	conn->last_activity = get_tick();
+	conn->window_size = SOCKET_RX_BUFF_LEN;
+	conn->peer_mss = TCP_DEFAULT_PEER_MSS;
+	conn->client_window = TCP_DEFAULT_PEER_MSS;
+	conn->tcp_my_seq = NET_Entropy();
+	conn->snd_unack = conn->tcp_my_seq;
+	conn->state = tcp_state_t::TCP_SYN_SENT;
+
+	const uint8_t mss_opt[4] = { 2, 4,
+			static_cast<uint8_t>(TCP_OUR_MSS >> 8),
+			static_cast<uint8_t>(TCP_OUR_MSS & 0xFF) };
+	if (!NET_TCP_EnqueueSegment(conn, TCP_SYN, nullptr, 0, mss_opt, sizeof(mss_opt))) {
+		NET_TCP_ClientRemove(conn->socket_tag);
+		return nullptr;
+	}
+	return conn;
+}
+
+void NET_TCP_Abort(tcp_conn_t *conn) {
+	NetGuard guard;
+	if (conn == nullptr || conn->state == tcp_state_t::TCP_CLOSED) {
+		return;
+	}
+	if (ETH_IsTxBufferAvailable()) {
+		NET_SendTCP(conn, conn->tcp_my_seq, conn->rcv_next, TCP_RST | TCP_ACK, nullptr, 0);
+	}
+	NET_TCP_ClientRemove(conn->socket_tag);
+}
+
+bool NET_TCP_IsOpen(const tcp_conn_t *conn, uint16_t local_port) {
+	return conn != nullptr && conn->state != tcp_state_t::TCP_CLOSED
+	    && conn->server_port == local_port;
+}
+
 void NET_TCP_Close(tcp_conn_t *conn) {
+	NetGuard guard;
 	if (conn->state == tcp_state_t::TCP_ESTABLISHED) {
 		NET_TCP_EnqueueSegment(conn, TCP_FIN | TCP_ACK, nullptr, 0);
 		conn->state = tcp_state_t::TCP_FIN_WAIT_1;
@@ -758,6 +876,7 @@ void NET_TCP_Close(tcp_conn_t *conn) {
  *         -1 on invalid arguments or connection state
  */
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len) {
+	NetGuard guard;
 	if (conn == nullptr || conn->state != tcp_state_t::TCP_ESTABLISHED) {
 		return -1;  // Not connected
 	}

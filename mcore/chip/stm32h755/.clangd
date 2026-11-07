@@ -1,0 +1,4 @@
+CompileFlags:
+  Add:
+    - -DMCORE_STM32H755
+    - -DCORE_CM7

@@ -46,4 +46,9 @@ void test_reset(uint32_t now) {
 	TxDescList.pBuff = tx_buffer;
 	g_tx_frames.clear();
 	g_test_now = now;
+	// Default interface config (DHCP tests leave 0.0.0.0 behind)
+	static const uint8_t ip[4] = { 192, 168, 0, 123 };
+	static const uint8_t mask[4] = { 255, 255, 255, 0 };
+	static const uint8_t gw[4] = { 0, 0, 0, 0 };
+	NET_SetNetConfig(ip, mask, gw);
 }

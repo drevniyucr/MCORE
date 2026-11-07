@@ -9,6 +9,10 @@ on:
 jobs:
   firmware:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chip: [STM32F767, STM32H755]
     steps:
       - uses: actions/checkout@v4
 
@@ -34,24 +38,29 @@ jobs:
         run: >
           cmake -G Ninja -B build
           -DCMAKE_BUILD_TYPE=Debug
+          -DMCORE_CHIP=${{ matrix.chip }}
           -DSTM32_TOOLCHAIN_PATH=$HOME/arm-toolchain
 
+      # All targets: STM32H755 also builds the Cortex-M4 image STM32H755_CM4
       - name: Build
-        run: cmake --build build --target STM32F767
+        run: cmake --build build
 
       - name: Firmware size
         run: |
           echo '```' >> $GITHUB_STEP_SUMMARY
-          ~/arm-toolchain/bin/arm-none-eabi-size build/STM32F767 | tee -a $GITHUB_STEP_SUMMARY
+          ~/arm-toolchain/bin/arm-none-eabi-size $(ls build/${{ matrix.chip }} build/${{ matrix.chip }}_CM4 2>/dev/null) | tee -a $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: firmware
+          name: firmware-${{ matrix.chip }}
           path: |
-            build/STM32F767
-            build/STM32F767.bin
+            build/${{ matrix.chip }}
+            build/${{ matrix.chip }}.bin
+            build/${{ matrix.chip }}_CM4
+            build/${{ matrix.chip }}_CM4.bin
+          if-no-files-found: warn
 
   host-tests:
     runs-on: ubuntu-latest
@@ -60,6 +69,10 @@ jobs:
 
       - name: Install Ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      # tests/vda/validate.py checks VDA 5050 messages against the official schemas
+      - name: Install jsonschema
+        run: python3 -m pip install --user jsonschema
 
       - name: Configure
         run: cmake -S tests -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=Debug

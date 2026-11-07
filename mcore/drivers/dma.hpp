@@ -10,6 +10,9 @@
 #include "core/regs.hpp"
 #include "core/system.hpp"
 #include "config.hpp"
+#if defined(MCORE_STM32H755)
+#include "chip/stm32h755/dma_request.hpp"
+#endif
 
 
 constexpr uint32_t INTRPT_CLR_MASK = 0x3D;
@@ -117,8 +120,22 @@ struct DmaHandle
 };
 
 
+// Request routing differs per chip:
+//  - STM32F7: fixed stream/channel matrix, DMA_SxCR.CHSEL   -> .Channel
+//  - STM32H7: any stream, request picked by DMAMUX1         -> .Request
+// MCORE_DMA_ROUTE(CHNL_x, REQUEST) lets one config serve both chips.
+#if defined(MCORE_STM32H755)
+#define MCORE_DMA_ROUTE(f7_channel, h7_request) .Request = DmaRequest::h7_request
+#else
+#define MCORE_DMA_ROUTE(f7_channel, h7_request) .Channel = DmaChannel::f7_channel
+#endif
+
 struct DmaHwConfig {
+#if defined(MCORE_STM32H755)
+    DmaRequest Request;
+#else
     DmaChannel Channel;
+#endif
     DmaDir Direction;
     bool PeriphIncEnable;
     bool MemIncEnable;
@@ -367,7 +384,21 @@ DmaState DMA_Config()
         }
     };
 
+#if defined(MCORE_STM32H755)
+    // DMAMUX1 channel n feeds DMA1 stream n (n = 0..7) / DMA2 stream n-8.
+    constexpr uintptr_t dmamux_ccr = DMAMUX1::DMAMUX1_BASE + 4U * traits::raw;
+    *reinterpret_cast<volatile uint32_t*>(dmamux_ccr) = static_cast<uint32_t>(cfg.Request);
+
+    // UART/USART streams must use bufferable transfers (DMA_SxCR.TRBUFF).
+    constexpr uint32_t DMA_SxCR_TRBUFF = 1U << 20;
+    if constexpr (dma_request_is_uart(cfg.Request)) {
+        traits::CR::setMask(DMA_SxCR_TRBUFF);
+    } else {
+        traits::CR::clearMask(DMA_SxCR_TRBUFF);
+    }
+#else
     traits::CR::CHSEL::write(static_cast<uint32_t>(cfg.Channel));
+#endif
 
     traits::CR::DIR::write(static_cast<uint32_t>(cfg.Direction));
     traits::CR::PL::write(static_cast<uint32_t>(cfg.Priority));

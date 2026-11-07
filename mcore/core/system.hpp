@@ -9,7 +9,9 @@
 
 #include "core/def.hpp"
 
-extern uint32_t SystemCoreClock;
+extern uint32_t SystemCoreClock;   // CPU clock (SysTick, DWT)
+extern uint32_t AHBClock;          // AHB/AXI bus clock (== SystemCoreClock on F7)
+extern uint32_t US_Prescaler;      // CPU cycles per microsecond
 extern uint32_t APB1Clock;
 extern uint32_t APB2Clock;
 extern const uint8_t AHBPrescTable[16];

@@ -5,15 +5,21 @@
 
 constexpr uint32_t LED_BITS = 24;
 
-// Тайминги (под ARR ≈ 270)
-constexpr uint16_t DUTY_1 = 173; // ~2/3 172.8
-constexpr uint16_t DUTY_0 = 86;  // ~1/3 86.4
+// Bit period is 1.25 us (800 kHz): Period = timer_clock / 800 kHz, ARR = Period - 1.
+//   STM32F767: TIM1 @ 216 MHz -> Period 270
+//   STM32H755: TIM1 @ 200 MHz -> Period 250
+constexpr uint16_t WS2812_DEFAULT_PERIOD = 270;
 
 // reset > 50us → ~40 бит минимум
 constexpr uint32_t RESET_SLOTS = 64;
 
-template<typename Timer, TimCh ch, auto &dma, size_t LED_COUNT>
+template<typename Timer, TimCh ch, auto &dma, size_t LED_COUNT,
+         uint16_t Period = WS2812_DEFAULT_PERIOD>
 class WS2812 {
+	// "1" = 0.8 us high (64 % of the bit), "0" = 0.4 us high (32 %)
+	static constexpr uint16_t DUTY_1 = static_cast<uint16_t>((Period * 16U + 12U) / 25U);
+	static constexpr uint16_t DUTY_0 = static_cast<uint16_t>((Period * 8U + 12U) / 25U);
+
 public:
 
 	struct RGB {

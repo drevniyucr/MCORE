@@ -25,11 +25,32 @@ namespace {
 		.enable = true
 	};
 
-	// MPU Region 1: Ethernet RX Buffer (16KB at 0x20078000)
-	// Non-cacheable, shareable memory for DMA-accessible Ethernet receive buffers
+#if defined(MCORE_STM32H755)
+	// MPU Region 1 (STM32H755 Cortex-M7): SRAM4 (0x38000000, 64KB), the memory
+	// shared with the Cortex-M4 (app/ipc_shared.hpp). Non-cacheable so both
+	// cores see each other's writes without cache maintenance. The Ethernet
+	// pool belongs to the Cortex-M4, which has no data cache.
 	constexpr _MPU::RegionConfig region1_eth_pool = {
 		.regionNum = _MPU::regionNumber::REGION_1,
-		.baseAddress = 0x20078000,  // ETH RX buffer base address
+		.baseAddress = 0x38000000,
+		.instructionAccessDisable = true,
+		.accessPermission = _MPU::regionPermission::REGION_FULL_ACCESS,
+		.texLevel = _MPU::regionTEX::REGION_TEX_LEVEL1,
+		.shareable = true,
+		.cacheable = false,
+		.bufferable = false,
+		.subregionDisable = 0,
+		.size = _MPU::regionSize::REGION_SIZE_64KB,
+		.enable = true
+	};
+#else
+	// MPU Region 1: Ethernet descriptors + buffers (32KB) at the top of SRAM1.
+	// Non-cacheable, shareable memory for DMA-accessible Ethernet buffers.
+	// Must match the linker script.
+	constexpr uint32_t ETH_POOL_BASE = 0x20078000;
+	constexpr _MPU::RegionConfig region1_eth_pool = {
+		.regionNum = _MPU::regionNumber::REGION_1,
+		.baseAddress = ETH_POOL_BASE,
 		.instructionAccessDisable = true,
 		.accessPermission = _MPU::regionPermission::REGION_FULL_ACCESS,
 		.texLevel = _MPU::regionTEX::REGION_TEX_LEVEL1,
@@ -40,6 +61,7 @@ namespace {
 		.size = _MPU::regionSize::REGION_SIZE_32KB,
 		.enable = true
 	};
+#endif
 }
 
 void MPU_Config() {

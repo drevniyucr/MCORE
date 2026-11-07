@@ -337,6 +337,12 @@ template<typename ADCx>
 static inline uint32_t ADC_Read(){return ADCx::_DR::DATA::read();}
 
 template<typename ADCx>
+static inline bool ADC_IsOVR(){return ADCx::_SR::OVR::is_set();}
+
+template<typename ADCx>
+static inline void ADC_ClearOVR(){ADCx::_SR::OVR::clear();}
+
+template<typename ADCx>
 inline void ADC_Stop(){ADCx::_CR2::SWSTART::clear();}
 
 template<typename ADCx>

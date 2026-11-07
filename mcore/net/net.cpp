@@ -26,6 +26,17 @@ namespace {
 
 uint8_t MAC_ADDR[MAC_ADDR_LEN] = { 0x02, 0x12, 0x34, 0x56, 0x78, 0x9A };
 uint8_t IP_ADDR[IP_ADDR_LEN] = { 192, 168, 0, 123 };
+uint8_t NET_NETMASK[IP_ADDR_LEN] = { 255, 255, 255, 0 };
+uint8_t NET_GATEWAY[IP_ADDR_LEN] = { 0, 0, 0, 0 };
+
+namespace {
+struct udp_binding_t {
+	uint16_t port;
+	NET_UDP_Handler handler;
+	void *ctx;
+};
+udp_binding_t udp_bindings[NET_UDP_MAX_BINDINGS] = {};
+} // namespace
 
 uint8_t icmp_port_unrchble_template[ICMP_UNRCHBLE_FRAME_LEN] = {
 		// Ethernet Header (14B)
@@ -90,6 +101,25 @@ uint8_t UDPsendFrameTemplate[UDP_TEMPLATE_FRAME_LEN] = {
  * - Efficient pointer-based frame structure
  * - Hardware checksum validation (already done by MAC)
  */
+namespace {
+NetLockFn g_net_lock = nullptr;
+NetUnlockFn g_net_unlock = nullptr;
+} // namespace
+
+void NET_SetLock(NetLockFn lock, NetUnlockFn unlock) {
+	g_net_lock = lock;
+	g_net_unlock = unlock;
+}
+
+NetGuard::NetGuard() : key_(g_net_lock != nullptr ? g_net_lock() : 0U) {
+}
+
+NetGuard::~NetGuard() {
+	if (g_net_unlock != nullptr) {
+		g_net_unlock(key_);
+	}
+}
+
 void NET_ProcessRx(ETH_RxDescListStruct* RxDesc, ETH_TxDescListStruct* TxDesc) {
 	// Early validation: minimum frame size check
 	if (RxDesc->BuffLen < ETH_HDR_SIZE) {
@@ -205,6 +235,20 @@ void NET_ProcessUDP(ipv4_frame* frame) {
 		return;
 	}
 
+	for (const udp_binding_t &b : udp_bindings) {
+		if (b.port != 0 && b.port == dst_port) {
+			const uint16_t udp_len = static_cast<uint16_t>((udp_hdr[4] << 8) | udp_hdr[5]);
+			const uint16_t ip_payload = static_cast<uint16_t>(frame->ip_len - frame->ip_hdr_len);
+			if (udp_len < UDP_HDR_LEN || udp_len > ip_payload) {
+				return;   // malformed
+			}
+			const uint16_t src_port = static_cast<uint16_t>((udp_hdr[0] << 8) | udp_hdr[1]);
+			b.handler(frame->scr_addr, src_port, &udp_hdr[UDP_HDR_LEN],
+					static_cast<uint16_t>(udp_len - UDP_HDR_LEN), b.ctx);
+			return;
+		}
+	}
+
 	if (dst_port != UDP_DST_PORT) {
 		// Port not for us - send ICMP unreachable.
 		// Never answer broadcast datagrams (RFC 1122).
@@ -216,6 +260,73 @@ void NET_ProcessUDP(ipv4_frame* frame) {
 
 	// TODO: Route to UDP handler based on port
 	// send_UDP_echo(RxDesc);
+}
+
+void NET_SetNetmask(const uint8_t *mask) {
+	memcpy(NET_NETMASK, mask, IP_ADDR_LEN);
+}
+
+void NET_SetGateway(const uint8_t *gw) {
+	memcpy(NET_GATEWAY, gw, IP_ADDR_LEN);
+}
+
+void NET_SetNetConfig(const uint8_t *ip, const uint8_t *mask, const uint8_t *gw) {
+	NET_SetIPAddr(ip);
+	NET_SetNetmask(mask);
+	NET_SetGateway(gw);
+	NET_ARP_Flush();   // the on-link set may have changed
+}
+
+bool NET_UDP_Bind(uint16_t port, NET_UDP_Handler handler, void *ctx) {
+	if (port == 0 || handler == nullptr || port == DHCP_CLIENT_PORT) {
+		return false;
+	}
+	udp_binding_t *free_slot = nullptr;
+	for (udp_binding_t &b : udp_bindings) {
+		if (b.port == port) {
+			b.handler = handler;   // rebind
+			b.ctx = ctx;
+			return true;
+		}
+		if (b.port == 0 && free_slot == nullptr) {
+			free_slot = &b;
+		}
+	}
+	if (free_slot == nullptr) {
+		return false;
+	}
+	*free_slot = { port, handler, ctx };
+	return true;
+}
+
+void NET_UDP_Unbind(uint16_t port) {
+	for (udp_binding_t &b : udp_bindings) {
+		if (b.port == port) {
+			b = {};
+		}
+	}
+}
+
+bool NET_UDP_SendTo(const uint8_t *dst_ip, uint16_t dst_port, uint16_t src_port,
+		const uint8_t *data, uint16_t len) {
+	if (len > ETH_MAX_PACKET_SIZE - UDP_TEMPLATE_FRAME_LEN) {
+		return false;
+	}
+	uint8_t mac[MAC_ADDR_LEN];
+	if (!NET_ARP_Resolve(dst_ip, mac) || !ETH_IsTxBufferAvailable()) {
+		return false;
+	}
+	uint8_t ip_copy[IP_ADDR_LEN];
+	memcpy(ip_copy, dst_ip, IP_ADDR_LEN);
+	UDP_SendFrameStruct f = {};
+	f.DstMAC = mac;
+	f.DstIP = ip_copy;
+	f.DstPort = dst_port;
+	f.SrcPort = src_port;
+	f.pDataBuff = const_cast<uint8_t *>(data);
+	f.DataBuffLen = len;
+	NET_SendUDP(f);
+	return true;
 }
 
 void NET_SetIPAddr(const uint8_t *ip) {
@@ -381,14 +492,22 @@ void NET_ProcessARP(ipv4_frame* frame) {
 		return;
 	}
 	
-	// Check if it's an ARP request (opcode = 1)
-	if (frame->rx_buff[ETH_HDR_LEN + 7] != ARP_REQUEST_OPCODE) {
-		return;  // Not an ARP request
+	// Only packets whose target is our (non-zero) address concern us
+	const uint8_t *target_ip = &frame->rx_buff[ETH_HDR_LEN + 24];
+	if ((IP_ADDR[0] | IP_ADDR[1] | IP_ADDR[2] | IP_ADDR[3]) == 0 ||
+	    memcmp(target_ip, IP_ADDR, IP_ADDR_LEN) != 0) {
+		return;
 	}
-	
-	// Check if they're asking for our IP address
-	if (memcmp(&frame->rx_buff[ETH_HDR_LEN + 24], IP_ADDR, IP_ADDR_LEN) != 0) {
-		return;  // Not asking for our IP
+
+	// Requests and replies both tell us the sender's MAC (RFC 826 merge)
+	NET_ARP_Learn(frame->scr_addr, frame->scr_mac);
+
+	// Only requests get a reply
+	if (frame->rx_buff[ETH_HDR_LEN + 7] != ARP_REQUEST_OPCODE) {
+		return;
+	}
+	if (!ETH_IsTxBufferAvailable()) {
+		return;
 	}
 	
 	// Prepare ARP reply

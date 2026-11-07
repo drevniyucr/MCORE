@@ -1,8 +1,9 @@
 # --- Build directories ---
 build/
-build-tests/
+build-*/
 config_default/
 /Debug
+!/debug/
 Release
 
 # --- IDE / tooling caches ---
@@ -16,3 +17,6 @@ tools
 # --- Python ---
 __pycache__/
 *.pyc
+
+# --- Test broker: generated PKI (private keys) and runtime files ---
+tests/broker/pki/

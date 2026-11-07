@@ -19,8 +19,30 @@
   *        (when HSI is used as system clock source, directly or through the PLL).
   */
 #if !defined  (HSI_VALUE)
+#if defined(MCORE_STM32H755)
+  #define HSI_VALUE    static_cast<uint32_t>(64000000U) /*!< STM32H7 HSI: 64 MHz */
+#else
   #define HSI_VALUE    static_cast<uint32_t>(16000000U) /*!< Value of the Internal oscillator in Hz*/
+#endif
 #endif /* HSI_VALUE */
+
+#if !defined  (CSI_VALUE)
+  #define CSI_VALUE    static_cast<uint32_t>(4000000U)  /*!< STM32H7 low-power internal oscillator */
+#endif /* CSI_VALUE */
+
+/* ########################## STM32H7 power supply ########################## */
+/**
+  * @brief How the STM32H7 core domain is powered. This MUST match the board:
+  *        PWR_CR3 is write-once after power-on, and a wrong value leaves the
+  *        chip stuck (recovery: BOOT0=1, connect under reset, full erase).
+  *        - MCORE_PWR_DIRECT_SMPS: NUCLEO-H755ZI-Q default (SMPS on, LDO off)
+  *        - MCORE_PWR_LDO:         boards without the SMPS inductor
+  */
+#define MCORE_PWR_LDO          1
+#define MCORE_PWR_DIRECT_SMPS  2
+#if !defined  (MCORE_PWR_SUPPLY)
+  #define MCORE_PWR_SUPPLY     MCORE_PWR_DIRECT_SMPS
+#endif
 
 /**
   * @brief Internal Low Speed oscillator (LSI) value.

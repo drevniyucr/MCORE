@@ -207,6 +207,13 @@ void dhcp_apply_ack(const uint8_t *bootp, const uint8_t *opts, uint16_t opts_len
 		reset_tcp_connections();
 		NET_SetIPAddr(yiaddr);
 	}
+	// Subnet and router from the lease (a server that omits them leaves the
+	// previous values, i.e. the static configuration)
+	if (c.mask[0] != 0) {
+		NET_SetNetmask(c.mask);
+	}
+	NET_SetGateway(c.gw);
+	NET_ARP_Flush();
 	c.lease_start = get_tick();
 	c.retries = 0;
 	c.state = dhcp_state_t::DHCP_BOUND;
@@ -217,6 +224,8 @@ void dhcp_apply_ack(const uint8_t *bootp, const uint8_t *opts, uint16_t opts_len
 void NET_DHCP_Start(void) {
 	memset(&dhcp_client, 0, sizeof(dhcp_client));
 	memcpy(dhcp_client.static_ip, IP_ADDR, IP_ADDR_LEN);
+	memcpy(dhcp_client.static_mask, NET_NETMASK, IP_ADDR_LEN);
+	memcpy(dhcp_client.static_gw, NET_GATEWAY, IP_ADDR_LEN);
 	NET_SetIPAddr(ZERO_IP);                        // no address while acquiring
 	dhcp_restart_discovery();
 }
@@ -299,7 +308,7 @@ void NET_DHCP_Poll(void) {
 			if (c.retries + 1 >= DHCP_MAX_RETRIES) {
 				// No server: fall back to the saved static address,
 				// keep retrying slowly in the background
-				NET_SetIPAddr(c.static_ip);
+				NET_SetNetConfig(c.static_ip, c.static_mask, c.static_gw);
 				c.state = dhcp_state_t::DHCP_FALLBACK;
 				c.last_tx = now;
 			} else {

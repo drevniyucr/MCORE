@@ -5,12 +5,8 @@
 #include <cstdio>
 
 volatile uint32_t myTick = 0;   // счетчик миллисекунд
-uint32_t SystemCoreClock = 16000000;
-uint32_t US_Prescaler = 1;
-uint32_t APB1Clock = 0;
-uint32_t APB2Clock = 0;
-const uint8_t AHBPrescTable[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9 };
-const uint8_t APBPrescTable[8] = { 0, 0, 0, 0, 1, 2, 3, 4 };
+// SystemCoreClock / AHBClock / APBxClock / US_Prescaler and
+// SystemCoreClockUpdate() are chip-specific: see mcore/chip/<chip>/clock.cpp
 
 // Обработчик прерывания SysTick
 
@@ -66,54 +62,27 @@ inline static void DWT_Init()
 }
 
 
+#if defined(CORE_CM4)
+extern "C" uint32_t g_pfnVectors[];   // startup file
+#endif
+
 void SystemInit() {
+#if defined(CORE_CM4)
+	// The STM32H755 Cortex-M4 boots from flash bank 2; point VTOR at its table.
+	SCB::_VTOR::overwrite(reinterpret_cast<uint32_t>(g_pfnVectors));
+#endif
 	/* FPU settings ------------------------------------------------------------*/
 	SCB::_CPACR::setMask(SCB::_CPACR::CP10::BitMsk | SCB::_CPACR::CP11::BitMsk); /* set CP10 and CP11 Full Access */
 	NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
+#if defined(MCORE_STM32H755)
+	// Keep the D1/D3 debug clocks and the trace clock running so ITM/SWO
+	// and the debugger keep working (the H7 gates them by default).
+	DBGMCU::_CR::setMask<DBGMCU::_CR::D1DBGCKEN::BitMsk |
+	                     DBGMCU::_CR::D3DBGCKEN::BitMsk |
+	                     DBGMCU::_CR::TRACECLKEN::BitMsk>();
+#endif
 	DWT_Init();
 
-}
-
-void SystemCoreClockUpdate() {
-	uint32_t tmp, pllvco, pllp, pllsource, pllm;
-
-	/* Get SYSCLK source -------------------------------------------------------*/
-	tmp = RCC::_CFGR::SWS::read();
-	switch (tmp) {
-	case 0b00: /* HSI used as system clock source */
-		SystemCoreClock = HSI_VALUE;
-		break;
-	case 0b01: /* HSE used as system clock source */
-		SystemCoreClock = HSE_VALUE;
-		break;
-	case 0b10: /* PLL used as system clock source */
-
-		pllsource = RCC::_PLLCFGR::PLLSRC::read();
-		pllm      = RCC::_PLLCFGR::PLLM::read();
-
-		if (pllsource != 0) {
-			/* HSE used as PLL clock source */
-			pllvco = (HSE_VALUE / pllm) * ((RCC::_PLLCFGR::PLLN::read()));
-		} else {
-			/* HSI used as PLL clock source */
-			pllvco = (HSI_VALUE / pllm) * ((RCC::_PLLCFGR::PLLN::read()));
-		}
-		pllp = ((RCC::_PLLCFGR::PLLP::read()) + 1) * 2;
-		SystemCoreClock = pllvco / pllp;
-		break;
-	default:
-		SystemCoreClock = HSI_VALUE;
-		break;
-	}
-
-	tmp = AHBPrescTable[RCC::_CFGR::HPRE::read()];
-	/* HCLK frequency */
-	SystemCoreClock >>= tmp;
-	tmp = APBPrescTable[RCC::_CFGR::PPRE1::read()];
-	APB1Clock = SystemCoreClock >> tmp;// APB1 frequency
-	tmp = APBPrescTable[RCC::_CFGR::PPRE2::read()];
-	APB2Clock = SystemCoreClock >> tmp;// APB2 frequency
-	US_Prescaler = SystemCoreClock / 1000000;
 }
 
 uint32_t SysTick_Config(uint32_t ticks) {
@@ -174,8 +143,13 @@ extern "C" void PendSV_Handler(void) {
 
 }
 
+// Time base of the scheduler (mcore/sched) and other users; empty by default
+extern "C" __attribute__((weak)) void SysTick_Hook(void) {
+}
+
 extern "C" void SysTick_Handler(void) {
 	myTick += 1;   // каждый тик увеличиваем счетчик
+	SysTick_Hook();
 }
 
 

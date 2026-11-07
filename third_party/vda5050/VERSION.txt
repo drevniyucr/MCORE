@@ -1,0 +1,4 @@
+VDA 5050 3.0.0 JSON schemas, unmodified, from
+https://github.com/VDA5050/VDA5050/archive/refs/tags/3.0.0.tar.gz (json_schemas/).
+Used by tests/vda/validate.py. Note: order.schema contains a trailing comma
+(invalid JSON); the validator strips it before loading.

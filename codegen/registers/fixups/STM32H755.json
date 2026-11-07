@@ -1,0 +1,44 @@
+{
+  "_comment": "Corrections of STM32H755_CM7.svd (found by check_regs.py against stm32h755xx.h, see README.md) and field aliases for MCORE drivers. Keys: <base peripheral>/<register>.",
+  "aliases": {
+    "I2C1/OAR1": {"MODE": "OA1MODE"}
+  },
+  "fields": {
+    "ADC3/DR": {"RDATA": [0, 32]},
+    "ADC3/AWD3CR": {"AWD3CH": [0, 20]},
+    "DMA2D/CR": {"MODE": [16, 3]},
+    "DMA2D/FGOR": {"LO": [0, 16]},
+    "DMA2D/BGOR": {"LO": [0, 16]},
+    "DMA2D/OOR": {"LO": [0, 16]},
+    "LTDC/SSCR": {"HSW": [16, 12]},
+    "WWDG1/CFR": {"WDGTB": [11, 3]},
+    "SYSCFG/UR3": {"BCM4_ADD1": null, "BCM7_ADD1": [0, 16], "BCM4_ADD0": [16, 16]},
+    "DAC/CR": {"TSEL1": [2, 4], "TSEL2": [18, 4]},
+    "Ethernet_MAC/MACLETR": {"LPIET": [0, 20]},
+    "Ethernet_MAC/MACPPSTTSR": {"TSTRH0": [0, 32]},
+    "Ethernet_MAC/DMAMR": {"INTM": [16, 2]},
+    "CRYP/CR": {"NPBLB": [20, 4]}
+  },
+  "field_array": {
+    "BDMA/ISR": {"names": ["GIF", "TCIF", "HTIF", "TEIF"], "count": 8, "first": 0},
+    "BDMA/IFCR": {"names": ["CGIF", "CTCIF", "CHTIF", "CTEIF"], "count": 8, "first": 0}
+  },
+  "registers": {
+    "Ethernet_MAC/MACARPAR": {"offset": "0x210", "_why": "RM0399 ETH_MACARPAR is at 0x0210"},
+    "Flash/PRAR_PRG2": {"offset": "0x12C", "_why": "bank 2 registers are at +0x100"},
+    "OTG1_HS_DEVICE/OTG_HS_DIEPTSIZ6": {"offset": "0x1D0", "_why": "IN endpoint n registers at 0x100 + 0x20 n, TSIZ +0x10"},
+    "OTG1_HS_DEVICE/OTG_HS_DIEPTSIZ7": {"offset": "0x1F0", "_why": "IN endpoint n registers at 0x100 + 0x20 n, TSIZ +0x10"},
+    "OTG1_HS_DEVICE/OTG_HS_DIEPDMA1": {"rename": "OTG_HS_DIEPDMA0", "_why": "DMA address of IN endpoint n is at 0x114 + 0x20 n"},
+    "OTG1_HS_DEVICE/OTG_HS_DIEPDMA2": {"rename": "OTG_HS_DIEPDMA1", "_why": "DMA address of IN endpoint n is at 0x114 + 0x20 n"},
+    "OTG1_HS_DEVICE/OTG_HS_DIEPDMA3": {"rename": "OTG_HS_DIEPDMA2", "_why": "DMA address of IN endpoint n is at 0x114 + 0x20 n"},
+    "OTG1_HS_DEVICE/OTG_HS_DIEPDMA4": {"rename": "OTG_HS_DIEPDMA3", "_why": "DMA address of IN endpoint n is at 0x114 + 0x20 n"},
+    "OTG1_HS_DEVICE/OTG_HS_DIEPDMA5": {"rename": "OTG_HS_DIEPDMA4", "_why": "DMA address of IN endpoint n is at 0x114 + 0x20 n"},
+    "RAMECC1/M2FECR": {"offset": "0x54", "_why": "monitor registers are 0x20 apart, FECR at +0x14"},
+    "RAMECC1/M3FECR": {"offset": "0x74", "_why": "monitor registers are 0x20 apart, FECR at +0x14"},
+    "RAMECC1/M4FECR": {"offset": "0x94", "_why": "monitor registers are 0x20 apart, FECR at +0x14"},
+    "RAMECC2/M2FECR": {"offset": "0x54", "_why": "monitor registers are 0x20 apart, FECR at +0x14"},
+    "RAMECC2/M3FECR": {"offset": "0x74", "_why": "monitor registers are 0x20 apart, FECR at +0x14"},
+    "RAMECC2/M4FECR": {"offset": "0x94", "_why": "monitor registers are 0x20 apart, FECR at +0x14"},
+    "RAMECC3/M2FECR": {"offset": "0x54", "_why": "monitor registers are 0x20 apart, FECR at +0x14"}
+  }
+}

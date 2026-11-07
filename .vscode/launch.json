@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cortex Debug with SWO ITM",
+            "name": "STM32F767: Cortex Debug with SWO ITM",
             "cwd": "${workspaceFolder}",
             "executable": "${workspaceFolder}/build/STM32F767",
            "request": "launch",
@@ -10,15 +10,15 @@
             "servertype": "openocd",
            "device": "STM32F767ZI",
            "showDevDebugOutput": "both",
-        
+
             // Конфигурационные файлы OpenOCD
              "configFiles": [
-                "${workspaceFolder}/debug/MCORE_Debug.cfg",
+                "${workspaceFolder}/debug/MCORE_Debug_F767.cfg",
              ],
              "searchDir": [
                  "${workspaceFolder}/debug/openocd"
              ],
-            
+
            // Настройки SWO
             "swoConfig": {
                 "enabled": true,
@@ -34,7 +34,7 @@
                     }
                 ]
             },
-        
+
             // Команды инициализации OpenOCD
            "preLaunchCommands": [
          //   "set mem inaccessible-by-default off",
@@ -45,10 +45,72 @@
             "monitor sleep 100",
             "monitor reset"
         ],
-            
+
             // Дополнительные настройки
             "runToEntryPoint": "main",
             "svdFile": "${workspaceFolder}/debug/STM32F767.svd"
+        },
+        {
+            "name": "STM32H755 (CM7): Cortex Debug with SWO ITM",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-h7/STM32H755",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "device": "STM32H755ZI",
+            "showDevDebugOutput": "both",
+            "configFiles": [
+                "${workspaceFolder}/debug/MCORE_Debug_H755.cfg"
+            ],
+            "searchDir": [
+                "${workspaceFolder}/debug/openocd"
+            ],
+            // SWO on the H7 goes through the SWO funnel (OpenOCD stm32h7x.swo);
+            // the trace clock is the CPU clock set in RCC_Init (400 MHz).
+            "swoConfig": {
+                "enabled": true,
+                "cpuFrequency": 400000000,
+                "swoFrequency": 2000000,
+                "source": "probe",
+                "decoders": [
+                    {
+                        "type": "console",
+                        "label": "ITM Output",
+                        "port": 0,
+                        "encoding": "ascii"
+                    }
+                ]
+            },
+            "preLaunchCommands": [
+                "monitor reset"
+            ],
+            "postLaunchCommands": [
+                "monitor reset init",
+                "monitor sleep 100",
+                "monitor reset"
+            ],
+            "runToEntryPoint": "main",
+            "svdFile": "${workspaceFolder}/debug/STM32H755_CM7.svd"
+        },
+        {
+            // Attaches to the running Cortex-M4 (network image) without a
+            // reset. OpenOCD serves the M7 as processor 0 and the M4 as 1.
+            "name": "STM32H755 (CM4): attach",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-h7/STM32H755_CM4",
+            "request": "attach",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "device": "STM32H755ZI",
+            "configFiles": [
+                "${workspaceFolder}/debug/MCORE_Debug_H755.cfg"
+            ],
+            "searchDir": [
+                "${workspaceFolder}/debug/openocd"
+            ],
+            "numberOfProcessors": 2,
+            "targetProcessor": 1,
+            "svdFile": "${workspaceFolder}/debug/STM32H755_CM7.svd"
         }
     ]
 }

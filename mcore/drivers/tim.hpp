@@ -67,6 +67,23 @@ struct TimOCConfig {
     bool FastEnable = false;
 };
 
+#if defined(MCORE_STM32H755)
+// ------------------- TIMER CLOCK -------------------
+// STM32H7: APB1 timers are enabled in APB1LENR; TIM9..11 do not exist.
+template<typename TIMx> inline void TIM_ClkEnable();
+template<> inline void TIM_ClkEnable<TIM1>()  { RCC::_APB2ENR::TIM1EN::set(); }
+template<> inline void TIM_ClkEnable<TIM2>()  { RCC::_APB1LENR::TIM2EN::set(); }
+template<> inline void TIM_ClkEnable<TIM3>()  { RCC::_APB1LENR::TIM3EN::set(); }
+template<> inline void TIM_ClkEnable<TIM4>()  { RCC::_APB1LENR::TIM4EN::set(); }
+template<> inline void TIM_ClkEnable<TIM5>()  { RCC::_APB1LENR::TIM5EN::set(); }
+template<> inline void TIM_ClkEnable<TIM6>()  { RCC::_APB1LENR::TIM6EN::set(); }
+template<> inline void TIM_ClkEnable<TIM7>()  { RCC::_APB1LENR::TIM7EN::set(); }
+template<> inline void TIM_ClkEnable<TIM8>()  { RCC::_APB2ENR::TIM8EN::set(); }
+template<> inline void TIM_ClkEnable<TIM12>() { RCC::_APB1LENR::TIM12EN::set(); }
+template<> inline void TIM_ClkEnable<TIM13>() { RCC::_APB1LENR::TIM13EN::set(); }
+template<> inline void TIM_ClkEnable<TIM14>() { RCC::_APB1LENR::TIM14EN::set(); }
+
+#else
 // ------------------- TIMER CLOCK -------------------
 template<typename TIMx> inline void TIM_ClkEnable();
 template<> inline void TIM_ClkEnable<TIM1>() {
@@ -112,6 +129,8 @@ template<> inline void TIM_ClkEnable<TIM14>() {
     RCC::_APB1ENR::TIM14EN::set();
 }
 
+#endif
+
 // ------------------- TIMER PROPERTIES (битовая маска) -------------------
 struct TIM_properties {
     bool isAdvanced = false, hasOCM3 = false, hasRepetition = false, hasClkDiv =
@@ -145,6 +164,7 @@ template<> struct TimFlags<TIM7> {
 template<> struct TimFlags<TIM8> {
     static constexpr TIM_properties f{ true, true, true, true, TimCh::CH6 };
 };
+#if !defined(MCORE_STM32H755)
 template<> struct TimFlags<TIM9> {
     static constexpr TIM_properties f{ false, true, false, true, TimCh::CH2 };
 };
@@ -154,6 +174,7 @@ template<> struct TimFlags<TIM10> {
 template<> struct TimFlags<TIM11> {
     static constexpr TIM_properties f{ false, false, false, true, TimCh::CH1 };
 };
+#endif
 template<> struct TimFlags<TIM12> {
     static constexpr TIM_properties f{ false, true, false, true, TimCh::CH2 };
 };

@@ -10,6 +10,25 @@
 #include "core/def.hpp"
 #include "drivers/eth.hpp"
 
+// Optional serialisation of the stack. The task that runs ETH_RxWorker and
+// NET_TCP_Timers owns the stack; when other (lower priority) tasks call the
+// public TCP/SNTP functions, the application installs a lock that holds the
+// owner off meanwhile (e.g. a scheduler priority ceiling). Default: none.
+using NetLockFn = uint32_t (*)();
+using NetUnlockFn = void (*)(uint32_t key);
+void NET_SetLock(NetLockFn lock, NetUnlockFn unlock);
+
+class NetGuard {
+public:
+	NetGuard();
+	~NetGuard();
+	NetGuard(const NetGuard &) = delete;
+	NetGuard &operator=(const NetGuard &) = delete;
+
+private:
+	uint32_t key_;
+};
+
 #define ETH_TYPE_IP  0x0800
 #define IP_PROTO_TCP 6
 
@@ -65,6 +84,8 @@ struct ipv4_frame{
 
 extern uint8_t MAC_ADDR[6];
 extern uint8_t IP_ADDR[4];
+extern uint8_t NET_NETMASK[4];   // on-link subnet (default 255.255.255.0)
+extern uint8_t NET_GATEWAY[4];   // default router, 0.0.0.0 = none
 
 // Frame templates (defined in net.cpp); NET_SetIPAddr patches their
 // baked-in source IP when the address changes
@@ -88,4 +109,48 @@ void NET_ProcessUDP(ipv4_frame*  frame);
 
 void NET_SendUDP(UDP_SendFrameStruct SendFrame);
 void NET_SendICMP_Unreachable(ipv4_frame* frame);
+
+// Static configuration: address, subnet mask and default gateway in one go
+// (also the fallback that DHCP restores when no server answers).
+void NET_SetNetConfig(const uint8_t *ip, const uint8_t *mask, const uint8_t *gw);
+void NET_SetNetmask(const uint8_t *mask);
+void NET_SetGateway(const uint8_t *gw);
+
+// ---------------------------------------------------------------------------
+// UDP sockets (connectionless). A bound port receives every datagram sent to
+// it; the handler runs inside NET_ProcessRx, so it must be short.
+// ---------------------------------------------------------------------------
+#define NET_UDP_MAX_BINDINGS 4
+
+using NET_UDP_Handler = void (*)(const uint8_t *src_ip, uint16_t src_port,
+		const uint8_t *data, uint16_t len, void *ctx);
+
+bool NET_UDP_Bind(uint16_t port, NET_UDP_Handler handler, void *ctx);
+void NET_UDP_Unbind(uint16_t port);
+
+// Unicast datagram. The next hop's MAC must be known (see NET_ARP_Resolve):
+// returns false without sending if it is not, or if the TX queue is full.
+bool NET_UDP_SendTo(const uint8_t *dst_ip, uint16_t dst_port, uint16_t src_port,
+		const uint8_t *data, uint16_t len);
+
+// ---------------------------------------------------------------------------
+// ARP cache (net/arp.cpp)
+// ---------------------------------------------------------------------------
+#define NET_ARP_CACHE_SIZE     8
+#define NET_ARP_ENTRY_TTL_MS   300000   // re-resolve after 5 min
+#define NET_ARP_RETRY_MS       1000     // min gap between requests for one IP
+
+// IP whose MAC an outgoing packet to dst needs: dst itself when on-link,
+// otherwise the gateway. Returns false if dst is off-link and there is no
+// gateway.
+bool NET_ARP_NextHop(const uint8_t *dst_ip, uint8_t *next_hop);
+
+// Copies the MAC for dst_ip (routed via NET_ARP_NextHop) into mac and
+// returns true if it is cached. Otherwise sends an ARP request (rate
+// limited) and returns false: call again later.
+bool NET_ARP_Resolve(const uint8_t *dst_ip, uint8_t *mac);
+
+// Learns/refreshes a mapping (called for every ARP packet addressed to us).
+void NET_ARP_Learn(const uint8_t *ip, const uint8_t *mac);
+void NET_ARP_Flush();
 

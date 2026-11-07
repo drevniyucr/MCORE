@@ -41,6 +41,8 @@ struct dhcp_client_t {
 	uint8_t dns[4];         // option 6
 	uint8_t server_mac[6];  // from the OFFER frame (unicast RENEW target)
 	uint8_t static_ip[4];   // fallback address saved at Start()
+	uint8_t static_mask[4]; // fallback mask/gateway saved at Start()
+	uint8_t static_gw[4];
 };
 
 extern dhcp_client_t dhcp_client;

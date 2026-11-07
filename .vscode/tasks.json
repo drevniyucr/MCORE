@@ -112,6 +112,55 @@
             "type": "shell"
         },
         {
+            "label": "H755: CMake Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-G", "Ninja",
+                "-S", "${workspaceFolder}",
+                "-B", "${workspaceFolder}/build-h7",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DMCORE_CHIP=STM32H755"
+            ],
+            "problemMatcher": []
+        },
+        {
+            // Builds both images: STM32H755 (Cortex-M7) and STM32H755_CM4
+            "label": "H755: CMake Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "${workspaceFolder}/build-h7"
+            ],
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            // Erases BOTH banks: bank 2 holds the Cortex-M4 image (on a new
+            // NUCLEO-H755ZI-Q that is ST's demo, which drives LEDs on PB0/PE1/PB14).
+            "label": "H755: Erase MCU (both banks)",
+            "type": "shell",
+            "command": "openocd",
+            "args": [
+                "-s", "${workspaceFolder}/debug/openocd",
+                "-f", "${workspaceFolder}/debug/MCORE_Debug_H755.cfg",
+                "-c", "init; reset halt; stm32h7x mass_erase 0; stm32h7x mass_erase 1; reset; exit"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "H755: Flash MCU",
+            "type": "shell",
+            "command": "openocd",
+            "args": [
+                "-s", "${workspaceFolder}/debug/openocd",
+                "-f", "${workspaceFolder}/debug/MCORE_Debug_H755.cfg",
+                "-c", "program ${workspaceFolder}/build-h7/STM32H755.bin 0x08000000 verify",
+                "-c", "program ${workspaceFolder}/build-h7/STM32H755_CM4.bin 0x08100000 verify reset exit"
+            ],
+            "dependsOn": "H755: CMake Build",
+            "problemMatcher": []
+        },
+        {
             "type": "cppbuild",
             "label": "C/C++: clang++.exe сборка активного файла",
             "command": "clang++",

@@ -8,7 +8,9 @@
 #include "core/def.hpp"
 #include "net/net.hpp"
 
-#define TCP_MAX_CONNECTIONS 10
+#ifndef TCP_MAX_CONNECTIONS
+#define TCP_MAX_CONNECTIONS 10   // ~8.8 KB RAM each; override per firmware
+#endif
 #define TCP_MAX_LISTEN_PORTS 4
 
 #define TCP_KEEPALIVE_TIMEOUT 20000
@@ -48,7 +50,8 @@ enum class tcp_state_t : uint8_t {
 	TCP_FIN_WAIT_1,
 	TCP_FIN_WAIT_2,
 	TCP_LAST_ACK,
-	TCP_TIME_WAIT
+	TCP_TIME_WAIT,
+	TCP_SYN_SENT      // active open: SYN sent, waiting for SYN|ACK
 };
 
 /**
@@ -166,6 +169,22 @@ void NET_TCP_StopListen(uint16_t port);
 
 // Active close: FIN|ACK from ESTABLISHED, completes via FIN_WAIT/TIME_WAIT
 void NET_TCP_Close(tcp_conn_t *conn);
+
+// Active open (client). Sends a SYN from an ephemeral local port and returns
+// the connection in TCP_SYN_SENT; it becomes TCP_ESTABLISHED when the peer
+// answers. Returns nullptr if the next hop's MAC is not known yet (an ARP
+// request has been sent: call again later), no slot is free or the TX queue
+// is full. The SYN is retransmitted by NET_TCP_Timers; after
+// TCP_RETRANSMISSION_MAX_COUNT attempts the connection is dropped.
+tcp_conn_t *NET_TCP_Connect(const uint8_t *ip, uint16_t port);
+
+// Sends RST (unless already closed) and releases the connection at once.
+void NET_TCP_Abort(tcp_conn_t *conn);
+
+// Connection slots are recycled: a pointer kept by the application is still
+// "its" connection only while this returns true. local_port is
+// conn->server_port as it was right after NET_TCP_Connect.
+bool NET_TCP_IsOpen(const tcp_conn_t *conn, uint16_t local_port);
 
 int NET_TCP_SendUser(tcp_conn_t *conn, const uint8_t *data, uint16_t len);
 
