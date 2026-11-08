@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include "core/regs.hpp"
 #include "core/system.hpp"

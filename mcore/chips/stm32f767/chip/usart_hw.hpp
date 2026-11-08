@@ -1,5 +1,10 @@
 #pragma once
 // USART kernel clock selection (STM32F767).
+#include <cstdint>
+#include "core/regs.hpp"
+#include "core/system.hpp"   // SystemCoreClock
+#include "config.hpp"        // HSI_VALUE, CSI_VALUE, LSE_VALUE
+
 enum class UartClockSrc : uint32_t {
 	PCLK = 0b00, SYSCLK = 0b01, HSI = 0b10, LSE = 0b11
 };

@@ -1,5 +1,10 @@
 #pragma once
 // USART kernel clock selection (STM32H755).
+#include <cstdint>
+#include "core/regs.hpp"
+#include "core/system.hpp"   // SystemCoreClock
+#include "config.hpp"        // HSI_VALUE, CSI_VALUE, LSE_VALUE
+
 // RCC_D2CCIP2R.USART16SEL / USART234578SEL
 enum class UartClockSrc : uint32_t {
 	PCLK = 0b000, PLL2Q = 0b001, PLL3Q = 0b010, HSI = 0b011, CSI = 0b100, LSE = 0b101

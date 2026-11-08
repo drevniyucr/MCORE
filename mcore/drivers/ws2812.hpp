@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 #include "drivers/tim.hpp"
 #include "drivers/dma.hpp"

@@ -351,6 +351,13 @@ cmake --build build-h7
 
 Toolchain discovery: pass `-DSTM32_TOOLCHAIN_PATH=...` or set the `STM32_TOOLCHAIN_PATH` environment variable. Output: `<build dir>/<chip>` (ELF) + `.bin`, size report is printed post-build.
 
+IDE (VS Code + clangd): the builds are merged into one compile database for
+the index, `build-index/compile_commands.json` (`.clangd`). Run the task
+**Index: update** (or `python cmake/compile_db.py` after configuring
+build-h7 / build-f767 / build-tests) once after a checkout and when source
+files are added or removed. A file built by several projects is indexed with
+the STM32H755 flags; chip headers get the flags of their own chip.
+
 A new chip: add `mcore/chips/<chip>/chip/` with the same file names and a
 project in `projects/<chip>/` that calls `mcore_sources(<chip>)` and
 `mcore_firmware(...)` (`cmake/mcore.cmake`).

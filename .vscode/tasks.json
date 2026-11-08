@@ -112,6 +112,41 @@
             "type": "shell"
         },
         {
+            // clangd index: configure every build (compile_commands.json) and
+            // merge them into build-index/ (cmake/compile_db.py, read by .clangd).
+            // Run once after a checkout and after adding/removing source files.
+            "label": "Index: update",
+            "type": "shell",
+            "command": "python",
+            "args": ["${workspaceFolder}/cmake/compile_db.py"],
+            "dependsOn": ["Index: configure H755", "Index: configure F767", "Index: configure tests"],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        },
+        {
+            "label": "Index: configure H755",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-G", "Ninja", "-S", "${workspaceFolder}/projects/stm32h755", "-B", "${workspaceFolder}/build-h7",
+                     "-DCMAKE_BUILD_TYPE=Debug"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Index: configure F767",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-G", "Ninja", "-S", "${workspaceFolder}/projects/stm32f767", "-B", "${workspaceFolder}/build-f767",
+                     "-DCMAKE_BUILD_TYPE=Debug"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Index: configure tests",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-G", "Ninja", "-S", "${workspaceFolder}/tests", "-B", "${workspaceFolder}/build-tests"],
+            "problemMatcher": []
+        },
+        {
             "label": "H755: CMake Configure",
             "type": "shell",
             "command": "cmake",

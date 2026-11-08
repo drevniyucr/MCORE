@@ -1,5 +1,8 @@
 #pragma once
 // Timer clock enables and chip-only timers; included by drivers/tim.hpp inside the TimFlags list (STM32F767).
+#include "core/regs.hpp"
+#include "drivers/tim.hpp"
+
 // ------------------- TIMER CLOCK -------------------
 template<typename TIMx> inline void TIM_ClkEnable();
 template<> inline void TIM_ClkEnable<TIM1>() {

@@ -1,5 +1,7 @@
 #pragma once
 // DMA request routing (DmaRoute, DMA_ApplyRoute) (STM32H755).
+#include <cstdint>
+#include "core/regs.hpp"
 #include "chip/dma_request.hpp"
 
 // Request routing: any stream, the request is picked by DMAMUX1

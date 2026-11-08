@@ -6,8 +6,13 @@
   // ---- clangd (единственный движок IntelliSense) ----
   // query-driver: разрешает clangd опросить arm-none-eabi-g++ о реальных
   // системных инклюдах (libstdc++/newlib) и target
+  // Index: build-index/compile_commands.json, all builds merged (task
+  // "Index: update", see .clangd and cmake/compile_db.py)
   "clangd.arguments": [
-    "--query-driver=**/arm-none-eabi-*,**/g++*"
+    "--query-driver=**/arm-none-eabi-*,**/g++*",
+    "--background-index",
+    "--header-insertion=never",
+    "-j=8"
   ],
   // ---- C/C++ (cpptools): IntelliSense выключен, чтобы не дублировать clangd ----
   "C_Cpp.intelliSenseEngine": "disabled",
@@ -69,5 +74,11 @@
   "C_Cpp.clang_format_path": "${workspaceFolder}/.clang-format",
   "C_Cpp.formatting": "vcFormat",
   "cortex-debug.variableUseNaturalFormat": false,
-  "cmake.sourceDirectory": "C:/Users/Admin/Desktop/code/MCORE/tests"
+  // CMake Tools (status bar build/configure): the STM32H755 project. The other
+  // builds: tasks "CMake Configure" (F767), "Index: update" (all)
+  "cmake.sourceDirectory": "${workspaceFolder}/projects/stm32h755",
+  "cmake.buildDirectory": "${workspaceFolder}/build-h7",
+  // compile_commands.json is merged by the "Index: update" task; do not let
+  // CMake Tools copy one build's database over it
+  "cmake.copyCompileCommands": ""
 }

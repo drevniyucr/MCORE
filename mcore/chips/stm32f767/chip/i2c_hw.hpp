@@ -1,5 +1,8 @@
 #pragma once
 // I2C kernel clock selection (STM32F767).
+#include <cstdint>
+#include "core/regs.hpp"
+
 enum class I2CClockSrc : uint8_t {
     PCLK1 = 0, SYSCLK = 1, HSI = 2
 };

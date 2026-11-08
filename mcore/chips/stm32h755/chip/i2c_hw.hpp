@@ -1,5 +1,8 @@
 #pragma once
 // I2C kernel clock selection (STM32H755).
+#include <cstdint>
+#include "core/regs.hpp"
+
 // RCC_D2CCIP2R.I2C123SEL / RCC_D3CCIPR.I2C4SEL
 enum class I2CClockSrc : uint8_t {
     PCLK1 = 0, PLL3R = 1, HSI = 2, CSI = 3

@@ -1,5 +1,6 @@
 CompileFlags:
-  CompilationDatabase: build
+  # all builds merged by cmake/compile_db.py (task "Index: update")
+  CompilationDatabase: build-index
   Add:
     - -Wno-unknown-attributes
     - -Wno-unused-template

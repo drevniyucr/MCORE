@@ -5,6 +5,7 @@
 #   ctest --test-dir build-tests --output-on-failure
 cmake_minimum_required(VERSION 3.21)
 project(mcore_tests C CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # for clangd (cmake/compile_db.py)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

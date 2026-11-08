@@ -1,5 +1,7 @@
 #pragma once
 // DMA request routing (DmaRoute, DMA_ApplyRoute) (STM32F767).
+#include <cstdint>
+#include "core/regs.hpp"
 enum class DmaChannel : uint8_t {
     CHNL_0,
     CHNL_1,

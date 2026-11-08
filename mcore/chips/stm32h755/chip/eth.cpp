@@ -161,7 +161,7 @@ ETH_Status ETH_Init() {
 	PHY_SetMDIOClock();
 
 	// 5. PHY: autonegotiation, link
-	ETH_LinkState link = {0, 0};
+	ETH_LinkState link = {.speed=0, .duplex=0};
 	const ETH_Status status = PHY_Init(&link);
 	if (status != ETH_Status::OK) {
 		return status;
