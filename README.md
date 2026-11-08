@@ -25,7 +25,7 @@ SysTick::_STCSR::bitSet<SysTick::_STCSR::CLKSOURCE,
 
 ### 2. Code generation from SVD (`codegen/`)
 
-The register layer is **not written by hand**. The Cortex-M7 core blocks (SCB, NVIC, MPU, cache, FPU, DWT/ITM, SysTick) live in `mcore/core/cortex_m7_regs.hpp`, shared by both chips. The vendor peripherals are generated per chip into `mcore/chip/<chip>/regs.hpp` from the SVD file; peripherals that are copies of another (`GPIOB` from `GPIOA`, `USART2` from `USART1`, ...) become one template plus aliases (`using GPIOB = GPIO<0x58020400>;`). `codegen/nvic/nvic_gen.py` generates a typed IRQ map (`IRQn_Type::USART2_IRQn::Priority / Enable / ...`) from the CMSIS device header.
+The register layer is **not written by hand**. The Cortex-M7 core blocks (SCB, NVIC, MPU, cache, FPU, DWT/ITM, SysTick) live in `mcore/core/cortex_m7_regs.hpp`, shared by both chips. The vendor peripherals are generated per chip into `mcore/chips/<chip>/chip/regs.hpp` from the SVD file; peripherals that are copies of another (`GPIOB` from `GPIOA`, `USART2` from `USART1`, ...) become one template plus aliases (`using GPIOB = GPIO<0x58020400>;`). `codegen/nvic/nvic_gen.py` generates a typed IRQ map (`IRQn_Type::USART2_IRQn::Priority / Enable / ...`) from the CMSIS device header.
 
 Vendor SVD files contain errors, so every register header is cross-checked
 against the vendor CMSIS device header, an independent source (`check_regs.py`,
@@ -49,7 +49,7 @@ using group = PinGroup<IN1, IN2, IN3 /* ... */>;
 group::read_all(states);
 ```
 
-Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain declarative structs in `app/board.hpp`.
+Board pin maps (`inputs`, `outputs`, `eth`, `rs485`, `i2c1`, ...) are plain declarative structs in each project's `board.hpp` (`projects/stm32f767/app/`, `projects/stm32h755/cm7/`).
 
 ### 4. Drivers (header-only templates)
 
@@ -159,7 +159,7 @@ The protocol logic talks to the vehicle through `vda::RobotPort`. On the
 STM32H755 that is the Cortex-M7: the M4 sends numeric commands (drive to a
 node, stop, pause, set pose, start/cancel an action) and gets "node reached"
 / "action done" events. Until real drives exist, the M7 runs a kinematic
-vehicle model (`app/motion_sim.*`: differential drive, 0.5 m/s, pick/drop as
+vehicle model (`projects/stm32h755/cm7/motion_sim.*`: differential drive, 0.5 m/s, pick/drop as
 3 s timers) in its 1 ms loop; only that file has to change for real motor
 control. IPC v3 adds waypoint streaming (`path_index`, `is_node`), a
 hold flag, a speed limit and acknowledged stops (`StopMotion` with a sequence
@@ -210,7 +210,7 @@ commands, vehicle model, state snapshot; woken at once by the M4 doorbell) and
 `app` calls into the stack through the TCP/SNTP API, which takes the optional
 net lock (`NET_SetLock`, here a `sched::lock(eth)` ceiling): the stack is
 never entered twice and keeps answering while `app` encrypts or parses.
-Phase timings of the M4 (DWT) are in `prof::stats` (`app_cm4/prof.hpp`).
+Phase timings of the M4 (DWT) are in `prof::stats` (`projects/stm32h755/cm4/prof.hpp`).
 M7: control worst case 11 us at 0.7 % CPU; M4 at 4 % CPU; ping round trip
 M4 -> M7 -> M4 8-115 us.
 
@@ -242,14 +242,19 @@ Network core performance notes (measured, see `prof::stats`):
 
 ## Supported chips
 
-The chip is picked at configure time with `-DMCORE_CHIP=...`; the firmware
-target is named after it. Everything above the register layer (drivers'
-public API, network stack, application) is shared.
+Each chip is its own project (`projects/<chip>/`) on the shared framework.
+The framework has no chip defines: everything that differs per chip lives in
+the chip layer `mcore/chips/<chip>/chip/`, whose files have the same names on
+every chip (`regs.hpp`, `rcc.hpp`, `nvic_def.hpp`, `dma_hw.hpp`,
+`usart_hw.hpp`, `i2c_hw.hpp`, `tim_hw.hpp`, `mpu_regions.hpp`, `chip.cpp`,
+`clock.cpp`, `eth.cpp`, ...). A project puts one chip directory on the
+include path and the framework includes `"chip/regs.hpp"` etc.
 
-| | STM32F767ZI (default) | STM32H755ZI (dual core) |
+| | STM32F767ZI | STM32H755ZI (dual core) |
 |---|---|---|
+| Project | `projects/stm32f767/` | `projects/stm32h755/` |
 | Board | NUCLEO-F767ZI | NUCLEO-H755ZI-Q |
-| Firmware images | `STM32F767`: everything | `STM32H755`: Cortex-M7, real time (`app/`); `STM32H755_CM4`: Cortex-M4, network (`app_cm4/`) |
+| Firmware images | `STM32F767`: everything (`app/`) | `STM32H755`: Cortex-M7, real time (`cm7/`); `STM32H755_CM4`: Cortex-M4, network (`cm4/`); both use `shared/` |
 | Clocks | 216 MHz CPU/AHB, APB1 54, APB2 108 | M7 400 MHz, M4 and AXI/AHB 200 MHz, APBx 100 |
 | RAM used | SRAM1 (`0x20000000`) | M7: AXI SRAM (`0x24000000`); M4: SRAM1/2 (`0x30000000`), ETH pool in SRAM3 (`0x30040000`); shared: SRAM4 (`0x38000000`) |
 | DMA routing | stream + channel (CHSEL) | stream + DMAMUX1 request |
@@ -259,7 +264,7 @@ public API, network stack, application) is shared.
 
 STM32H755 notes:
 
-- **Power supply.** `MCORE_PWR_SUPPLY` in `app/config.hpp` must match the
+- **Power supply.** `MCORE_PWR_SUPPLY` in `shared/config.hpp` must match the
   board (NUCLEO-H755ZI-Q default: direct SMPS). `PWR_CR3` is write-once after
   power-on; a wrong value leaves the chip stuck and needs BOOT0=1 + mass erase.
 - **Two images, two flash banks.** The M7 image goes to bank 1
@@ -270,74 +275,85 @@ STM32H755 notes:
   included), initialises the shared area, then releases the M4 through HSEM
   semaphore 0 and `RCC_GCR.BOOT_C2`. This works with the option byte BCM4
   set (factory default: the M4 starts at reset and waits) or cleared.
-- **Inter-core channels** (`app/ipc_shared.hpp`, primitives in `mcore/ipc/`):
+- **Inter-core channels** (`shared/ipc_shared.hpp`, primitives in `mcore/ipc/`):
   a seqlock state snapshot M7 -> M4, an event ring M7 -> M4 with an HSEM
   doorbell, and a command ring M4 -> M7 that the M7 polls. The M7 never
   waits on the M4. Measured on hardware: about 5 us for a command plus its
   reply event when the M7 loop is not blocked.
-- **Network core (M4).** `app_cm4/` brings up Ethernet (retrying until the
+- **Network core (M4).** `cm4/` brings up Ethernet (retrying until the
   link is up), DHCP with a static fallback, SNTP, and keeps an MQTT-over-TLS
   session to the broker (`mqtt_link`: back-off 1-30 s). On top of it runs the
   VDA 5050 client (`vda_agent`, see above). Broker, credentials, addresses
-  and the VDA 5050 identity: `app_cm4/net_config.hpp`;
-  trusted CA: `app_cm4/certs/broker_ca.pem` (the test CA by default; CMake
+  and the VDA 5050 identity: `cm4/net_config.hpp`;
+  trusted CA: `cm4/certs/broker_ca.pem` (the test CA by default; CMake
   warns until it is replaced).
 - **DMA-able memory.** DMA1/DMA2 and the Ethernet DMA cannot access DTCM, so
   `.data/.bss` are linked into AXI SRAM.
 - **USART6** on PG14/PC7 is AF7 on the H7 (AF8 on the F7).
+- **One chip layer, two cores.** Code shared by both images asks which core
+  it runs on (`chip::on_cm4()`, SCB CPUID) instead of a build define: HSEM
+  interrupt registers, the M4's clock, `ExitRun0Mode`.
 
 ## Project layout
 
 ```
-mcore/               framework (include root: #include "drivers/gpio.hpp")
+mcore/               framework, no chip defines (include root: #include "drivers/gpio.hpp")
 ├── mcore.hpp        umbrella header
-├── core/            cortex_m7_regs.hpp, utils.hpp, def.hpp, system, nvic,
-│                    mpu; regs/rcc/nvic_def.hpp dispatch to the chip
-├── chip/
-│   ├── stm32f767/   regs, nvic_def, rcc, clock, adc, can, eth
-│   └── stm32h755/   regs, nvic_def, rcc, clock, adc, eth, dma_request,
-│                    hsem (semaphores + dual-core boot)
-├── drivers/         gpio, dma, tim, usart, i2c, ws2812, eth.hpp
-│                    (+ adc/can dispatchers)
+├── core/            cortex_m7_regs.hpp, utils.hpp, def.hpp, system, nvic, mpu,
+│                    syscalls.c; regs/rcc/nvic_def.hpp include the chip's files
+├── chips/           chip layers, same file names per chip (#include "chip/...")
+│   ├── stm32f767/chip/  regs, nvic_def, rcc, clock, chip, adc, can, eth,
+│   │                    dma_hw, usart_hw, i2c_hw, tim_hw, mpu_regions
+│   └── stm32h755/chip/  the same + dma_request, hsem (semaphores, dual-core
+│                        boot), rng, core (which core is running)
+├── drivers/         gpio, dma, tim, usart, i2c, ws2812, eth.hpp, adc.hpp
 ├── ipc/             spsc_ring, seqlock: lock-free inter-core primitives
 ├── sched/           preemptive run-to-completion scheduler (NVIC-based)
 ├── net/             net, arp, tcp, dhcp, sntp, mqtt, eth_utils, temp_frame
-│   └── tls/         TLS client on Mbed TLS: config, platform hooks, TCP BIO
-└── vda5050/         VDA 5050 3.0.0: json, order_manager, messages
-app/                 application (F767; Cortex-M7 on the H755): main.cpp,
-                     board.hpp (pin maps), config.hpp (HSE/MAC/PHY),
-                     ipc_shared.hpp (M7 <-> M4 protocol), motion_sim
-                     (vehicle model on the M7), syscalls.c
-app_cm4/             STM32H755 Cortex-M4 application: network, MQTT/TLS link,
-                     vda_agent, net_config.hpp, certs/broker_ca.pem
+│   └── tls/         TLS client on Mbed TLS: config, platform hooks, TCP BIO,
+│                    CRYP GCM
+└── vda5050/         VDA 5050 3.0.0: json, order_manager, messages, motion, zones
+projects/
+├── stm32f767/       CMakeLists.txt, startup, linker scripts,
+│                    app/ (main.cpp, board.hpp, config.hpp)
+└── stm32h755/       CMakeLists.txt, startup, linker scripts (CM7, CM4),
+    ├── cm7/         Cortex-M7 application: main.cpp, board.hpp, motion_sim
+    ├── cm4/         Cortex-M4 application: network, mqtt_link, vda_agent,
+    │                net_config.hpp, certs/broker_ca.pem
+    └── shared/      ipc_shared.hpp (M7 <-> M4 protocol), config.hpp (board)
+cmake/               arm-none-eabi.cmake (toolchain), mcore.cmake (source
+                     groups, mcore_firmware, mcore_mbedtls), pem.h.in
 third_party/mbedtls/ Mbed TLS 3.6.7 (include/, library/ only, unmodified)
 third_party/vda5050/ VDA 5050 3.0.0 JSON schemas (tests only, MIT)
-platform/            stm32f767/, stm32h755/: startup + linker scripts
 codegen/
-├── registers/       SVD → mcore/chip/<chip>/regs.hpp generator (Python)
+├── registers/       SVD → mcore/chips/<chip>/chip/regs.hpp generator, CMSIS cross-check
 └── nvic/            IRQ map generator (Python)
 debug/               openocd/ configs, MCORE_Debug_F767.cfg,
                      MCORE_Debug_H755.cfg, SVD files for the debugger
-tests/               host-side unit tests: network stack, ipc, MQTT, TLS
-                     (doctest); live/ broker check; broker/ test broker
-CMakeLists.txt       cross-build (arm-none-eabi)
+tests/               host-side unit tests (doctest), compiled against the
+                     STM32F767 chip layer; live/ broker check; broker/ test broker
 ```
 
 ## Build
 
-Requirements: `arm-none-eabi-gcc` (C++20), CMake ≥ 3.21, Ninja.
+Requirements: `arm-none-eabi-gcc` (C++20), CMake ≥ 3.21, Ninja. Each
+project is configured on its own:
 
 ```sh
-# STM32F767 (default)
-cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --target STM32F767
+# STM32F767
+cmake -G Ninja -S projects/stm32f767 -B build-f767 -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-f767
 
 # STM32H755: builds STM32H755 (Cortex-M7) and STM32H755_CM4 (Cortex-M4)
-cmake -G Ninja -B build-h7 -DCMAKE_BUILD_TYPE=Debug -DMCORE_CHIP=STM32H755
+cmake -G Ninja -S projects/stm32h755 -B build-h7 -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-h7
 ```
 
 Toolchain discovery: pass `-DSTM32_TOOLCHAIN_PATH=...` or set the `STM32_TOOLCHAIN_PATH` environment variable. Output: `<build dir>/<chip>` (ELF) + `.bin`, size report is printed post-build.
+
+A new chip: add `mcore/chips/<chip>/chip/` with the same file names and a
+project in `projects/<chip>/` that calls `mcore_sources(<chip>)` and
+`mcore_firmware(...)` (`cmake/mcore.cmake`).
 
 Flash/debug: OpenOCD ≥ 0.12 (`debug/MCORE_Debug_F767.cfg`, `debug/MCORE_Debug_H755.cfg`) or the provided VS Code tasks / launch configurations.
 
@@ -385,7 +401,7 @@ a small SNTP server:
 
 ```sh
 tests/broker/gen_pki.sh            # test CA + broker cert (SAN 127.0.0.1,
-                                   # 192.168.0.10); copies the CA to app_cm4/certs
+                                   # 192.168.0.10); copies the CA to projects/stm32h755/cm4/certs
 tests/broker/run_broker.sh         # mosquitto (scoop install mosquitto)
 python tests/broker/sntp_server.py 192.168.0.10 123
 build-tests/mqtt_live              # our MQTT+TLS client vs the broker (host)
@@ -408,7 +424,7 @@ The firmware defaults expect the board wired to a PC adapter with
 192.168.0.10/24; the board falls back to 192.168.0.123 without DHCP. The PC
 firewall must allow inbound TCP 8883 and UDP 123 on that adapter.
 
-On-target TLS self-test: configure with `-DMCORE_TLS_SELFTEST=ON`; the M4
+On-target TLS self-test: configure with `-DMCORE_TLS_SELFTEST=ON` (stm32h755 project); the M4
 runs one in-memory handshake at boot and stores timing/RAM in `tls_selftest`.
 
 Measured on the NUCLEO-H755ZI-Q (Cortex-M4 at 200 MHz):
@@ -424,17 +440,17 @@ Measured on the NUCLEO-H755ZI-Q (Cortex-M4 at 200 MHz):
 
 ```sh
 cd codegen/registers
-# STM32H755: SVD → mcore/chip/stm32h755/regs.hpp (fixups: SVD errors, F7-style aliases)
+# STM32H755: SVD → mcore/chips/stm32h755/chip/regs.hpp (fixups: SVD errors, F7-style aliases)
 python svd2chip.py --svd xml-svd/STM32H755_CM7.svd --chip STM32H755 \
-                   --fixups fixups/STM32H755.json --out ../../mcore/chip/stm32h755/regs.hpp
+                   --fixups fixups/STM32H755.json --out ../../mcore/chips/stm32h755/chip/regs.hpp
 # cross-check against the CMSIS header (also a CTest)
-python check_regs.py --regs ../../mcore/chip/stm32h755/regs.hpp --cmsis ../nvic/stm32h755xx.h
+python check_regs.py --regs ../../mcore/chips/stm32h755/chip/regs.hpp --cmsis ../nvic/stm32h755xx.h
 # STM32F767 (legacy flow; the result was hand-tuned afterwards)
 python xml-svd2reg.py      # STM32F767.svd + core XMLs → mcore_regs.hpp
 
 cd ../nvic
-python nvic_gen.py --header stm32h755xx.h --out ../../mcore/chip/stm32h755/nvic_def.hpp
-python nvic_gen.py --header stm32f767xx.h --out ../../mcore/chip/stm32f767/nvic_def.hpp
+python nvic_gen.py --header stm32h755xx.h --out ../../mcore/chips/stm32h755/chip/nvic_def.hpp
+python nvic_gen.py --header stm32f767xx.h --out ../../mcore/chips/stm32f767/chip/nvic_def.hpp
 ```
 
 Third-party inputs: `STM32H755_CM7.svd` from [modm-io/cmsis-svd-stm32](https://github.com/modm-io/cmsis-svd-stm32);

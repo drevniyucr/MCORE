@@ -2,7 +2,7 @@
  * tls_platform.cpp — Mbed TLS platform hooks for MCORE (see tls_client.hpp).
  *
  * Entropy (mbedtls_hardware_poll) is chip-specific and lives elsewhere:
- * mcore/chip/stm32h755/rng.cpp on the target, a stub in host tests.
+ * mcore/chips/stm32h755/chip/rng.cpp on the target, a stub in host tests.
  */
 #include "net/tls/tls_client.hpp"
 #include "core/system.hpp"

@@ -4,7 +4,7 @@ CMSIS device header -> MCORE typed IRQ map (nvic_def.hpp).
 Usage:
   python nvic_gen.py                                  # STM32F767 (defaults)
   python nvic_gen.py --header stm32h755xx.h \
-                     --out ../../mcore/chip/stm32h755/nvic_def.hpp
+                     --out ../../mcore/chips/stm32h755/chip/nvic_def.hpp
 """
 import argparse
 import re

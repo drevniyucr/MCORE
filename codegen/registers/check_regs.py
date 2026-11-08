@@ -12,7 +12,7 @@ Names differ between SVD and CMSIS in places; only names found on both sides
 are compared, the rest is counted as "unmatched" (listed with -v).
 
 Usage:
-  python check_regs.py --regs ../../mcore/chip/stm32h755/regs.hpp --cmsis ../nvic/stm32h755xx.h [-v]
+  python check_regs.py --regs ../../mcore/chips/stm32h755/chip/regs.hpp --cmsis ../nvic/stm32h755xx.h [-v]
 Exit code 1 when a mismatch is found.
 """
 import argparse

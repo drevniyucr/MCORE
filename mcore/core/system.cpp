@@ -1,4 +1,5 @@
 #include "core/system.hpp"
+#include "chip/chip.hpp"
 #include "core/nvic.hpp"
 #include "config.hpp"
 #include <cstdarg>
@@ -6,7 +7,7 @@
 
 volatile uint32_t myTick = 0;   // счетчик миллисекунд
 // SystemCoreClock / AHBClock / APBxClock / US_Prescaler and
-// SystemCoreClockUpdate() are chip-specific: see mcore/chip/<chip>/clock.cpp
+// SystemCoreClockUpdate() are chip-specific: see mcore/chips/<chip>/chip/clock.cpp
 
 // Обработчик прерывания SysTick
 
@@ -62,25 +63,16 @@ inline static void DWT_Init()
 }
 
 
-#if defined(CORE_CM4)
-extern "C" uint32_t g_pfnVectors[];   // startup file
-#endif
+extern "C" uint32_t g_pfnVectors[];   // vector table of the startup file
 
 void SystemInit() {
-#if defined(CORE_CM4)
-	// The STM32H755 Cortex-M4 boots from flash bank 2; point VTOR at its table.
+	// VTOR at this image's table (required for the STM32H755 Cortex-M4,
+	// which boots from flash bank 2; a no-op change elsewhere)
 	SCB::_VTOR::overwrite(reinterpret_cast<uint32_t>(g_pfnVectors));
-#endif
 	/* FPU settings ------------------------------------------------------------*/
 	SCB::_CPACR::setMask(SCB::_CPACR::CP10::BitMsk | SCB::_CPACR::CP11::BitMsk); /* set CP10 and CP11 Full Access */
 	NVIC_API::SetPriorityGrouping<NVIC_PriorityGroup::Group4>();
-#if defined(MCORE_STM32H755)
-	// Keep the D1/D3 debug clocks and the trace clock running so ITM/SWO
-	// and the debugger keep working (the H7 gates them by default).
-	DBGMCU::_CR::setMask<DBGMCU::_CR::D1DBGCKEN::BitMsk |
-	                     DBGMCU::_CR::D3DBGCKEN::BitMsk |
-	                     DBGMCU::_CR::TRACECLKEN::BitMsk>();
-#endif
+	chip::system_init();
 	DWT_Init();
 
 }

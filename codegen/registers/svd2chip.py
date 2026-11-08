@@ -14,7 +14,7 @@ Output style matches the hand-tuned STM32F767 header:
 
 Usage:
   python svd2chip.py --svd xml-svd/STM32H755_CM7.svd --chip STM32H755 \
-                     --out ../../mcore/chip/stm32h755/regs.hpp
+                     --out ../../mcore/chips/stm32h755/chip/regs.hpp
 """
 
 import argparse

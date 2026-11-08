@@ -4,7 +4,7 @@
         {
             "name": "STM32F767: Cortex Debug with SWO ITM",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/STM32F767",
+            "executable": "${workspaceFolder}/build-f767/STM32F767",
            "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",

@@ -8,7 +8,7 @@
             "problemMatcher": [],
             "args": [
                 "--build",
-                "${workspaceFolder}/build",
+                "${workspaceFolder}/build-f767",
                 "--target",
                 "clean"
             ]
@@ -18,9 +18,9 @@
                 "-G",
                 "Ninja",
                 "-S",
-                "${workspaceFolder}",
+                "${workspaceFolder}/projects/stm32f767",
                 "-B",
-                "${workspaceFolder}/build",
+                "${workspaceFolder}/build-f767",
                 "-DCMAKE_BUILD_TYPE=Debug"
             ],
             "command": "cmake",
@@ -31,7 +31,7 @@
         {
             "args": [
                 "--build",
-                "${workspaceFolder}/build",
+                "${workspaceFolder}/build-f767",
                 "--target",
                 "STM32F767"
             ],
@@ -50,8 +50,8 @@
             "args": [
                 "-O",
                 "binary",
-                "${workspaceFolder}\\build\\STM32F767",
-                "${workspaceFolder}\\build\\STM32F767.bin"
+                "${workspaceFolder}\\build-f767\\STM32F767",
+                "${workspaceFolder}\\build-f767\\STM32F767.bin"
             ],
             "command": "arm-none-eabi-objcopy.exe",
             "dependsOn": "CMake Build",
@@ -61,7 +61,7 @@
         },
         {
             "args": [
-                "${workspaceFolder}\\build\\STM32F767"
+                "${workspaceFolder}\\build-f767\\STM32F767"
             ],
             "command": "arm-none-eabi-size.exe",
             "dependsOn": "Generate BIN",
@@ -90,7 +90,7 @@
                 "-f",
                 "target/stm32f7x.cfg",
                 "-c",
-                "program ${workspaceFolder}/build/STM32F767.bin 0x08000000 verify reset exit"
+                "program ${workspaceFolder}/build-f767/STM32F767.bin 0x08000000 verify reset exit"
             ],
             "command": "openocd",
             "label": "Flash MCU",
@@ -117,10 +117,9 @@
             "command": "cmake",
             "args": [
                 "-G", "Ninja",
-                "-S", "${workspaceFolder}",
+                "-S", "${workspaceFolder}/projects/stm32h755",
                 "-B", "${workspaceFolder}/build-h7",
-                "-DCMAKE_BUILD_TYPE=Debug",
-                "-DMCORE_CHIP=STM32H755"
+                "-DCMAKE_BUILD_TYPE=Debug"
             ],
             "problemMatcher": []
         },

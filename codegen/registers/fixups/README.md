@@ -8,7 +8,7 @@ Find errors with the cross-check against the vendor CMSIS device header (also
 run by CTest as `regs_<chip>`):
 
 ```sh
-python check_regs.py --regs ../../mcore/chip/stm32h755/regs.hpp --cmsis ../nvic/stm32h755xx.h -v
+python check_regs.py --regs ../../mcore/chips/stm32h755/chip/regs.hpp --cmsis ../nvic/stm32h755xx.h -v
 ```
 
 Every reported difference is either fixed here or listed in `KNOWN` in
@@ -24,5 +24,5 @@ peripherals: the one they derive from, e.g. `ADC3` for ADC1/2/3).
 | `field_array` | `{"names": [...], "count": n, "first": k}` | replaces all fields with per-channel groups `NAME<k..k+n-1>` |
 | `registers` | `{"offset": "0x..", "rename": "NEW", "_why": "..."}` | move or rename a register |
 
-The STM32F767 header (`mcore/chip/stm32f767/regs.hpp`) predates this flow and
+The STM32F767 header (`mcore/chips/stm32f767/chip/regs.hpp`) predates this flow and
 was corrected by hand; its fixes are marked `(fixed: ...)` in the comments.

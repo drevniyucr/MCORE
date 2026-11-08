@@ -68,5 +68,6 @@
   },
   "C_Cpp.clang_format_path": "${workspaceFolder}/.clang-format",
   "C_Cpp.formatting": "vcFormat",
-  "cortex-debug.variableUseNaturalFormat": false
+  "cortex-debug.variableUseNaturalFormat": false,
+  "cmake.sourceDirectory": "C:/Users/Admin/Desktop/code/MCORE/tests"
 }

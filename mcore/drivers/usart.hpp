@@ -53,16 +53,7 @@ enum class UartClkLB : uint32_t {
 enum class UartOverSamp : uint32_t {
 	Over16 = 0b0, Over8 = USART1::_CR1::OVER8::BitMsk
 };
-#if defined(MCORE_STM32H755)
-// RCC_D2CCIP2R.USART16SEL / USART234578SEL
-enum class UartClockSrc : uint32_t {
-	PCLK = 0b000, PLL2Q = 0b001, PLL3Q = 0b010, HSI = 0b011, CSI = 0b100, LSE = 0b101
-};
-#else
-enum class UartClockSrc : uint32_t {
-	PCLK = 0b00, SYSCLK = 0b01, HSI = 0b10, LSE = 0b11
-};
-#endif
+#include "chip/usart_hw.hpp"   // UartClockSrc, USART_ClkSel, usart_kernel_clock
 
 enum class UartFlowControl : uint32_t {
 	None = 0b00,
@@ -108,96 +99,6 @@ enum class USARTStatus : uint32_t {
 };
 
 
-#if defined(MCORE_STM32H755)
-template<typename USARTx>
-static inline void USART_ClkSel(UartClockSrc src);
-// USART1/6 share one kernel-clock mux, USART2/3, UART4/5/7/8 share another.
-template <>
-inline void USART_ClkSel<USART1>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART16SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB2ENR::USART1EN::set();
-}
-template <>
-inline void USART_ClkSel<USART6>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART16SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB2ENR::USART6EN::set();
-}
-template <>
-inline void USART_ClkSel<USART2>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART234578SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1LENR::USART2EN::set();
-}
-template <>
-inline void USART_ClkSel<USART3>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART234578SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1LENR::USART3EN::set();
-}
-template <>
-inline void USART_ClkSel<UART4>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART234578SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1LENR::UART4EN::set();
-}
-template <>
-inline void USART_ClkSel<UART5>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART234578SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1LENR::UART5EN::set();
-}
-template <>
-inline void USART_ClkSel<UART7>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART234578SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1LENR::USART7EN::set();
-}
-template <>
-inline void USART_ClkSel<UART8>(UartClockSrc src) {
-	RCC::_D2CCIP2R::USART234578SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1LENR::USART8EN::set();
-}
-
-#else
-template<typename USARTx>
-static inline void USART_ClkSel(UartClockSrc src);
-template <>
-inline void USART_ClkSel<USART1>(UartClockSrc src) {
-	RCC::_DKCFGR2::USART1SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB2ENR::USART1EN::set();
-}
-template <>
-inline void USART_ClkSel<USART2>(UartClockSrc src) {
-	RCC::_DKCFGR2::USART2SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::USART2EN::set();
-}
-template <>
-inline void USART_ClkSel<USART3>(UartClockSrc src) {
-	RCC::_DKCFGR2::USART3SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::USART3EN::set();
-}
-template <>
-inline void USART_ClkSel<USART6>(UartClockSrc src) {
-	RCC::_DKCFGR2::USART6SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB2ENR::USART6EN::set();
-}
-template <>
-inline void USART_ClkSel<UART4>(UartClockSrc src) {
-	RCC::_DKCFGR2::UART4SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART4EN::set();
-}
-template <>
-inline void USART_ClkSel<UART5>(UartClockSrc src) {
-	RCC::_DKCFGR2::UART5SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART5EN::set();
-}
-template <>
-inline void USART_ClkSel<UART7>(UartClockSrc src) {
-	RCC::_DKCFGR2::UART7SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART7ENR::set();
-}
-template <>
-inline void USART_ClkSel<UART8>(UartClockSrc src) {
-	RCC::_DKCFGR2::UART8SEL::write(static_cast<uint32_t>(src));
-	RCC::_APB1ENR::UART8ENR::set();
-}
-
-#endif
 
 template <typename T>
 struct is_full_usart : std::false_type {};
@@ -283,31 +184,11 @@ static inline USARTStatus USART_Init() {
 
 	FreqMult = (cfg.OverSampling == UartOverSamp::Over8) ? 2U : 1U;
 
-	switch (cfg.ClockSource) {
-	case UartClockSrc::PCLK:
-		UsartDiv = (pclk * FreqMult + cfg.Baud / 2) / cfg.Baud;
-		break;
-#if defined(MCORE_STM32H755)
-	case UartClockSrc::CSI:
-		UsartDiv = (CSI_VALUE * FreqMult + cfg.Baud / 2) / cfg.Baud;
-		break;
-	case UartClockSrc::PLL2Q:
-	case UartClockSrc::PLL3Q:
-		return USARTStatus::Error;  // PLL2/PLL3 are not configured by MCORE
-#else
-	case UartClockSrc::SYSCLK:
-		UsartDiv = (SystemCoreClock * FreqMult + cfg.Baud / 2) / cfg.Baud;
-		break;
-#endif
-	case UartClockSrc::HSI:
-		UsartDiv = (HSI_VALUE * FreqMult + cfg.Baud / 2) / cfg.Baud;
-		break;
-	case UartClockSrc::LSE:
-		UsartDiv = (LSE_VALUE * FreqMult + cfg.Baud / 2) / cfg.Baud;
-		break;
-	default:
-		break;
+	const uint32_t kclk = usart_kernel_clock(cfg.ClockSource, pclk);
+	if (kclk == 0U) {
+		return USARTStatus::Error;
 	}
+	UsartDiv = (kclk * FreqMult + cfg.Baud / 2) / cfg.Baud;
 
 	if (UsartDiv <= USART_BRR_MAX) {
 		if ((cfg.OverSampling == UartOverSamp::Over8) && (UsartDiv >= USART_BRR_MIN_OVER8)) {

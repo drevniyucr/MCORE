@@ -19,9 +19,7 @@
 #include "net/dhcp.hpp"
 #include "drivers/usart.hpp"
 #include "drivers/i2c.hpp"
-#if !defined(MCORE_STM32H755)
-#include "drivers/can.hpp"   // bxCAN: STM32F7 only (H7 has FDCAN)
-#endif
+#include "chip/drivers.hpp"   // chip-only drivers (bxCAN on the F7, HSEM on the H7)
 #include "drivers/tim.hpp"
 #include "drivers/adc.hpp"
 #include "drivers/dma.hpp"

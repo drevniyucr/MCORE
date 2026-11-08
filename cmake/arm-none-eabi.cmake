@@ -1,0 +1,49 @@
+# Arm GNU toolchain (arm-none-eabi). Include before project():
+#   include(${MCORE_ROOT}/cmake/arm-none-eabi.cmake)
+# The toolchain is found via STM32_TOOLCHAIN_PATH (CMake or environment), the
+# compiler given with CMAKE_C_COMPILER, or /usr.
+
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR arm)
+
+
+if(NOT STM32_TOOLCHAIN_PATH)
+    if(DEFINED ENV{STM32_TOOLCHAIN_PATH})
+        message(STATUS "Detected toolchain path STM32_TOOLCHAIN_PATH in environmental variables: ")
+        message(STATUS "$ENV{STM32_TOOLCHAIN_PATH}")
+        set(STM32_TOOLCHAIN_PATH $ENV{STM32_TOOLCHAIN_PATH})
+    else()
+        if(NOT CMAKE_C_COMPILER)
+            set(STM32_TOOLCHAIN_PATH "/usr")
+            message(STATUS "No STM32_TOOLCHAIN_PATH specified, using default: " ${STM32_TOOLCHAIN_PATH})
+        else()
+            # keep only directory of compiler
+            get_filename_component(STM32_TOOLCHAIN_PATH ${CMAKE_C_COMPILER} DIRECTORY)
+            # remove the last /bin directory
+            get_filename_component(STM32_TOOLCHAIN_PATH ${STM32_TOOLCHAIN_PATH} DIRECTORY)
+        endif()
+    endif()
+    file(TO_CMAKE_PATH "${STM32_TOOLCHAIN_PATH}" STM32_TOOLCHAIN_PATH)
+endif()
+
+
+set(STM32_TARGET_TRIPLET "arm-none-eabi")
+
+set(TOOLCHAIN_SYSROOT  "${STM32_TOOLCHAIN_PATH}/${STM32_TARGET_TRIPLET}")
+set(TOOLCHAIN_BIN_PATH "${STM32_TOOLCHAIN_PATH}/bin")
+set(TOOLCHAIN_INC_PATH "${STM32_TOOLCHAIN_PATH}/${STM32_TARGET_TRIPLET}/include")
+set(TOOLCHAIN_LIB_PATH "${STM32_TOOLCHAIN_PATH}/${STM32_TARGET_TRIPLET}/lib")
+
+find_program(CMAKE_OBJCOPY NAMES ${STM32_TARGET_TRIPLET}-objcopy HINTS ${TOOLCHAIN_BIN_PATH})
+find_program(CMAKE_OBJDUMP NAMES ${STM32_TARGET_TRIPLET}-objdump HINTS ${TOOLCHAIN_BIN_PATH})
+find_program(CMAKE_SIZE NAMES ${STM32_TARGET_TRIPLET}-size HINTS ${TOOLCHAIN_BIN_PATH})
+find_program(CMAKE_DEBUGGER NAMES ${STM32_TARGET_TRIPLET}-gdb HINTS ${TOOLCHAIN_BIN_PATH})
+find_program(CMAKE_CPPFILT NAMES ${STM32_TARGET_TRIPLET}-c++filt HINTS ${TOOLCHAIN_BIN_PATH})
+
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+find_program(CMAKE_C_COMPILER   NAMES ${STM32_TARGET_TRIPLET}-gcc HINTS ${TOOLCHAIN_BIN_PATH})
+find_program(CMAKE_CXX_COMPILER NAMES ${STM32_TARGET_TRIPLET}-g++ HINTS ${TOOLCHAIN_BIN_PATH})
+find_program(CMAKE_ASM_COMPILER NAMES ${STM32_TARGET_TRIPLET}-gcc HINTS ${TOOLCHAIN_BIN_PATH})
+
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)

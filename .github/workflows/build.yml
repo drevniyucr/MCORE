@@ -12,7 +12,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        chip: [STM32F767, STM32H755]
+        include:
+          - chip: STM32F767
+            project: stm32f767
+          - chip: STM32H755
+            project: stm32h755
     steps:
       - uses: actions/checkout@v4
 
@@ -36,9 +40,8 @@ jobs:
 
       - name: Configure
         run: >
-          cmake -G Ninja -B build
+          cmake -G Ninja -S projects/${{ matrix.project }} -B build
           -DCMAKE_BUILD_TYPE=Debug
-          -DMCORE_CHIP=${{ matrix.chip }}
           -DSTM32_TOOLCHAIN_PATH=$HOME/arm-toolchain
 
       # All targets: STM32H755 also builds the Cortex-M4 image STM32H755_CM4

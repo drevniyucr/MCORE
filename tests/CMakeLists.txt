@@ -11,6 +11,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(MCORE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
+# Host builds compile the portable framework against one chip's register
+# layer (types and addresses only; nothing touches hardware)
+set(HOST_CHIP_DIR ${MCORE_ROOT}/mcore/chips/stm32f767)
+
 add_executable(net_tests
     test_main.cpp
     stubs.cpp
@@ -50,6 +54,7 @@ target_compile_definitions(net_tests PRIVATE MCORE_VDA_OUT_DIR="${VDA_OUT_DIR}" 
 
 target_include_directories(net_tests PRIVATE
     ${MCORE_ROOT}/mcore
+    ${HOST_CHIP_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -88,7 +93,7 @@ add_executable(tls_tests
     ${MCORE_ROOT}/mcore/net/tls/tls_client.cpp
     ${MCORE_ROOT}/mcore/net/tls/tls_platform.cpp
 )
-target_include_directories(tls_tests PRIVATE ${MCORE_ROOT}/mcore ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(tls_tests PRIVATE ${MCORE_ROOT}/mcore ${HOST_CHIP_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(tls_tests PRIVATE
     MCORE_TEST_CERTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/certs")
 target_link_libraries(tls_tests PRIVATE mbedtls_host)
@@ -107,7 +112,7 @@ add_executable(mqtt_live
     ${MCORE_ROOT}/mcore/net/tls/tls_client.cpp
     ${MCORE_ROOT}/mcore/net/tls/tls_platform.cpp
 )
-target_include_directories(mqtt_live PRIVATE ${MCORE_ROOT}/mcore)
+target_include_directories(mqtt_live PRIVATE ${MCORE_ROOT}/mcore ${HOST_CHIP_DIR})
 target_compile_definitions(mqtt_live PRIVATE
     MCORE_LIVE_CA_FILE="${MCORE_ROOT}/tests/broker/pki/ca.crt")
 target_link_libraries(mqtt_live PRIVATE mbedtls_host)
@@ -131,7 +136,7 @@ if(Python3_FOUND)
     foreach(chip IN ITEMS stm32h755 stm32f767)
         add_test(NAME regs_${chip}
             COMMAND ${Python3_EXECUTABLE} -I ${REG_CHECK}
-                    --regs ${CMAKE_CURRENT_SOURCE_DIR}/../mcore/chip/${chip}/regs.hpp
+                    --regs ${CMAKE_CURRENT_SOURCE_DIR}/../mcore/chips/${chip}/chip/regs.hpp
                     --cmsis ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/nvic/${chip}xx.h)
     endforeach()
 endif()

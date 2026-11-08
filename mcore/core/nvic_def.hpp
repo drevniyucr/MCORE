@@ -1,7 +1,3 @@
 #pragma once
-// Chip dispatcher (see core/regs.hpp).
-#if defined(MCORE_STM32H755)
-#include "chip/stm32h755/nvic_def.hpp"
-#else
-#include "chip/stm32f767/nvic_def.hpp"
-#endif
+// Typed IRQ map of the target chip (see core/regs.hpp).
+#include "chip/nvic_def.hpp"

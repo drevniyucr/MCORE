@@ -7,11 +7,7 @@
 
 #pragma once
 
-#ifdef USE_CMSIS
-#include <stm32f7xx.h>
-#else
-#include "core/regs.hpp"
-#endif
+#include "core/regs.hpp"   // register layer of the project's chip
 
 [[gnu::always_inline]] 
 inline static void __DSB() {
