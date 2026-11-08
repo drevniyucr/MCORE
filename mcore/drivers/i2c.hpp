@@ -1,21 +1,17 @@
 /*
- * i2c.hpp — I2C master driver (init + polling transfers)
+ * mcore_usart.hpp
  *
  *  Created on: 26 февр. 2026 г.
  *      Author: AkimovMA
  */
 #pragma once
 
-#include <cstdint>
-#include <cstddef>
+#include <stdint.h>
 #include "core/regs.hpp"
-#include "core/rcc.hpp"
 #include "core/system.hpp"
-#include "core/mcore_config.hpp"
-#include "drivers/common.hpp"
+#include "config.hpp"
 
 constexpr uint32_t I2C_TIMING_MASK = 0xF0FFFFFF;
-constexpr uint32_t I2C_TIMEOUT_MS = 100; // default per-wait timeout for polling transfers
 
 #if defined(MCORE_STM32H755)
 // RCC_D2CCIP2R.I2C123SEL / RCC_D3CCIPR.I2C4SEL
@@ -93,35 +89,38 @@ inline void I2C_ClkSel<I2C4>(I2CClockSrc src){
 
 #else
 template<typename I2Cx>
-static inline void I2C_ClkSrcSel(I2CClockSrc src);
+static inline void I2C_ClkSel(I2CClockSrc src);
 template <>
-inline void I2C_ClkSrcSel<I2C1>(I2CClockSrc src){
+ inline void I2C_ClkSel<I2C1>(I2CClockSrc src){
 		RCC::_DKCFGR2::I2C1SEL::write(static_cast<uint32_t>(src));
+		RCC::_APB1ENR::I2C1EN::set();
 }
 template <>
-inline void I2C_ClkSrcSel<I2C2>(I2CClockSrc src){
+inline void I2C_ClkSel<I2C2>(I2CClockSrc src){
 		RCC::_DKCFGR2::I2C2SEL::write(static_cast<uint32_t>(src));
+		RCC::_APB1ENR::I2C2EN::set();
 }
 template <>
-inline void I2C_ClkSrcSel<I2C3>(I2CClockSrc src){
+inline void I2C_ClkSel<I2C3>(I2CClockSrc src){
 		RCC::_DKCFGR2::I2C3SEL::write(static_cast<uint32_t>(src));
+		RCC::_APB1ENR::I2C3EN::set();
 }
 template <>
-inline void I2C_ClkSrcSel<I2C4>(I2CClockSrc src){
+inline void I2C_ClkSel<I2C4>(I2CClockSrc src){
 		RCC::_DKCFGR2::I2C4SEL::write(static_cast<uint32_t>(src));
+		RCC::_APB1ENR::I2C4EN::set();
 }
 
 
 #endif
 
 template<typename I2Cx, I2CHwConfig cfg>
-static inline DrvStatus I2C_Init() {
+static inline I2CStatus I2C_Init() {
 
     static_assert(cfg.DigitalFilterCoeff <= 15);
     static_assert(cfg.OwnAddr2Mask <= 7);
-	/* 0. Clock enable + kernel clock source */
-	RccEnable<I2Cx>::enable();
-	I2C_ClkSrcSel<I2Cx>(cfg.ClockSource);
+	/* 0. Clock enable */
+	I2C_ClkSel<I2Cx>(cfg.ClockSource);
 
 	/* 1. Disable I2C */
 	I2Cx::_CR1::PE::clear();
@@ -162,20 +161,27 @@ static inline DrvStatus I2C_Init() {
     );
 
     I2Cx::_CR1::PE::set();
-
-    return DrvStatus::Ok;
+    
+    return I2CStatus::Success;
 }
+
+enum class I2CPollStatus : uint32_t {
+	Success = 0,
+	Timeout,
+	Nack,
+	Error
+};
 
 template<typename I2Cx>
 struct I2CHandle {
 
-	/* Write buffer to slave (polling, millisecond timeout per wait) */
-	static inline DrvStatus write(
+	/* Write buffer to slave (polling) */
+	static inline I2CPollStatus write(
 		uint16_t addr,
 		const uint8_t* buf,
 		size_t len,
 		bool addr10 = false,
-		uint32_t timeout_ms = I2C_TIMEOUT_MS
+		uint32_t timeout = 100000
 	) {
 		/* Clear error flags */
 		clearErrors();
@@ -189,26 +195,26 @@ struct I2CHandle {
 		);
 
 		for (size_t i = 0; i < len; ++i) {
-			if (!waitTXIS(timeout_ms))
+			if (!waitTXIS(timeout))
 				return checkErrorStatus();
 
 			I2Cx::_TXDR::overwrite(buf[i]);
 		}
 
-		if (!waitTC(timeout_ms))
+		if (!waitTC(timeout))
 			return checkErrorStatus();
 
 		I2Cx::_CR2::STOP::set();
-		return DrvStatus::Ok;
+		return I2CPollStatus::Success;
 	}
 
-	/* Read buffer from slave (polling, millisecond timeout per wait) */
-	static inline DrvStatus read(
+	/* Read buffer from slave (polling) */
+	static inline I2CPollStatus read(
 		uint16_t addr,
 		uint8_t* buf,
 		size_t len,
 		bool is_addr10 = false,
-		uint32_t timeout_ms = I2C_TIMEOUT_MS
+		uint32_t timeout = 100000
 	) {
 		/* Clear error flags */
 		clearErrors();
@@ -222,17 +228,17 @@ struct I2CHandle {
 		);
 
 		for (size_t i = 0; i < len; ++i) {
-			if (!waitRXNE(timeout_ms))
+			if (!waitRXNE(timeout))
 				return checkErrorStatus();
 
 			buf[i] = static_cast<uint8_t>(I2Cx::_RXDR::read());
 		}
 
-		if (!waitTC(timeout_ms))
+		if (!waitTC(timeout))
 			return checkErrorStatus();
 
 		I2Cx::_CR2::STOP::set();
-		return DrvStatus::Ok;
+		return I2CPollStatus::Success;
 	}
 
 private:
@@ -247,30 +253,26 @@ private:
 		}
 	}
 
-	// Millisecond-based waits (get_tick), consistent with the other drivers.
-	static inline bool waitTXIS(uint32_t timeout_ms) {
-		uint32_t tickstart = get_tick();
+	static inline bool waitTXIS(uint32_t timeout) {
 		while (!I2Cx::_ISR::TXIS::is_set()) {
 			if (I2Cx::_ISR::NACKF::is_set()) return false;
-			if ((get_tick() - tickstart) > timeout_ms) return false;
+			if (--timeout == 0) return false;
 		}
 		return true;
 	}
 
-	static inline bool waitRXNE(uint32_t timeout_ms) {
-		uint32_t tickstart = get_tick();
+	static inline bool waitRXNE(uint32_t timeout) {
 		while (!I2Cx::_ISR::RXNE::is_set()) {
 			if (I2Cx::_ISR::NACKF::is_set()) return false;
-			if ((get_tick() - tickstart) > timeout_ms) return false;
+			if (--timeout == 0) return false;
 		}
 		return true;
 	}
 
-	static inline bool waitTC(uint32_t timeout_ms) {
-		uint32_t tickstart = get_tick();
+	static inline bool waitTC(uint32_t timeout) {
 		while (!I2Cx::_ISR::TC::is_set()) {
 			if (I2Cx::_ISR::NACKF::is_set()) return false;
-			if ((get_tick() - tickstart) > timeout_ms) return false;
+			if (--timeout == 0) return false;
 		}
 		return true;
 	}
@@ -281,19 +283,78 @@ private:
 		I2Cx::_ICR::ARLOCF::set();
 	}
 
-	static inline DrvStatus checkErrorStatus() {
+	static inline I2CPollStatus checkErrorStatus() {
 		if (I2Cx::_ISR::NACKF::is_set()) {
 			I2Cx::_ICR::NACKCF::set();
-			return DrvStatus::Nack;
+			return I2CPollStatus::Nack;
 		}
 		if (I2Cx::_ISR::BERR::is_set() || I2Cx::_ISR::ARLO::is_set()) {
 			clearErrors();
-			return DrvStatus::Error;
+			return I2CPollStatus::Error;
 		}
-		return DrvStatus::Timeout;
+		return I2CPollStatus::Timeout;
 	}
 };
 
 
-// Eeprom47L16 (an I2C *device*, not a peripheral) moved to
-// drivers/devices/eeprom_47l16.hpp.
+template<typename I2Cx>
+struct Eeprom47L16 {
+
+	static constexpr uint8_t I2C_ADDR = 0x56;
+	static constexpr uint32_t WRITE_DELAY = 1000; // polling delay
+
+	/* Write bytes to EEPROM */
+	static bool write(uint16_t memAddr, const uint8_t* data, size_t len) {
+
+		uint8_t buf[2 + len];
+
+		buf[0] = static_cast<uint8_t>(memAddr >> 8);
+		buf[1] = static_cast<uint8_t>(memAddr & 0xFF);
+
+		for (size_t i = 0; i < len; ++i)
+			buf[2 + i] = data[i];
+
+		auto st = I2CHandle<I2Cx>::write(
+			I2C_ADDR,
+			buf,
+			2 + len,
+			false,
+			700
+		);
+
+		if (st != I2CPollStatus::Success)
+			return false;
+
+		/* EEPROM write cycle time (ACK polling could be added later) */
+		delay_ms(WRITE_DELAY);
+		return true;
+	}
+
+	/* Read bytes from EEPROM */
+	static bool read(uint16_t memAddr, uint8_t* data, size_t len) {
+		uint8_t addr[2] = {
+			static_cast<uint8_t>(memAddr >> 8),
+			static_cast<uint8_t>(memAddr & 0xFF)
+		};
+
+		/* Set memory address */
+		auto st = I2CHandle<I2Cx>::write(
+			I2C_ADDR,
+			addr,
+			2
+		);
+		if (st != I2CPollStatus::Success)
+			return false;
+
+		/* Read data */
+		st = I2CHandle<I2Cx>::read(
+			I2C_ADDR,
+			data,
+			len,
+			false,
+			1000
+		);
+
+		return (st == I2CPollStatus::Success);
+	}
+};

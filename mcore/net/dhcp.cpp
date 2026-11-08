@@ -179,15 +179,15 @@ void dhcp_apply_ack(const uint8_t *bootp, const uint8_t *opts, uint16_t opts_len
 
 	c.lease_time = DHCP_DEFAULT_LEASE_S;
 	if ((v = find_option(opts, opts_len, 51, &olen)) != nullptr && olen == 4) {
-		c.lease_time = BuffU8ToU32(v);
+		c.lease_time = BuffU8ToU32(const_cast<uint8_t*>(v));
 	}
 	c.t1 = c.lease_time / 2;
 	if ((v = find_option(opts, opts_len, 58, &olen)) != nullptr && olen == 4) {
-		c.t1 = BuffU8ToU32(v);
+		c.t1 = BuffU8ToU32(const_cast<uint8_t*>(v));
 	}
 	c.t2 = c.lease_time - c.lease_time / 8;        // 87.5%
 	if ((v = find_option(opts, opts_len, 59, &olen)) != nullptr && olen == 4) {
-		c.t2 = BuffU8ToU32(v);
+		c.t2 = BuffU8ToU32(const_cast<uint8_t*>(v));
 	}
 	if ((v = find_option(opts, opts_len, 1, &olen)) != nullptr && olen == 4) {
 		memcpy(c.mask, v, 4);
@@ -221,7 +221,7 @@ void dhcp_apply_ack(const uint8_t *bootp, const uint8_t *opts, uint16_t opts_len
 
 } // namespace
 
-void NET_DHCP_Start() {
+void NET_DHCP_Start(void) {
 	memset(&dhcp_client, 0, sizeof(dhcp_client));
 	memcpy(dhcp_client.static_ip, IP_ADDR, IP_ADDR_LEN);
 	memcpy(dhcp_client.static_mask, NET_NETMASK, IP_ADDR_LEN);
@@ -244,13 +244,13 @@ void NET_DHCP_ProcessRx(ipv4_frame *frame) {
 	if (bootp[0] != 2) {
 		return;
 	}
-	if (BuffU8ToU32(&bootp[4]) != c.xid) {
+	if (BuffU8ToU32(const_cast<uint8_t*>(&bootp[4])) != c.xid) {
 		return;
 	}
 	if (memcmp(&bootp[28], MAC_ADDR, MAC_ADDR_LEN) != 0) {
 		return;
 	}
-	if (BuffU8ToU32(&bootp[BOOTP_HDR_LEN]) != DHCP_MAGIC_COOKIE) {
+	if (BuffU8ToU32(const_cast<uint8_t*>(&bootp[BOOTP_HDR_LEN])) != DHCP_MAGIC_COOKIE) {
 		return;
 	}
 
@@ -296,7 +296,7 @@ void NET_DHCP_ProcessRx(ipv4_frame *frame) {
 	}
 }
 
-void NET_DHCP_Poll() {
+void NET_DHCP_Poll(void) {
 	dhcp_client_t &c = dhcp_client;
 	const uint32_t now = get_tick();
 

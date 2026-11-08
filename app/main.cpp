@@ -46,22 +46,14 @@ using ADC3_IRQ = IRQn_Type::ADC_IRQn;
 
 bool states[inputs::group::count];
 
-// ADC ISR (producer) -> main loop (consumer) over a lock-free SPSC queue.
-struct AdcSample { uint8_t channel; uint16_t value; };
-spsc::RingBuffer<AdcSample, 16> adc_queue;
-uint16_t adc_latest[2] = { 0, 0 };  // last value per rank, drained in the loop
-uint8_t adc_idx = 0;                 // ISR-owned scan position (rank 0 / 1)
+uint32_t adc3_ch[2];
+uint8_t adc_idx = 0;
 uint8_t hue = 0;
-UartStatus UART_sTATUS;
 uint8_t rx_usart6_buf[100];
 uint8_t rx_usart2_buf[100];
 
 DmaHandle<DmaStream::DMA2_Stream_1> usart6_rx;
 DmaHandle<DmaStream::DMA2_Stream_7> usart6_tx;
-
-// Completed USART6 DMA-TX transfers, incremented from the DMA ISR via the
-// on_complete callback (observable via debugger). Demonstrates event-driven DMA.
-std::atomic<uint32_t> usart6_tx_count{ 0 };
 
 DmaHandle<DmaStream::DMA1_Stream_5> usart2_rx;
 DmaHandle<DmaStream::DMA1_Stream_6> usart2_tx;
@@ -80,7 +72,7 @@ uint8_t tx[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
 uint8_t rx[4] = { 0 };
 namespace {
 // Local constants
-constexpr uint32_t TCP_SEND_INTERVAL_MS = 500;
+constexpr uint32_t TCP_SEND_INTERVAL_MS = 5000;
 constexpr uint32_t TCP_TIMER_INTERVAL_MS = 100;
 constexpr uint32_t SNAKE_TIMER_INTERVAL_MS = 400;
 constexpr uint8_t TEST_CLIENT_INDEX = 9;  // Specific client for testing
@@ -106,14 +98,16 @@ void tim_init();
 void adc_init();
 void dma_init();
 void inputs_update();
+#if defined(MCORE_DUAL_CORE)
+void run_tasks();
+#endif
+void led_step();
+void snake_step();
 }
 
 int main() {
-	//SystemInit(); startup_stm32f767zitx.s calls SystemInit() before main() is entered, so no need to call it here.
-
-	uint32_t init_cycles;
-	{
-		prof::ScopeCycles _timer{&init_cycles};  // elapsed written on scope exit
+	SystemInit();
+	const uint32_t start = DWT::_CYCCNT::read();
 
 	RCC_Init();
 	MPU_Config();
@@ -127,6 +121,12 @@ int main() {
 	NVIC_API::EnableIRQGlobal();
 	adc_init();
 	dma_init();
+#if defined(MCORE_DUAL_CORE)
+	// Clocks, GPIO (Ethernet pins included) and the shared memory are ready:
+	// let the Cortex-M4 start its network application.
+	ipc_app::init_shared();
+	hsem::release_cm4();
+#else
 	if (ETH_Init() != ETH_Status::OK) {
 		Error_Handler();
 	}
@@ -134,6 +134,7 @@ int main() {
 	NET_TCP_Init();
 	NET_TCP_Listen(TCP_LISTEN_PORT);
 	NET_DHCP_Start();  // falls back to the static IP if no server answers
+#endif
 	UartHandle<USART2>::UartRxDMA<usart2_rx>(rx_usart2_buf,sizeof(rx_usart2_buf));
 	UartHandle<USART6>::UartRxDMA<usart6_rx>(rx_usart6_buf,sizeof(rx_usart6_buf));
 
@@ -146,79 +147,51 @@ int main() {
 	i2cstat &= Eeprom47L16<I2C1>::read(0x0010, rx, sizeof(rx));
 
 	/* Verify */
-	if (memcmp(tx, rx, sizeof(tx)) == 0 && i2cstat) {
-		// Data matches
+	if (i2cstat && rx[0] == 0xDE && rx[1] == 0xAD && rx[2] == 0xBE
+			&& rx[3] == 0xEF) {
+		// EEPROM OK
 	} else {
-		// Data does not match
-		Error_Handler();
+		// error
+		//	Error_Handler();
 	}
 
+#if defined(MCORE_DUAL_CORE)
+	run_tasks();                // never returns: the scheduler runs everything
+#else
 	// Main loop
 	uint32_t tcp_send_tick = get_tick();
 	uint32_t tcp_timer_tick = get_tick();
 	uint32_t snake_timer_tick = get_tick();
-	size_t i_snake = 0;
-	bool snake_flag = true;
 
 	while (true) {
 		ETH_RxWorker();
 		inputs_update();
-		// Send test data periodically
+		// Send test data to the TCP test client periodically
 		if ((get_tick() - tcp_send_tick) >= 500) {
 			tcp_send_tick = get_tick();
-			if(1){
-				UART_sTATUS = UartHandle<USART2>::sendBuffer(txData2,sizeof(txData2));
-				UartHandle<USART6>::sendBuffer(txData1,sizeof(txData1));
-			}
 			if (tcp_clients[TEST_CLIENT_INDEX].state == tcp_state_t::TCP_ESTABLISHED) {
 				NET_TCP_SendUser(&tcp_clients[TEST_CLIENT_INDEX], test_data,sizeof(test_data));
 			}
-
 		}
 
-		// Run TCP/DHCP timers
+		// Run TCP/DHCP timers (+ LED strip animation)
 		if ((get_tick() - tcp_timer_tick) >= TCP_TIMER_INTERVAL_MS) {
 			NET_TCP_Timers();
 			NET_DHCP_Poll();
 			tcp_timer_tick = get_tick();
-			hue += 12;
-			LedStrip1::fill_rgb_gradient(hue);
-			LedStrip2::fill_rgb_gradient(hue);
-			LedStrip1::show();
-			LedStrip2::show();
-
+			led_step();
 		}
 		if ((get_tick() - snake_timer_tick) >= SNAKE_TIMER_INTERVAL_MS) {
 			snake_timer_tick = get_tick();
-
-			if (usart6_tx.state == DmaState::READY) {
-				UartHandle<USART6>::UartTxDMA<usart6_tx>(txData1,
-						sizeof(txData1));
-			}
-
-			if (snake_flag) // движение вперёд
-			{
-				if (i_snake < outputs::group::count) {
-					outputs::group::set_table[i_snake++]();
-				} else {
-					snake_flag = false;
-				}
-			} else // движение назад
-			{
-				if (i_snake > 0) {
-					outputs::group::reset_table[--i_snake]();
-				} else if (i_snake == 0) {
-					outputs::group::reset_table[i_snake]();
-					snake_flag = true;
-				}
-			}
+			snake_step();
 		}
 	}
+#endif
 }
 
 namespace {
 void dma_init() {
-	constexpr const DmaHwConfig cfg_dma1_s5 = { .Channel = DmaChannel::CHNL_4,
+	constexpr const DmaHwConfig cfg_dma1_s5 = { MCORE_DMA_ROUTE(CHNL_4, USART2_RX),
 			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
 			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
@@ -240,14 +213,14 @@ void dma_init() {
 	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream6_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream6_IRQn>();
 
-	constexpr const DmaHwConfig cfg_dma2_s1 = { .Channel = DmaChannel::CHNL_5,
+	constexpr const DmaHwConfig cfg_dma2_s1 = { MCORE_DMA_ROUTE(CHNL_5, USART6_RX),
 			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
 			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
 			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
-	constexpr const DmaHwConfig cfg_dma2_s7 = { .Channel = DmaChannel::CHNL_5,
+	constexpr const DmaHwConfig cfg_dma2_s7 = { MCORE_DMA_ROUTE(CHNL_5, USART6_TX),
 			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
 			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
@@ -262,31 +235,39 @@ void dma_init() {
 	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream7_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream7_IRQn>();
 
-	constexpr const DmaHwConfig cfg_dma2_s2_3 = { .Channel = DmaChannel::CHNL_6,
+	// F7: DMA2 stream 3 / stream 2, channel 6 = TIM1_CH1 / TIM1_CH2
+	constexpr const DmaHwConfig cfg_dma2_s3 = { MCORE_DMA_ROUTE(CHNL_6, TIM1_CH1),
 			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::HALFWORD,
 			.MemDataAlignment = DmaDataAlign::HALFWORD, .Mode = DmaMode::NORMAL,
 			.Priority = DmaPrior::VERY_HIGH, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
-	DMA_Config<tim1_ch1, cfg_dma2_s2_3>();
+	constexpr const DmaHwConfig cfg_dma2_s2 = { MCORE_DMA_ROUTE(CHNL_6, TIM1_CH2),
+			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
+			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::HALFWORD,
+			.MemDataAlignment = DmaDataAlign::HALFWORD, .Mode = DmaMode::NORMAL,
+			.Priority = DmaPrior::VERY_HIGH, .FIFOModeEnable = true,
+			.FIFOThreshold = DmaThrhold::FULL };
+
+	DMA_Config<tim1_ch1, cfg_dma2_s3>();
 	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream3_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream3_IRQn>();
 
-	DMA_Config<tim1_ch2, cfg_dma2_s2_3>();
+	DMA_Config<tim1_ch2, cfg_dma2_s2>();
 	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream2_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream2_IRQn>();
 
 
 
-	constexpr const DmaHwConfig cfg_dma1_s0 = { .Channel = DmaChannel::CHNL_1,
+	constexpr const DmaHwConfig cfg_dma1_s0 = { MCORE_DMA_ROUTE(CHNL_1, I2C1_RX),
 			.Direction = DmaDir::PERIPH_TO_MEM, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
 			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::NORMAL,
 			.Priority = DmaPrior::MEDIUM, .FIFOModeEnable = true,
 			.FIFOThreshold = DmaThrhold::FULL };
 
-	constexpr const DmaHwConfig cfg_dma1_s7 = { .Channel = DmaChannel::CHNL_1,
+	constexpr const DmaHwConfig cfg_dma1_s7 = { MCORE_DMA_ROUTE(CHNL_1, I2C1_TX),
 			.Direction = DmaDir::MEM_TO_PERIPH, .PeriphIncEnable = false,
 			.MemIncEnable = true, .PeriphDataAlignment = DmaDataAlign::BYTE,
 			.MemDataAlignment = DmaDataAlign::BYTE, .Mode = DmaMode::CIRCULAR,
@@ -297,36 +278,10 @@ void dma_init() {
 	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream0_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream0_IRQn>();
 
-	DMA_Config<usart2_rx, cfg_dma1_s5>();
-	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream5_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream5_IRQn>();
-
-	DMA_Config<usart2_tx, cfg_dma1_s6>();
-	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream6_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream6_IRQn>();
-
-	// BUGFIX: was DMA_Config<i2c1_rx, ...> — the TX config (MEM_TO_PERIPH,
-	// stream 7) was applied to the RX handle a second time, and i2c1_tx was
-	// never configured (the second call also failed: state != RESET).
-	DMA_Config<i2c1_tx, cfg_dma1_s7>();
+	DMA_Config<i2c1_rx, cfg_dma1_s7>();
 	NVIC_API::SetPriority<IRQn_Type::DMA1_Stream7_IRQn, 0>();
 	NVIC_API::EnableIRQ<IRQn_Type::DMA1_Stream7_IRQn>();
 
-	DMA_Config<usart6_rx, cfg_dma2_s1>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream1_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream1_IRQn>();
-
-	DMA_Config<tim1_ch1, cfg_dma2_s2>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream3_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream3_IRQn>();
-
-	DMA_Config<tim1_ch2, cfg_dma2_s2>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream2_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream2_IRQn>();
-
-	DMA_Config<usart6_tx, cfg_dma2_s7>();
-	NVIC_API::SetPriority<IRQn_Type::DMA2_Stream7_IRQn, 0>();
-	NVIC_API::EnableIRQ<IRQn_Type::DMA2_Stream7_IRQn>();
 }
 
 void adc_init() {
@@ -367,7 +322,7 @@ void tim_init() {
 	constexpr const TimOCConfig cfgOC = { .OCMode = TimOCMode::PWM1,
 			.OCPolarity = TimOCPol::NONE, .OCNPolarity = TimOCPol::NONE,
 			.OCIdleState = TimIdleState::NONE, .OCNIdleState =
-			TimIdleState::NONE, .Pulse = 80, .OC_PreloadEnable = true };
+					TimIdleState::NONE, .Pulse = 80, .OC_PreloadEnable = true };
 
 	TIM_BaseConfig<TIM1, cfg>();
 	TIM_BaseConfig<TIM4, cfg2>();
@@ -402,20 +357,20 @@ void tim_init() {
 // 		.FifoPriority = false
 // 	};
 
-// 	DrvStatus status = CAN_Init<CAN1, cfg>();
-// 	if (status != DrvStatus::Ok) {
+// 	CANStatus status = CAN_Init<CAN1, cfg>();
+// 	if (status != CANStatus::Success) {
 // 		Error_Handler(); // Handle initialization error
 // 	}
 // }
 
 void i2c_init() {
-	constexpr const I2CHwConfig cfg = { .Timing = 0x20404768, // Timing value for 400kHz I2C speed with 54MHz PCLK1
+	constexpr const I2CHwConfig cfg = { .Timing = chip::I2C1_TIMING, // 400 kHz
 			.OwnAddres1 = 0x52,   // Example own address
 			.OwnAddres2 = 0x4,   // Example own address
 			.EnAnalogFilter = true };
 
-	DrvStatus status = I2C_Init<I2C1, cfg>();
-	if (status != DrvStatus::Ok) {
+	I2CStatus status = I2C_Init<I2C1, cfg>();
+	if (status != I2CStatus::Success) {
 		Error_Handler(); // Handle initialization error
 	}
 }
@@ -429,8 +384,8 @@ void uart_init() {
 			.UseDMATx = true,
 			.EnableDE = true,
 			.DEPolarityHigh = false};
-	DrvStatus status = USART_Init<USART2, cfg>();
-	if (status != DrvStatus::Ok) Error_Handler();
+	USARTStatus status = USART_Init<USART2, cfg>();
+	if (status != USARTStatus::Success) Error_Handler();
 
 	constexpr const UartHwConfig cfg2 = {
 			.Baud = 115200,
@@ -438,7 +393,7 @@ void uart_init() {
 			.UseDMARx = true,
 			.UseDMATx = true };
 	status = USART_Init<USART6, cfg2>();
-	if (status != DrvStatus::Ok) Error_Handler();
+	if (status != USARTStatus::Success) Error_Handler();
 }
 
 void inputs_update() {
@@ -733,7 +688,7 @@ void GPIO_Init() {
 	temp_conf.otype = OType::PP;
 	temp_conf.speed = Speed::VeryHigh;
 	temp_conf.pull = Pull::None;
-	temp_conf.af = AF::AF9; // CAN1
+	temp_conf.af = AF::AF9; // CAN1 (F7 bxCAN) / FDCAN1 (H7)
 	can1::group::GPIO_ConfigGroupPin(temp_conf);
 
 	//USART6/LIDAR GPIO Configuration
@@ -741,7 +696,7 @@ void GPIO_Init() {
 	temp_conf.otype = OType::PP;
 	temp_conf.speed = Speed::VeryHigh;
 	temp_conf.pull = Pull::None;
-	temp_conf.af = AF::AF8; // usart6
+	temp_conf.af = chip::USART_6_AF; // usart6
 	usart6::group::GPIO_ConfigGroupPin(temp_conf);
 
 	//TIM/LED DATA/PWM GPIO Configuration
@@ -773,9 +728,46 @@ void GPIO_Init() {
 }
 }
 
-extern "C" void ADC_IRQHandler() {
-	if (ADC3::_SR::EOC::is_set()) {
-		adc3_ch[adc_idx++] = ADC3::_DR::DATA::read();
+#if defined(MCORE_DUAL_CORE)
+// Tasks run on otherwise unused vectors (peripherals not used on this board)
+sched::TaskQ<1> control_task("control", PRIO_CONTROL, IRQn_Type::SPDIF_RX_IRQn::irq_number, control_handler);
+sched::TaskQ<1> leds_task("leds", PRIO_LEDS, IRQn_Type::CEC_IRQn::irq_number, leds_handler);
+MCORE_SCHED_VECTOR(SPDIF_RX_IRQHandler, control_task)
+MCORE_SCHED_VECTOR(CEC_IRQHandler, leds_task)
+sched::TimeEvent control_tick(control_task, SIG_TICK);
+sched::TimeEvent led_tick(leds_task, SIG_LED);
+sched::TimeEvent snake_tick(leds_task, SIG_SNAKE);
+
+// Doorbell from the Cortex-M4: commands were pushed
+extern "C" void HSEM1_IRQHandler() {
+	hsem::clear(hsem::pending_masked());
+	control_task.raise(SIG_CMD);
+}
+
+namespace {
+void run_tasks() {
+	motion.init(on_node_reached, on_action_done, nullptr);
+	hsem::clear(hsem::mask(ipc_app::CMD_SEM));
+	hsem::irq_enable(hsem::mask(ipc_app::CMD_SEM));
+	NVIC_API::SetPriority<IRQn_Type::HSEM1_IRQn, 5>();
+	NVIC_API::EnableIRQ<IRQn_Type::HSEM1_IRQn>();
+
+	control_tick.arm(1, 1);
+	led_tick.arm(TCP_TIMER_INTERVAL_MS, TCP_TIMER_INTERVAL_MS);
+	snake_tick.arm(SNAKE_TIMER_INTERVAL_MS, SNAKE_TIMER_INTERVAL_MS);
+	if (!sched::start()) {
+		Error_Handler();
+	}
+	for (;;) {
+		sched::idle();
+	}
+}
+} // namespace
+#endif
+
+extern "C" void ADC3_IRQ_HANDLER() {
+	if (ADC_Ready<ADC3>()) {
+		adc3_ch[adc_idx++] = ADC_Read<ADC3>();
 		if (adc_idx > 1)
 			adc_idx = 0;
 	}
@@ -802,6 +794,12 @@ extern "C" void DMA2_Stream4_IRQHandler() {}
 extern "C" void DMA2_Stream5_IRQHandler() {}
 extern "C" void DMA2_Stream6_IRQHandler() {}
 extern "C" void DMA2_Stream7_IRQHandler() {DMA_IRQHandler<usart6_tx>();}
+
+
+
+
+
+
 
 
 extern "C" void TIM1_CC_IRQHandler() {
