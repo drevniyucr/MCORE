@@ -323,6 +323,26 @@ tests/               host-side unit tests: network stack, ipc, MQTT, TLS
 CMakeLists.txt       cross-build (arm-none-eabi)
 ```
 
+## Portability layers
+
+The framework separates generic code from device- and board-specific code:
+
+- **Generic (MCU-agnostic):** `core/utils.hpp` (`Register`/`Field`),
+  `atomic.hpp`, `scheduler.hpp`, `ring_buffer.hpp`, `profile.hpp`, the driver
+  *templates*, and the network stack. These depend only on register/peripheral
+  symbols, never on a specific part number.
+- **Device seam (`core/device.hpp`):** the single place that binds the framework
+  to a concrete register map. Defaults to STM32F767 (`core/regs.hpp`). Porting to
+  another MCU = add an `#elif` branch for its generated map and build with
+  `-DMCORE_DEVICE_<part>`; no other framework file changes.
+- **Config contract (`core/mcore_config.hpp`):** declares the oscillator/clock
+  values the framework consumes (`HSE_VALUE`, `HSI_VALUE`, `LSE_VALUE`,
+  `LSI_VALUE`) with defaults. It pulls the application's `config.hpp` if present
+  (board MAC/PHY, custom crystal, overrides) and fills in the rest — so the
+  framework also compiles standalone (e.g. host unit tests, where `app/` is not
+  on the include path).
+- **Board/app:** `app/board.hpp` (pin maps) and `app/config.hpp` (HSE/MAC/PHY).
+
 ## Build
 
 Requirements: `arm-none-eabi-gcc` (C++20), CMake ≥ 3.21, Ninja.
@@ -421,6 +441,13 @@ Measured on the NUCLEO-H755ZI-Q (Cortex-M4 at 200 MHz):
 | Wall clock after drift correction | within ~20 ms of the PC |
 
 ## Regenerating the register layer
+
+> **Note:** `mcore/core/regs.hpp` is the maintained source of truth. The register
+> generator was used to bootstrap it and has since drifted (its raw output uses
+> `namespace`s instead of peripheral structs, lacks the host-build guards, and
+> misses hand-applied access-mode fixes). Its output is git-ignored and must not
+> be copied over `regs.hpp` as-is — refresh the generator first if you intend to
+> regenerate. Edit `mcore/core/regs.hpp` directly for now.
 
 ```sh
 cd codegen/registers

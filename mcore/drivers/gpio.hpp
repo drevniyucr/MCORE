@@ -9,6 +9,8 @@
 #include "core/def.hpp"
 #include "core/system.hpp"
 #include <stddef.h>
+#include <utility>
+#include <type_traits>
 
 // Режим работы пина (MODER)
 enum class Mode : uint8_t {
@@ -67,76 +69,119 @@ struct GPIO_Config {
 	AF af;            // Альтернативная функция
 };
 
-template<typename Pin>
-void GPIO_ConfigPin(GPIO_Config &cfg) {
+namespace gpio_detail {
 
-	using Port = typename Pin::port_type;
-	uint32_t pos = Pin::num * 2;
-	uint32_t temp = 0x00;
+// Nth type in a pack, без зависимости от <tuple>.
+template<size_t I, typename First, typename... Rest>
+struct type_at : type_at<I - 1, Rest...> {};
+template<typename First, typename... Rest>
+struct type_at<0, First, Rest...> { using type = First; };
+template<size_t I, typename... Ts>
+using type_at_t = typename type_at<I, Ts...>::type;
 
-	// --- MODER ---
-	temp = Port::_MODER::read();
-	temp &= ~(3U << pos);
-	temp |= (static_cast<uint32_t>(cfg.mode) << pos);
-	Port::_MODER::overwrite(temp);
+// Ширины полей регистров GPIO.
+inline constexpr uint32_t AF_MASK   = 0xFu;  // AFRL/AFRH: 4 бита на пин
+inline constexpr uint32_t MODE_MASK = 0x3u;  // MODER/OSPEEDR/PUPDR: 2 бита на пин
 
-	// --- OTYPER ---
-	temp = Port::_OTYPER::read();
-	temp &= ~(1U << Pin::num);
-	temp |= (static_cast<uint32_t>(cfg.otype) << Pin::num);
-	Port::_OTYPER::overwrite(temp);
+// Накопленные маски (clear|set) для одного порта: по одному RMW на регистр.
+struct PortMasks {
+	uint32_t moder_clr = 0,  moder_set = 0;
+	uint32_t otyper_clr = 0, otyper_set = 0;
+	uint32_t ospeed_clr = 0, ospeed_set = 0;
+	uint32_t pupdr_clr = 0,  pupdr_set = 0;
+	uint32_t afrl_clr = 0,   afrl_set = 0;
+	uint32_t afrh_clr = 0,   afrh_set = 0;
+};
 
-	// --- OSPEEDR ---
-	temp = Port::_OSPEEDR::read();
-	temp &= ~(3U << pos);
-	temp |= (static_cast<uint32_t>(cfg.speed) << pos);
-	Port::_OSPEEDR::overwrite(temp);
-
-	// --- PUPDR ---
-	temp = Port::_PUPDR::read();
-	temp &= ~(3U << pos);
-	temp |= (static_cast<uint32_t>(cfg.pull) << pos);
-	Port::_PUPDR::overwrite(temp);
-
-	// --- AFR (если выбран Alternate Function) ---
+// Вклад одного пина (num — номер в пределах порта) в маски. Всё на compile-time.
+constexpr void add_pin(PortMasks &m, uint32_t num, const GPIO_Config &cfg) {
+	const uint32_t p2 = num * 2;
+	m.moder_clr  |= MODE_MASK << p2;  m.moder_set  |= static_cast<uint32_t>(cfg.mode)  << p2;
+	m.otyper_clr |= 1u << num;        m.otyper_set |= static_cast<uint32_t>(cfg.otype) << num;
+	m.ospeed_clr |= MODE_MASK << p2;  m.ospeed_set |= static_cast<uint32_t>(cfg.speed) << p2;
+	m.pupdr_clr  |= MODE_MASK << p2;  m.pupdr_set  |= static_cast<uint32_t>(cfg.pull)  << p2;
 	if (cfg.mode == Mode::Alt) {
-		if (Pin::num < 8) {
-			temp = Port::_AFRL::read();
-			temp &= ~(0xFU << (Pin::num * 4));
-			temp |= ((static_cast<uint32_t>(cfg.af) & 0xFU)
-					<< (static_cast<uint32_t>(Pin::num) * 4));
-			Port::_AFRL::overwrite(temp);
-		} else {
-			temp = Port::_AFRH::read();
-			temp &= ~(0xFU << ((Pin::num - 8) * 4));
-			temp |= ((static_cast<uint32_t>(cfg.af) & 0xFU)
-					<< ((static_cast<uint32_t>(Pin::num) - 8) * 4));
-			Port::_AFRH::overwrite(temp);
-		}
+		const uint32_t af = static_cast<uint32_t>(cfg.af) & AF_MASK;
+		if (num < 8) { m.afrl_clr |= AF_MASK << (num * 4);       m.afrl_set |= af << (num * 4); }
+		else         { m.afrh_clr |= AF_MASK << ((num - 8) * 4); m.afrh_set |= af << ((num - 8) * 4); }
 	}
 }
+
+} // namespace gpio_detail
+
 template<typename ... Pins>
 struct PinGroup {
 
 	using Action = void(*)();
 	static constexpr size_t count = sizeof...(Pins);
 
-	// Массив функций set
-	static constexpr Action set_table[count] = { &Pins::set... };
-
-	// Массив функций reset
+	// Таблицы указателей set/reset (используются приложением, поведение прежнее).
+	static constexpr Action set_table[count]   = { &Pins::set... };
 	static constexpr Action reset_table[count] = { &Pins::reset... };
 
-	template<size_t ... Is>
-//    static void read_all_impl(bool* states, std::index_sequence<Is...>) {
-//        ((states[Is] = Pins::read()), ...);
-//    }
 	static void read_all(bool *states) {
 		size_t i = 0;
 		((states[i++] = Pins::read()), ...);
 	}
-	inline static void GPIO_ConfigGroupPin(GPIO_Config &cfg) {
-		(GPIO_ConfigPin<Pins>(cfg),...);
+
+	// Compile-time конфигурация группы: одна RMW-запись на порт на регистр.
+	// cfg передаётся как non-type template parameter → все маски сворачиваются в константы.
+	template<GPIO_Config Cfg>
+	static void configure() {
+		apply<Cfg>(std::make_index_sequence<count>{});
+	}
+
+private:
+	template<GPIO_Config Cfg, size_t... Is>
+	static void apply(std::index_sequence<Is...>) {
+		// Порт конфигурируется ровно один раз — на первом пине этого порта в пакете.
+		(write_if_first<Cfg, Is>(), ...);
+	}
+
+	template<GPIO_Config Cfg, size_t I>
+	static void write_if_first() {
+		using Port = typename gpio_detail::type_at_t<I, Pins...>::port_type;
+		if constexpr (is_first_of_port<I, Port>())
+			write_port<Cfg, Port>();
+	}
+
+	// true, если ни один пин с индексом < I не принадлежит порту Port.
+	template<size_t I, typename Port>
+	static consteval bool is_first_of_port() {
+		return is_first_impl<I, Port>(std::make_index_sequence<count>{});
+	}
+	template<size_t I, typename Port, size_t... Js>
+	static consteval bool is_first_impl(std::index_sequence<Js...>) {
+		return (... && !((Js < I) &&
+			std::is_same_v<typename gpio_detail::type_at_t<Js, Pins...>::port_type, Port>));
+	}
+
+	// Накопить маски по всем пинам порта Port.
+	template<GPIO_Config Cfg, typename Port, size_t... Is>
+	static consteval gpio_detail::PortMasks collect(std::index_sequence<Is...>) {
+		gpio_detail::PortMasks m{};
+		(add_if_on_port<Cfg, Port, Is>(m), ...);
+		return m;
+	}
+	template<GPIO_Config Cfg, typename Port, size_t I>
+	static consteval void add_if_on_port(gpio_detail::PortMasks &m) {
+		using PinI = gpio_detail::type_at_t<I, Pins...>;
+		if constexpr (std::is_same_v<typename PinI::port_type, Port>)
+			gpio_detail::add_pin(m, PinI::num, Cfg);
+	}
+
+	template<GPIO_Config Cfg, typename Port>
+	static void write_port() {
+		constexpr gpio_detail::PortMasks m =
+			collect<Cfg, Port>(std::make_index_sequence<count>{});
+		Port::_MODER::overwrite((Port::_MODER::read()   & ~m.moder_clr)  | m.moder_set);
+		Port::_OTYPER::overwrite((Port::_OTYPER::read()  & ~m.otyper_clr) | m.otyper_set);
+		Port::_OSPEEDR::overwrite((Port::_OSPEEDR::read() & ~m.ospeed_clr) | m.ospeed_set);
+		Port::_PUPDR::overwrite((Port::_PUPDR::read()   & ~m.pupdr_clr)  | m.pupdr_set);
+		if constexpr (m.afrl_clr != 0)
+			Port::_AFRL::overwrite((Port::_AFRL::read() & ~m.afrl_clr) | m.afrl_set);
+		if constexpr (m.afrh_clr != 0)
+			Port::_AFRH::overwrite((Port::_AFRH::read() & ~m.afrh_clr) | m.afrh_set);
 	}
 };
 

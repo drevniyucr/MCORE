@@ -176,3 +176,44 @@ TEST_CASE("RX dispatch: runt and inconsistent frames are dropped") {
 	process_rx(frame, ETH_HDR_LEN + IP_HDR_LEN + 8, /*desc4=*/0);
 	CHECK(g_tx_frames.empty());
 }
+
+TEST_CASE("UDP send: frame is built correctly, checksum left to hardware") {
+	test_reset();
+
+	uint8_t payload[] = { 'p', 'i', 'n', 'g' };
+	UDP_SendFrameStruct req = {};
+	req.DstMAC = CLIENT_MAC;
+	req.DstIP = CLIENT_IP;
+	req.DstPort = 7777;
+	req.SrcPort = 5000;
+	req.pDataBuff = payload;
+	req.DataBuffLen = sizeof(payload);
+
+	NET_SendUDP(req);
+
+	REQUIRE(g_tx_frames.size() == 1);
+	const auto &tx = g_tx_frames[0].data;
+	REQUIRE(tx.size() == UDP_TEMPLATE_FRAME_LEN + sizeof(payload));
+
+	// Ethernet + IP addressing
+	CHECK(memcmp(&tx[0], CLIENT_MAC, MAC_ADDR_LEN) == 0);
+	CHECK(memcmp(&tx[6], MAC_ADDR, MAC_ADDR_LEN) == 0);
+	CHECK(memcmp(&tx[DST_ADDR_POS], CLIENT_IP, IP_ADDR_LEN) == 0);
+	CHECK(memcmp(&tx[SCR_ADDR_POS], IP_ADDR, IP_ADDR_LEN) == 0);
+
+	// IP total length
+	const uint16_t ip_total = static_cast<uint16_t>((tx[IP_HDR_POS + 2] << 8) | tx[IP_HDR_POS + 3]);
+	CHECK(ip_total == IP_HDR_LEN + UDP_HDR_LEN + sizeof(payload));
+
+	// UDP header + payload
+	const uint8_t *udp = &tx[UDP_HDR_POS];
+	CHECK(((udp[0] << 8) | udp[1]) == 5000);
+	CHECK(((udp[2] << 8) | udp[3]) == 7777);
+	CHECK(((udp[4] << 8) | udp[5]) == UDP_HDR_LEN + sizeof(payload));
+	CHECK(memcmp(&udp[UDP_HDR_LEN], payload, sizeof(payload)) == 0);
+
+	// Checksum contract: the field stays 0 - the MAC inserts UDP checksums
+	// in hardware (TX descriptors set CIC_TCPUDPICMP_FULL in ETH_SendFrame)
+	CHECK(udp[6] == 0);
+	CHECK(udp[7] == 0);
+}

@@ -510,3 +510,79 @@ TEST_CASE("TCP: connection table exhaustion answers SYN with RST|ACK") {
 	REQUIRE(g_tx_frames.size() == 1);
 	CHECK(captured_tcp(g_tx_frames[0])->flags == (TCP_RST | TCP_ACK));
 }
+
+TEST_CASE("TCP: FIN carrying data delivers the payload before closing") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+	g_tx_frames.clear();
+
+	// RFC 793: data on a FIN segment logically precedes the FIN
+	const uint8_t payload[] = { 'b', 'y', 'e' };
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1,
+			TCP_FIN | TCP_ACK | TCP_PSH, payload, sizeof(payload));
+
+	// The payload must not be lost
+	CHECK(NET_TCP_Available(conn) == sizeof(payload));
+	uint8_t out[8] = {};
+	CHECK(NET_TCP_Read(conn, out, sizeof(out)) == sizeof(payload));
+	CHECK(memcmp(out, payload, sizeof(payload)) == 0);
+
+	// FIN consumed one sequence number AFTER the data
+	CHECK(conn->rcv_next == CSEQ + 1 + sizeof(payload) + 1);
+	CHECK(conn->state == tcp_state_t::TCP_LAST_ACK);
+
+	// ACK covering data+FIN, then our FIN|ACK
+	REQUIRE(g_tx_frames.size() == 2);
+	const tcp_hdr_t *ack = captured_tcp(g_tx_frames[0]);
+	CHECK(ack->flags == TCP_ACK);
+	CHECK(bswap32(ack->ack_num) == CSEQ + 1 + sizeof(payload) + 1);
+	CHECK(captured_tcp(g_tx_frames[1])->flags == (TCP_FIN | TCP_ACK));
+}
+
+TEST_CASE("TCP: the ACK field of a FIN segment is processed (releases TX state)") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+
+	// Put data in flight so there is something for the FIN's ACK to cover
+	const uint8_t data[] = { 'p', 'i', 'n', 'g' };
+	REQUIRE(NET_TCP_SendUser(conn, data, sizeof(data)) == sizeof(data));
+	g_tx_frames.clear();
+
+	// Peer acks our data and closes in the same segment
+	inject_tcp(CPORT, SPORT, CSEQ + 1, TEST_ISN + 1 + sizeof(data),
+			TCP_FIN | TCP_ACK);
+
+	// snd_unack must have advanced over the acked data
+	CHECK(conn->snd_unack == TEST_ISN + 1 + sizeof(data));
+	CHECK(conn->state == tcp_state_t::TCP_LAST_ACK);
+	REQUIRE(g_tx_frames.size() == 2);   // ACK of the FIN + our FIN|ACK
+}
+
+TEST_CASE("TCP: FIN whose data does not fit is not acknowledged") {
+	setup();
+	tcp_conn_t *conn = do_handshake();
+	REQUIRE(conn != nullptr);
+
+	// Fill the RX ring completely (4 x 1280 = SOCKET_RX_BUFF_LEN)
+	static uint8_t chunk[1280] = {};
+	uint32_t seq = CSEQ + 1;
+	for (int i = 0; i < 4; i++) {
+		inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_ACK,
+				chunk, sizeof(chunk));
+		seq += sizeof(chunk);
+	}
+	REQUIRE(conn->rx_count == SOCKET_RX_BUFF_LEN);
+	g_tx_frames.clear();
+
+	// FIN with one byte of payload: nothing fits, so neither the byte nor
+	// the FIN may be consumed - the peer must retransmit both later
+	const uint8_t last[] = { 'z' };
+	inject_tcp(CPORT, SPORT, seq, TEST_ISN + 1, TCP_FIN | TCP_ACK,
+			last, sizeof(last));
+
+	CHECK(conn->state == tcp_state_t::TCP_ESTABLISHED);  // not closed
+	CHECK(conn->rcv_next == seq);                        // nothing consumed
+	CHECK(conn->rx_count == SOCKET_RX_BUFF_LEN);
+}
